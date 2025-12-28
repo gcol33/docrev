@@ -707,6 +707,139 @@ program
   });
 
 // ============================================================================
+// INSTALL command - Install dependencies (pandoc-crossref)
+// ============================================================================
+
+program
+  .command('install')
+  .description('Check and install dependencies (pandoc-crossref)')
+  .option('--check', 'Only check, don\'t install')
+  .action(async (options) => {
+    const os = await import('os');
+    const { execSync, spawn } = await import('child_process');
+    const platform = os.platform();
+
+    console.log(chalk.cyan('Checking dependencies...\n'));
+
+    // Check pandoc
+    let hasPandoc = false;
+    try {
+      const version = execSync('pandoc --version', { encoding: 'utf-8' }).split('\n')[0];
+      console.log(chalk.green(`  ✓ ${version}`));
+      hasPandoc = true;
+    } catch {
+      console.log(chalk.red('  ✗ pandoc not found'));
+    }
+
+    // Check pandoc-crossref
+    let hasCrossref = false;
+    try {
+      const version = execSync('pandoc-crossref --version', { encoding: 'utf-8' }).split('\n')[0];
+      console.log(chalk.green(`  ✓ pandoc-crossref ${version}`));
+      hasCrossref = true;
+    } catch {
+      console.log(chalk.yellow('  ✗ pandoc-crossref not found'));
+    }
+
+    // Check mammoth (Node dep - should always be there)
+    try {
+      await import('mammoth');
+      console.log(chalk.green('  ✓ mammoth (Word parsing)'));
+    } catch {
+      console.log(chalk.red('  ✗ mammoth not found - run: npm install'));
+    }
+
+    console.log('');
+
+    if (hasPandoc && hasCrossref) {
+      console.log(chalk.green('All dependencies installed!'));
+      return;
+    }
+
+    if (options.check) {
+      if (!hasCrossref) {
+        console.log(chalk.yellow('pandoc-crossref is optional but recommended for @fig: references.'));
+      }
+      return;
+    }
+
+    // Provide installation instructions
+    if (!hasPandoc || !hasCrossref) {
+      console.log(chalk.cyan('Installation options:\n'));
+
+      if (platform === 'darwin') {
+        // macOS
+        console.log(chalk.bold('macOS (Homebrew):'));
+        if (!hasPandoc) console.log(chalk.dim('  brew install pandoc'));
+        if (!hasCrossref) console.log(chalk.dim('  brew install pandoc-crossref'));
+        console.log('');
+      } else if (platform === 'win32') {
+        // Windows
+        console.log(chalk.bold('Windows (Chocolatey):'));
+        if (!hasPandoc) console.log(chalk.dim('  choco install pandoc'));
+        if (!hasCrossref) console.log(chalk.dim('  choco install pandoc-crossref'));
+        console.log('');
+        console.log(chalk.bold('Windows (Scoop):'));
+        if (!hasPandoc) console.log(chalk.dim('  scoop install pandoc'));
+        if (!hasCrossref) console.log(chalk.dim('  scoop install pandoc-crossref'));
+        console.log('');
+      } else {
+        // Linux
+        console.log(chalk.bold('Linux (apt):'));
+        if (!hasPandoc) console.log(chalk.dim('  sudo apt install pandoc'));
+        console.log('');
+      }
+
+      // Cross-platform conda option
+      console.log(chalk.bold('Cross-platform (conda):'));
+      if (!hasPandoc) console.log(chalk.dim('  conda install -c conda-forge pandoc'));
+      if (!hasCrossref) console.log(chalk.dim('  conda install -c conda-forge pandoc-crossref'));
+      console.log('');
+
+      // Manual download
+      if (!hasCrossref) {
+        console.log(chalk.bold('Manual download:'));
+        console.log(chalk.dim('  https://github.com/lierdakil/pandoc-crossref/releases'));
+        console.log('');
+      }
+
+      // Ask to auto-install via conda if available
+      try {
+        execSync('conda --version', { encoding: 'utf-8', stdio: 'pipe' });
+        console.log(chalk.cyan('Conda detected. Install missing dependencies? [y/N] '));
+
+        const rl = (await import('readline')).createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        rl.question('', (answer) => {
+          rl.close();
+          if (answer.toLowerCase() === 'y') {
+            console.log(chalk.cyan('\nInstalling via conda...'));
+            try {
+              if (!hasPandoc) {
+                console.log(chalk.dim('  Installing pandoc...'));
+                execSync('conda install -y -c conda-forge pandoc', { stdio: 'inherit' });
+              }
+              if (!hasCrossref) {
+                console.log(chalk.dim('  Installing pandoc-crossref...'));
+                execSync('conda install -y -c conda-forge pandoc-crossref', { stdio: 'inherit' });
+              }
+              console.log(chalk.green('\nDone! Run "rev install --check" to verify.'));
+            } catch (err) {
+              console.log(chalk.red(`\nInstallation failed: ${err.message}`));
+              console.log(chalk.dim('Try installing manually with the commands above.'));
+            }
+          }
+        });
+      } catch {
+        // Conda not available
+      }
+    }
+  });
+
+// ============================================================================
 // HELP command - Comprehensive help
 // ============================================================================
 
