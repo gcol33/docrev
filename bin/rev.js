@@ -34,6 +34,15 @@ import {
   getRefStatus,
   formatRegistry,
 } from '../lib/crossref.js';
+import {
+  build,
+  loadConfig as loadBuildConfig,
+  hasPandoc,
+  hasPandocCrossref,
+  formatBuildResults,
+} from '../lib/build.js';
+import { getTemplate, listTemplates } from '../lib/templates.js';
+import { getUserName, setUserName, getConfigPath } from '../lib/config.js';
 
 program
   .name('rev')
@@ -174,22 +183,30 @@ program
   });
 
 // ============================================================================
-// IMPORT command - Import from Word with diff against original
+// IMPORT command - Import from Word (bootstrap or diff mode)
 // ============================================================================
 
 program
   .command('import')
-  .description('Import changes from Word by comparing against original Markdown')
-  .argument('<docx>', 'Word document from reviewer')
-  .argument('<original>', 'Original Markdown file to compare against')
-  .option('-o, --output <file>', 'Output file (default: overwrites original)')
-  .option('-a, --author <name>', 'Author name for changes', 'Reviewer')
-  .option('--dry-run', 'Show diff without saving')
+  .description('Import from Word: creates sections from scratch, or diffs against existing MD')
+  .argument('<docx>', 'Word document')
+  .argument('[original]', 'Optional: original Markdown file to compare against')
+  .option('-o, --output <dir>', 'Output directory for bootstrap mode', '.')
+  .option('-a, --author <name>', 'Author name for changes (diff mode)', 'Reviewer')
+  .option('--dry-run', 'Preview without saving')
   .action(async (docx, original, options) => {
     if (!fs.existsSync(docx)) {
       console.error(chalk.red(`Error: Word file not found: ${docx}`));
       process.exit(1);
     }
+
+    // If no original provided, bootstrap mode: create sections from Word
+    if (!original) {
+      await bootstrapFromWord(docx, options);
+      return;
+    }
+
+    // Diff mode: compare against original
     if (!fs.existsSync(original)) {
       console.error(chalk.red(`Error: Original MD not found: ${original}`));
       process.exit(1);
@@ -231,7 +248,7 @@ program
       console.log(chalk.cyan('\nNext steps:'));
       console.log(`  1. ${chalk.bold('rev review ' + outputPath)}  - Accept/reject track changes`);
       console.log(`  2. Work with Claude to address comments`);
-      console.log(`  3. ${chalk.bold('./build.sh docx')}  - Rebuild Word doc`);
+      console.log(`  3. ${chalk.bold('rev build docx')}  - Rebuild Word doc`);
 
     } catch (err) {
       console.error(chalk.red(`Error: ${err.message}`));
@@ -239,6 +256,245 @@ program
       process.exit(1);
     }
   });
+
+/**
+ * Bootstrap a new project from a Word document
+ * Creates section files and rev.yaml
+ */
+async function bootstrapFromWord(docx, options) {
+  const outputDir = path.resolve(options.output);
+
+  console.log(chalk.cyan(`Bootstrapping project from ${path.basename(docx)}...\n`));
+
+  try {
+    const mammoth = await import('mammoth');
+    const yaml = (await import('js-yaml')).default;
+
+    // Extract text from Word
+    const result = await mammoth.extractRawText({ path: docx });
+    const text = result.value;
+
+    // Detect sections by finding headers (lines that look like section titles)
+    const sections = detectSectionsFromWord(text);
+
+    if (sections.length === 0) {
+      console.error(chalk.yellow('No sections detected. Creating single content.md file.'));
+      sections.push({ header: 'Content', content: text, file: 'content.md' });
+    }
+
+    console.log(chalk.green(`Detected ${sections.length} section(s):\n`));
+
+    // Create output directory if needed
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+
+    // Write section files
+    const sectionFiles = [];
+    for (const section of sections) {
+      const filePath = path.join(outputDir, section.file);
+      const content = `# ${section.header}\n\n${section.content.trim()}\n`;
+
+      console.log(`  ${chalk.bold(section.file)} - "${section.header}" (${section.content.split('\n').length} lines)`);
+
+      if (!options.dryRun) {
+        fs.writeFileSync(filePath, content, 'utf-8');
+      }
+      sectionFiles.push(section.file);
+    }
+
+    // Extract title from first line or filename
+    const docxName = path.basename(docx, '.docx');
+    const title = docxName.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+    // Create rev.yaml
+    const config = {
+      title: title,
+      authors: [],
+      sections: sectionFiles,
+      bibliography: null,
+      crossref: {
+        figureTitle: 'Figure',
+        tableTitle: 'Table',
+        figPrefix: ['Fig.', 'Figs.'],
+        tblPrefix: ['Table', 'Tables'],
+      },
+      pdf: {
+        documentclass: 'article',
+        fontsize: '12pt',
+        geometry: 'margin=1in',
+        linestretch: 1.5,
+      },
+      docx: {
+        keepComments: true,
+      },
+    };
+
+    const configPath = path.join(outputDir, 'rev.yaml');
+    console.log(`\n  ${chalk.bold('rev.yaml')} - project configuration`);
+
+    if (!options.dryRun) {
+      fs.writeFileSync(configPath, yaml.dump(config), 'utf-8');
+    }
+
+    // Create figures directory
+    const figuresDir = path.join(outputDir, 'figures');
+    if (!fs.existsSync(figuresDir) && !options.dryRun) {
+      fs.mkdirSync(figuresDir, { recursive: true });
+      console.log(`  ${chalk.dim('figures/')} - image directory`);
+    }
+
+    if (options.dryRun) {
+      console.log(chalk.yellow('\n(Dry run - no files written)'));
+    } else {
+      console.log(chalk.green('\nProject created!'));
+      console.log(chalk.cyan('\nNext steps:'));
+      if (outputDir !== process.cwd()) {
+        console.log(chalk.dim(`  cd ${path.relative(process.cwd(), outputDir) || '.'}`));
+      }
+      console.log(chalk.dim('  # Edit rev.yaml to add authors and adjust settings'));
+      console.log(chalk.dim('  # Review and clean up section files'));
+      console.log(chalk.dim('  rev build          # Build PDF and DOCX'));
+    }
+  } catch (err) {
+    console.error(chalk.red(`Error: ${err.message}`));
+    if (process.env.DEBUG) console.error(err.stack);
+    process.exit(1);
+  }
+}
+
+/**
+ * Detect sections from Word document text
+ * Looks for common academic paper section headers
+ * Conservative: only detects well-known section names to avoid false positives
+ */
+function detectSectionsFromWord(text) {
+  const lines = text.split('\n');
+  const sections = [];
+
+  // Only detect well-known academic section headers (conservative)
+  const headerPatterns = [
+    /^(Abstract|Summary)$/i,
+    /^(Introduction|Background)$/i,
+    /^(Methods?|Materials?\s*(and|&)\s*Methods?|Methodology|Experimental\s*Methods?)$/i,
+    /^(Results?)$/i,
+    /^(Results?\s*(and|&)\s*Discussion)$/i,
+    /^(Discussion)$/i,
+    /^(Conclusions?|Summary\s*(and|&)?\s*Conclusions?)$/i,
+    /^(Acknowledgements?|Acknowledgments?)$/i,
+    /^(References|Bibliography|Literature\s*Cited|Works\s*Cited)$/i,
+    /^(Appendix|Appendices|Supplementary\s*(Materials?|Information)?|Supporting\s*Information)$/i,
+    /^(Literature\s*Review|Related\s*Work|Previous\s*Work)$/i,
+    /^(Study\s*Area|Study\s*Site|Site\s*Description)$/i,
+    /^(Data\s*Analysis|Statistical\s*Analysis|Data\s*Collection)$/i,
+    /^(Theoretical\s*Framework|Conceptual\s*Framework)$/i,
+    /^(Case\s*Study|Case\s*Studies)$/i,
+    /^(Limitations?)$/i,
+    /^(Future\s*Work|Future\s*Directions?)$/i,
+    /^(Funding|Author\s*Contributions?|Conflict\s*of\s*Interest|Data\s*Availability)$/i,
+  ];
+
+  // Numbered sections: "1. Introduction", "2. Methods", etc.
+  // Must have a number followed by a known section word
+  const numberedHeaderPattern = /^(\d+\.?\s+)(Abstract|Introduction|Background|Methods?|Materials|Results?|Discussion|Conclusions?|References|Acknowledgements?|Appendix)/i;
+
+  let currentSection = null;
+  let currentContent = [];
+  let preambleContent = []; // Content before first header (title, authors, etc.)
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      // Keep empty lines
+      if (currentSection) {
+        currentContent.push(line);
+      } else {
+        preambleContent.push(line);
+      }
+      continue;
+    }
+
+    // Check if this line is a section header
+    let isHeader = false;
+    let headerText = trimmed;
+
+    // Check against known patterns
+    for (const pattern of headerPatterns) {
+      if (pattern.test(trimmed)) {
+        isHeader = true;
+        break;
+      }
+    }
+
+    // Check numbered pattern (e.g., "1. Introduction")
+    if (!isHeader) {
+      const match = trimmed.match(numberedHeaderPattern);
+      if (match) {
+        isHeader = true;
+        // Remove the number prefix for the header text
+        headerText = trimmed.replace(/^\d+\.?\s+/, '');
+      }
+    }
+
+    if (isHeader) {
+      // Save previous section
+      if (currentSection) {
+        sections.push({
+          header: currentSection,
+          content: currentContent.join('\n'),
+          file: headerToFilename(currentSection),
+        });
+      } else if (preambleContent.some(l => l.trim())) {
+        // Save preamble as "preamble" section (title, authors, etc.)
+        sections.push({
+          header: 'Preamble',
+          content: preambleContent.join('\n'),
+          file: 'preamble.md',
+        });
+      }
+      currentSection = headerText;
+      currentContent = [];
+    } else if (currentSection) {
+      currentContent.push(line);
+    } else {
+      preambleContent.push(line);
+    }
+  }
+
+  // Save last section
+  if (currentSection) {
+    sections.push({
+      header: currentSection,
+      content: currentContent.join('\n'),
+      file: headerToFilename(currentSection),
+    });
+  }
+
+  // If no sections detected, create single content file
+  if (sections.length === 0) {
+    const allContent = [...preambleContent, ...currentContent].join('\n');
+    if (allContent.trim()) {
+      sections.push({
+        header: 'Content',
+        content: allContent,
+        file: 'content.md',
+      });
+    }
+  }
+
+  return sections;
+}
+
+/**
+ * Convert a section header to a filename
+ */
+function headerToFilename(header) {
+  return header
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 30) + '.md';
+}
 
 // ============================================================================
 // EXTRACT command - Just extract text from Word (simple mode)
@@ -838,6 +1094,283 @@ program
       }
     }
   });
+
+// ============================================================================
+// BUILD command - Combine sections and run pandoc
+// ============================================================================
+
+program
+  .command('build')
+  .description('Build PDF/DOCX/TEX from sections')
+  .argument('[formats...]', 'Output formats: pdf, docx, tex, all', ['pdf', 'docx'])
+  .option('-d, --dir <directory>', 'Project directory', '.')
+  .option('--no-crossref', 'Skip pandoc-crossref filter')
+  .action(async (formats, options) => {
+    const dir = path.resolve(options.dir);
+
+    if (!fs.existsSync(dir)) {
+      console.error(chalk.red(`Directory not found: ${dir}`));
+      process.exit(1);
+    }
+
+    // Check for pandoc
+    if (!hasPandoc()) {
+      console.error(chalk.red('pandoc not found.'));
+      console.error(chalk.dim('Run "rev install" to install dependencies.'));
+      process.exit(1);
+    }
+
+    // Load config
+    const config = loadBuildConfig(dir);
+
+    if (!config._configPath) {
+      console.error(chalk.yellow('No rev.yaml found.'));
+      console.error(chalk.dim('Run "rev new" to create a project, or "rev init" for existing files.'));
+      process.exit(1);
+    }
+
+    console.log(chalk.cyan(`Building ${config.title || 'document'}...\n`));
+
+    // Show what we're building
+    const targetFormats = formats.length > 0 ? formats : ['pdf', 'docx'];
+    console.log(chalk.dim(`  Formats: ${targetFormats.join(', ')}`));
+    console.log(chalk.dim(`  Crossref: ${hasPandocCrossref() && options.crossref !== false ? 'enabled' : 'disabled'}`));
+    console.log('');
+
+    try {
+      const { results, paperPath } = await build(dir, targetFormats, {
+        crossref: options.crossref,
+      });
+
+      // Report results
+      console.log(chalk.cyan('Combined sections → paper.md'));
+      console.log(chalk.dim(`  ${paperPath}\n`));
+
+      console.log(chalk.cyan('Output:'));
+      console.log(formatBuildResults(results));
+
+      const failed = results.filter((r) => !r.success);
+      if (failed.length > 0) {
+        console.log('');
+        for (const f of failed) {
+          console.error(chalk.red(`\n${f.format} error:\n${f.error}`));
+        }
+        process.exit(1);
+      }
+
+      console.log(chalk.green('\nBuild complete!'));
+    } catch (err) {
+      console.error(chalk.red(`Error: ${err.message}`));
+      if (process.env.DEBUG) console.error(err.stack);
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
+// NEW command - Create new paper project
+// ============================================================================
+
+program
+  .command('new')
+  .description('Create a new paper project from template')
+  .argument('[name]', 'Project directory name')
+  .option('-t, --template <name>', 'Template: paper, minimal, thesis, review', 'paper')
+  .option('--list', 'List available templates')
+  .action(async (name, options) => {
+    if (options.list) {
+      console.log(chalk.cyan('Available templates:\n'));
+      for (const t of listTemplates()) {
+        console.log(`  ${chalk.bold(t.id)} - ${t.description}`);
+      }
+      return;
+    }
+
+    if (!name) {
+      console.error(chalk.red('Error: project name is required'));
+      console.error(chalk.dim('Usage: rev new <name>'));
+      process.exit(1);
+    }
+
+    const template = getTemplate(options.template);
+    if (!template) {
+      console.error(chalk.red(`Unknown template: ${options.template}`));
+      console.error(chalk.dim('Use --list to see available templates.'));
+      process.exit(1);
+    }
+
+    const projectDir = path.resolve(name);
+
+    if (fs.existsSync(projectDir)) {
+      console.error(chalk.red(`Directory already exists: ${name}`));
+      process.exit(1);
+    }
+
+    console.log(chalk.cyan(`Creating ${template.name} project in ${name}/...\n`));
+
+    // Create directory
+    fs.mkdirSync(projectDir, { recursive: true });
+
+    // Create subdirectories
+    for (const subdir of template.directories || []) {
+      fs.mkdirSync(path.join(projectDir, subdir), { recursive: true });
+      console.log(chalk.dim(`  Created ${subdir}/`));
+    }
+
+    // Create files
+    for (const [filename, content] of Object.entries(template.files)) {
+      const filePath = path.join(projectDir, filename);
+      fs.writeFileSync(filePath, content, 'utf-8');
+      console.log(chalk.dim(`  Created ${filename}`));
+    }
+
+    console.log(chalk.green(`\nProject created!`));
+    console.log(chalk.cyan('\nNext steps:'));
+    console.log(chalk.dim(`  cd ${name}`));
+    console.log(chalk.dim('  # Edit rev.yaml with your paper details'));
+    console.log(chalk.dim('  # Write your sections'));
+    console.log(chalk.dim('  rev build          # Build PDF and DOCX'));
+    console.log(chalk.dim('  rev build pdf      # Build PDF only'));
+  });
+
+// ============================================================================
+// CONFIG command - Set user preferences
+// ============================================================================
+
+program
+  .command('config')
+  .description('Set user preferences')
+  .argument('<key>', 'Config key: user')
+  .argument('[value]', 'Value to set')
+  .action((key, value) => {
+    if (key === 'user') {
+      if (value) {
+        setUserName(value);
+        console.log(chalk.green(`User name set to: ${value}`));
+        console.log(chalk.dim(`Saved to ${getConfigPath()}`));
+      } else {
+        const name = getUserName();
+        if (name) {
+          console.log(`Current user: ${chalk.bold(name)}`);
+        } else {
+          console.log(chalk.yellow('No user name set.'));
+          console.log(chalk.dim('Set with: rev config user "Your Name"'));
+        }
+      }
+    } else {
+      console.error(chalk.red(`Unknown config key: ${key}`));
+      console.error(chalk.dim('Available keys: user'));
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
+// REPLY command - Reply to comments in a file
+// ============================================================================
+
+program
+  .command('reply')
+  .description('Reply to reviewer comments interactively')
+  .argument('<file>', 'Markdown file with comments')
+  .option('-m, --message <text>', 'Reply message (non-interactive)')
+  .option('-n, --number <n>', 'Reply to specific comment number', parseInt)
+  .option('-a, --author <name>', 'Override author name')
+  .action(async (file, options) => {
+    if (!fs.existsSync(file)) {
+      console.error(chalk.red(`File not found: ${file}`));
+      process.exit(1);
+    }
+
+    // Get author name
+    let author = options.author || getUserName();
+    if (!author) {
+      console.error(chalk.yellow('No user name set.'));
+      console.error(chalk.dim('Set with: rev config user "Your Name"'));
+      console.error(chalk.dim('Or use: rev reply <file> --author "Your Name"'));
+      process.exit(1);
+    }
+
+    const text = fs.readFileSync(file, 'utf-8');
+    const comments = getComments(text);
+
+    if (comments.length === 0) {
+      console.log(chalk.green('No comments found in this file.'));
+      return;
+    }
+
+    // Non-interactive mode: reply to specific comment
+    if (options.message && options.number !== undefined) {
+      const idx = options.number - 1;
+      if (idx < 0 || idx >= comments.length) {
+        console.error(chalk.red(`Invalid comment number. File has ${comments.length} comments.`));
+        process.exit(1);
+      }
+      const result = addReply(text, comments[idx], author, options.message);
+      fs.writeFileSync(file, result, 'utf-8');
+      console.log(chalk.green(`Reply added to comment #${options.number}`));
+      return;
+    }
+
+    // Interactive mode
+    console.log(chalk.cyan(`\nComments in ${path.basename(file)} (replying as ${chalk.bold(author)}):\n`));
+
+    const rl = (await import('readline')).createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const askQuestion = (prompt) =>
+      new Promise((resolve) => rl.question(prompt, resolve));
+
+    let result = text;
+    let repliesAdded = 0;
+
+    for (let i = 0; i < comments.length; i++) {
+      const c = comments[i];
+      const authorLabel = c.author ? chalk.blue(`[${c.author}]`) : chalk.dim('[Anonymous]');
+      const preview = c.content.length > 100 ? c.content.slice(0, 100) + '...' : c.content;
+
+      console.log(`\n${chalk.bold(`#${i + 1}`)} ${authorLabel}`);
+      console.log(chalk.dim(`  Line ${c.line}: "${c.before?.trim().slice(-30) || ''}..."`));
+      console.log(`  ${preview}`);
+
+      const answer = await askQuestion(chalk.cyan('\n  Reply (or Enter to skip, q to quit): '));
+
+      if (answer.toLowerCase() === 'q') {
+        break;
+      }
+
+      if (answer.trim()) {
+        result = addReply(result, c, author, answer.trim());
+        repliesAdded++;
+        console.log(chalk.green('  ✓ Reply added'));
+      }
+    }
+
+    rl.close();
+
+    if (repliesAdded > 0) {
+      fs.writeFileSync(file, result, 'utf-8');
+      console.log(chalk.green(`\nAdded ${repliesAdded} reply(ies) to ${file}`));
+    } else {
+      console.log(chalk.dim('\nNo replies added.'));
+    }
+  });
+
+/**
+ * Add a reply after a comment
+ * @param {string} text - Full document text
+ * @param {object} comment - Comment object with position and match
+ * @param {string} author - Reply author name
+ * @param {string} message - Reply message
+ * @returns {string} Updated text
+ */
+function addReply(text, comment, author, message) {
+  const replyAnnotation = `{>>${author}: ${message}<<}`;
+  const insertPos = comment.position + comment.match.length;
+
+  // Insert reply right after the original comment
+  return text.slice(0, insertPos) + ' ' + replyAnnotation + text.slice(insertPos);
+}
 
 // ============================================================================
 // HELP command - Comprehensive help
