@@ -47,7 +47,7 @@ import { getUserName, setUserName, getConfigPath } from '../lib/config.js';
 program
   .name('rev')
   .description('Revision workflow for Word ↔ Markdown round-trips')
-  .version('0.1.0');
+  .version('0.2.0');
 
 // ============================================================================
 // REVIEW command - Interactive track change review
@@ -677,13 +677,20 @@ program
     try {
       const config = loadConfig(configPath);
       const mammoth = await import('mammoth');
-      const { importFromWord } = await import('../lib/import.js');
+      const { importFromWord, extractWordComments, extractCommentAnchors, insertCommentsIntoMarkdown } = await import('../lib/import.js');
 
       // Build crossref registry for converting hardcoded refs
       let registry = null;
       let totalRefConversions = 0;
       if (options.crossref !== false) {
         registry = buildRegistry(options.dir);
+      }
+
+      // Extract comments and anchors from Word doc
+      const comments = await extractWordComments(docx);
+      const anchors = await extractCommentAnchors(docx);
+      if (comments.length > 0) {
+        console.log(chalk.blue(`Found ${comments.length} comments in Word document.\n`));
       }
 
       // Extract text from Word
@@ -726,6 +733,18 @@ program
           annotated = crossrefResult.converted;
           refConversions = crossrefResult.conversions;
           totalRefConversions += refConversions.length;
+        }
+
+        // Insert Word comments into the annotated markdown
+        let commentsInserted = 0;
+        if (comments.length > 0 && anchors.size > 0) {
+          const beforeLen = annotated.length;
+          annotated = insertCommentsIntoMarkdown(annotated, comments, anchors);
+          // Count how many comments were inserted (rough estimate by counting {>> markers)
+          commentsInserted = (annotated.match(/\{>>/g) || []).length - (result.annotated?.match(/\{>>/g) || []).length;
+          if (commentsInserted > 0) {
+            stats.comments = (stats.comments || 0) + commentsInserted;
+          }
         }
 
         totalChanges += stats.total;
@@ -1408,9 +1427,9 @@ ${chalk.bold('TYPICAL WORKFLOW')}
 
   ${chalk.dim('1.')} You send ${chalk.yellow('paper.docx')} to reviewers
   ${chalk.dim('2.')} They return ${chalk.yellow('reviewed.docx')} with edits and comments
-  ${chalk.dim('3.')} Import their changes:
+  ${chalk.dim('3.')} Import their changes (extracts both track changes AND comments):
 
-     ${chalk.green('rev import reviewed.docx paper.md')}
+     ${chalk.green('rev sections reviewed.docx')}
 
   ${chalk.dim('4.')} Review track changes interactively:
 
@@ -1435,7 +1454,11 @@ ${chalk.bold('ANNOTATION SYNTAX')} ${chalk.dim('(CriticMarkup)')}
 
 ${chalk.bold('COMMANDS')}
 
-  ${chalk.bold('rev import')} <docx> <md>    Import changes from Word document
+  ${chalk.bold('rev sections')} <docx>       Import Word doc to section files (recommended)
+      ${chalk.dim('Extracts track changes AND Word comments')}
+      ${chalk.dim('--dry-run')}              Preview without saving
+
+  ${chalk.bold('rev import')} <docx> <md>    Import changes to single file
       ${chalk.dim('-o, --output <file>')}    Output to different file
       ${chalk.dim('-a, --author <name>')}    Set author name for changes
       ${chalk.dim('--dry-run')}              Preview without saving
