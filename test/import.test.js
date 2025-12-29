@@ -392,6 +392,249 @@ test('Used positions not reused in tie-breaks', () => {
 });
 
 // ============================================================================
+// WORD ELEMENT ROBUSTNESS TESTS
+// ============================================================================
+
+console.log('\n📄 Word Element Robustness Tests\n');
+
+// These tests simulate the mismatch between Word rendered text and Markdown source
+// Word renders citations, math, and formatting differently than Markdown stores them
+
+test('Citation renders differently: [@Smith2021] vs (Smith 2021)', () => {
+  // Markdown has citation syntax, Word rendered it as text
+  const markdown = 'The results [@Smith2021] showed significant effects on habitat quality.';
+  const comments = [{ id: '1', author: 'Reviewer', text: 'Add more citations' }];
+  // Word anchor: "habitat" - but in Word the citation rendered as "(Smith 2021)"
+  // Context from Word side has the rendered form
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: '(Smith 2021) showed significant effects on',  // Word rendered citation
+    after: 'quality'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  assertContains(result, 'habitat {>>Reviewer: Add more citations<<}');
+});
+
+test('Multiple citations in context: different rendering lengths', () => {
+  const markdown = 'Studies [@Smith2021; @Jones2020] and [@Brown2019] examined habitat loss. Later habitat recovery was noted.';
+  const comments = [{ id: '1', author: 'R1', text: 'Which habitat?' }];
+  // Comment on second "habitat", context has rendered citations
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: '(Brown 2019) examined',  // After first habitat
+    after: 'loss'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should match the first "habitat" (near "loss"), not the second one
+  const firstHabitatPos = result.indexOf('habitat');
+  const commentPos = result.indexOf('{>>R1');
+  assert.ok(commentPos > firstHabitatPos && commentPos < result.indexOf('habitat', firstHabitatPos + 1),
+    'Comment should be after first habitat, before second');
+});
+
+test('Math renders differently: $p < 0.05$ vs p < 0.05', () => {
+  const markdown = 'Values were significant ($p < 0.05$) for all species. The species showed variation.';
+  const comments = [{ id: '1', author: 'Reviewer', text: 'Which species?' }];
+  // Word rendered math as plain text
+  const anchors = new Map([['1', {
+    anchor: 'species',
+    before: '(p < 0.05) for all',  // Word rendered without $
+    after: 'showed variation'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should find first species (after math)
+  assertContains(result, 'species {>>Reviewer: Which species?<<}');
+});
+
+test('Display math block renders as text', () => {
+  const markdown = 'The model is:\n\n$$y = \\beta_0 + \\beta_1 x$$\n\nResults for habitat were clear. Another habitat appeared.';
+  const comments = [{ id: '1', author: 'R1', text: 'Define variables' }];
+  // Word rendered display math, anchor is after it
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'y = β0 + β1 x  Results for',  // Word rendered math
+    after: 'were clear'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should match first habitat
+  const firstHabitatPos = result.indexOf('habitat');
+  const commentPos = result.indexOf('{>>');
+  assert.ok(commentPos > firstHabitatPos, 'Comment should be after first habitat');
+});
+
+test('Bold/italic stripped in Word context', () => {
+  const markdown = 'The **significant** results showed habitat effects. Minor habitat changes were noted.';
+  const comments = [{ id: '1', author: 'R1', text: 'How significant?' }];
+  // Word context doesn't have ** markers
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'significant results showed',  // No ** in Word
+    after: 'effects'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  assertContains(result, 'habitat {>>R1: How significant?<<} effects');
+});
+
+test('HTML entities in Word: &gt; &lt; &amp;', () => {
+  const markdown = 'Values > 100 showed habitat preference. Values < 50 showed habitat avoidance.';
+  const comments = [{ id: '1', author: 'R1', text: 'Check threshold' }];
+  // Word XML might have HTML entities
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'Values > 100 showed',  // Should match despite potential &gt;
+    after: 'preference'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should find first habitat
+  const firstHabitatPos = result.indexOf('habitat');
+  const commentPos = result.indexOf('{>>');
+  assert.ok(commentPos === firstHabitatPos + 'habitat'.length + 1, 'Comment after first habitat');
+});
+
+test('Figure reference renders: @fig:map vs Figure 1', () => {
+  const markdown = 'See @fig:map for habitat distribution. The habitat patterns vary by region.';
+  const comments = [{ id: '1', author: 'R1', text: 'Add scale bar' }];
+  // Word rendered @fig:map as "Figure 1"
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'Figure 1 for',  // Word rendered crossref
+    after: 'distribution'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  assertContains(result, 'habitat {>>R1: Add scale bar<<} distribution');
+});
+
+test('Table reference renders: @tbl:results vs Table 1', () => {
+  const markdown = 'Results in @tbl:results show habitat associations. Overall habitat diversity increased.';
+  const comments = [{ id: '1', author: 'R1', text: 'Check numbers' }];
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'Table 1 show',  // Word rendered
+    after: 'associations'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  assertContains(result, 'habitat {>>R1: Check numbers<<} associations');
+});
+
+test('Mixed elements: citation + math + crossref', () => {
+  const markdown = 'According to [@Smith2021], when $n > 100$, see @fig:results for habitat effects. Secondary habitat effects were minor.';
+  const comments = [{ id: '1', author: 'R1', text: 'Elaborate' }];
+  // Word has everything rendered differently
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: '(Smith 2021), when n > 100, see Figure 1 for',  // All rendered
+    after: 'effects. Secondary'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should match first habitat
+  const firstHabitatPos = result.indexOf('habitat');
+  const commentPos = result.indexOf('{>>');
+  assert.ok(commentPos > firstHabitatPos && commentPos < result.lastIndexOf('habitat'),
+    'Comment should be on first habitat');
+});
+
+test('Whitespace normalization: multiple spaces collapsed', () => {
+  const markdown = 'The  results   showed   habitat    effects.  More habitat data needed.';
+  const comments = [{ id: '1', author: 'R1', text: 'Fix spacing' }];
+  // Word normalizes whitespace
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'results showed',  // Normalized spaces
+    after: 'effects'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  assertContains(result, '{>>R1: Fix spacing<<}');
+});
+
+test('Line breaks in Word become spaces', () => {
+  const markdown = 'First paragraph about habitat.\n\nSecond paragraph about habitat.';
+  const comments = [{ id: '1', author: 'R1', text: 'On second' }];
+  // Word context might have different line handling
+  const anchors = new Map([['1', {
+    anchor: 'habitat',
+    before: 'Second paragraph about',
+    after: '.'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should match second habitat
+  const lastHabitatPos = result.lastIndexOf('habitat');
+  const commentPos = result.indexOf('{>>');
+  assert.ok(commentPos > lastHabitatPos, 'Comment should be after second habitat');
+});
+
+test('Parenthetical citation at sentence end', () => {
+  const markdown = 'Habitat loss is increasing [@IPBES2023]. Habitat restoration helps.';
+  const comments = [{ id: '1', author: 'R1', text: 'Recent data?' }];
+  const anchors = new Map([['1', {
+    anchor: 'Habitat',
+    before: '(IPBES 2023).',  // After rendered citation
+    after: 'restoration helps'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should match second Habitat
+  const secondHabitatPos = result.indexOf('Habitat', 10);
+  const commentPos = result.indexOf('{>>');
+  assert.ok(commentPos > secondHabitatPos, 'Comment should be after second Habitat');
+});
+
+test('Three identical anchors with distinct contexts', () => {
+  const markdown = 'Alpine habitat (cold). Coastal habitat (wet). Urban habitat (disturbed).';
+  const comments = [
+    { id: '1', author: 'A', text: 'Cold ref' },
+    { id: '2', author: 'B', text: 'Wet ref' },
+    { id: '3', author: 'C', text: 'Urban ref' },
+  ];
+  const anchors = new Map([
+    ['1', { anchor: 'habitat', before: 'Alpine', after: '(cold)' }],
+    ['2', { anchor: 'habitat', before: 'Coastal', after: '(wet)' }],
+    ['3', { anchor: 'habitat', before: 'Urban', after: '(disturbed)' }],
+  ]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+
+  // All three should be placed
+  assertContains(result, '{>>A: Cold ref<<}');
+  assertContains(result, '{>>B: Wet ref<<}');
+  assertContains(result, '{>>C: Urban ref<<}');
+
+  // Verify order: A before B before C
+  const aPos = result.indexOf('{>>A');
+  const bPos = result.indexOf('{>>B');
+  const cPos = result.indexOf('{>>C');
+  assert.ok(aPos < bPos && bPos < cPos, 'Comments should be in document order');
+});
+
+test('Short anchor with long distinguishing context', () => {
+  const markdown = 'The a]pha model showed results. The beta model showed results. The gamma model showed results.';
+  const comments = [{ id: '1', author: 'R1', text: 'Check beta' }];
+  // Very short anchor "model", need context to disambiguate
+  const anchors = new Map([['1', {
+    anchor: 'model',
+    before: 'The beta',
+    after: 'showed results. The gamma'
+  }]]);
+
+  const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
+  // Should find the beta model
+  const betaPos = result.indexOf('beta model');
+  const commentPos = result.indexOf('{>>');
+  assert.ok(commentPos > betaPos && commentPos < result.indexOf('gamma'),
+    'Comment should be on beta model');
+});
+
+// ============================================================================
 // CLEANUP ANNOTATION TESTS
 // ============================================================================
 
