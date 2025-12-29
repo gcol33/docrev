@@ -48,7 +48,7 @@ import * as fmt from '../lib/format.js';
 import { inlineDiffPreview } from '../lib/format.js';
 import { parseCommentsWithReplies, collectComments, generateResponseLetter, groupByReviewer } from '../lib/response.js';
 import { validateCitations, getCitationStats } from '../lib/citations.js';
-import { extractEquations, getEquationStats, createEquationsDoc } from '../lib/equations.js';
+import { extractEquations, getEquationStats, createEquationsDoc, extractEquationsFromWord, getWordEquationStats } from '../lib/equations.js';
 import { parseBibEntries, checkBibDois, fetchBibtex, addToBib, isValidDoiFormat, lookupDoi, lookupMissingDois } from '../lib/doi.js';
 
 program
@@ -1862,11 +1862,72 @@ program
   .command('equations')
   .alias('eq')
   .description('Extract equations or convert to Word')
-  .argument('<action>', 'Action: list, extract, convert')
-  .argument('[input]', 'Input file (for extract/convert)')
+  .argument('<action>', 'Action: list, extract, convert, from-word')
+  .argument('[input]', 'Input file (.md for extract/convert, .docx for from-word)')
   .option('-o, --output <file>', 'Output file')
   .action(async (action, input, options) => {
-    if (action === 'list') {
+    if (action === 'from-word') {
+      // Extract equations from Word document
+      if (!input) {
+        console.error(fmt.status('error', 'Word document required'));
+        process.exit(1);
+      }
+
+      if (!input.endsWith('.docx')) {
+        console.error(fmt.status('error', 'Input must be a .docx file'));
+        process.exit(1);
+      }
+
+      const spin = fmt.spinner(`Extracting equations from ${path.basename(input)}...`).start();
+
+      const result = await extractEquationsFromWord(input);
+
+      if (!result.success) {
+        spin.error(result.error);
+        process.exit(1);
+      }
+
+      spin.stop();
+      console.log(fmt.header('Equations from Word'));
+      console.log();
+
+      if (result.equations.length === 0) {
+        console.log(chalk.dim('No equations found in document.'));
+        return;
+      }
+
+      const display = result.equations.filter(e => e.type === 'display');
+      const inline = result.equations.filter(e => e.type === 'inline');
+
+      console.log(chalk.dim(`Found ${result.equations.length} equations (${display.length} display, ${inline.length} inline)`));
+      console.log();
+
+      // Show equations
+      for (let i = 0; i < result.equations.length; i++) {
+        const eq = result.equations[i];
+        const typeLabel = eq.type === 'display' ? chalk.cyan('[display]') : chalk.yellow('[inline]');
+
+        if (eq.latex) {
+          console.log(`${chalk.bold(i + 1)}. ${typeLabel}`);
+          console.log(chalk.dim('   LaTeX:'), eq.latex.length > 80 ? eq.latex.substring(0, 77) + '...' : eq.latex);
+        } else {
+          console.log(`${chalk.bold(i + 1)}. ${typeLabel} ${chalk.red('[conversion failed]')}`);
+        }
+      }
+
+      // Optionally save to file
+      if (options.output) {
+        const latex = result.equations
+          .filter(e => e.latex)
+          .map((e, i) => `%% Equation ${i + 1} (${e.type})\n${e.type === 'display' ? '$$' : '$'}${e.latex}${e.type === 'display' ? '$$' : '$'}`)
+          .join('\n\n');
+
+        fs.writeFileSync(options.output, latex, 'utf-8');
+        console.log();
+        console.log(fmt.status('success', `Saved ${result.equations.filter(e => e.latex).length} equations to ${options.output}`));
+      }
+
+    } else if (action === 'list') {
       // List equations in all section files
       const mdFiles = fs.readdirSync('.').filter(f =>
         f.endsWith('.md') && !['README.md', 'CLAUDE.md'].includes(f)
@@ -1935,7 +1996,7 @@ program
       }
     } else {
       console.error(fmt.status('error', `Unknown action: ${action}`));
-      console.log(chalk.dim('Actions: list, extract, convert'));
+      console.log(chalk.dim('Actions: list, extract, convert, from-word'));
       process.exit(1);
     }
   });

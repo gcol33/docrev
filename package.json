@@ -38,6 +38,7 @@
     "diff": "^8.0.2",
     "js-yaml": "^4.1.1",
     "mammoth": "^1.6.0",
+    "mathml-to-latex": "^1.5.0",
     "xml2js": "^0.6.2"
   }
 }
