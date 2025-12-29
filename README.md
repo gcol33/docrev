@@ -1,9 +1,39 @@
-# rev
+# docrev
 
-![Stability: Experimental](https://img.shields.io/badge/stability-experimental-orange.svg)
-![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)
+[![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
 
-CLI tool for Word ↔ Markdown round-trips. Handle reviewer feedback on academic papers: import track changes, review interactively, manage comments, auto-convert figure/table references, and build to PDF/DOCX/LaTeX.
+CLI tool for Word ↔ Markdown round-trips. Handle reviewer feedback on academic papers: import track changes, review interactively, manage comments, validate DOIs, and build to PDF/DOCX/LaTeX.
+
+## Install
+
+```bash
+npm install -g docrev
+```
+
+The `rev` command is now available globally.
+
+### Prerequisites
+
+- **Node.js 18+** - [Download](https://nodejs.org/)
+- **Pandoc** - For building PDF/DOCX ([pandoc.org](https://pandoc.org/installing.html))
+- **pandoc-crossref** - For figure/table refs (optional, [install](https://github.com/lierdakil/pandoc-crossref/releases))
+
+```bash
+# macOS
+brew install pandoc pandoc-crossref
+
+# Ubuntu/Debian
+sudo apt install pandoc
+
+# Windows
+winget install JohnMacFarlane.Pandoc
+```
+
+Verify installation:
+```bash
+rev --version
+rev install    # Check for missing dependencies
+```
 
 ## Features
 
@@ -12,100 +42,8 @@ CLI tool for Word ↔ Markdown round-trips. Handle reviewer feedback on academic
 - **Section-aware import** - Import directly to modular section files (intro.md, methods.md, etc.)
 - **Interactive review** - Accept/reject track changes with a TUI
 - **Comment management** - List and filter reviewer comments
+- **DOI validation** - Check and find DOIs via Crossref/DataCite APIs
 - **Cross-reference conversion** - Auto-convert hardcoded "Figure 1" to dynamic `@fig:label` syntax
-
-## Install
-
-### Prerequisites
-
-- **Node.js 18+** - [Download](https://nodejs.org/)
-- **Pandoc** - Document conversion engine
-- **pandoc-crossref** - Cross-reference filter (optional but recommended)
-
-### macOS
-
-```bash
-# Install prerequisites via Homebrew
-brew install node pandoc pandoc-crossref
-
-# Clone and install rev
-git clone https://github.com/gcol33/rev.git
-cd rev
-npm install
-
-# Add alias to ~/.zshrc
-echo 'alias rev="node $HOME/path/to/rev/bin/rev.js"' >> ~/.zshrc
-source ~/.zshrc
-
-# Verify installation
-rev --version
-```
-
-### Linux (Ubuntu/Debian)
-
-```bash
-# Install Node.js (via NodeSource)
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# Install Pandoc
-sudo apt-get install pandoc
-
-# Install pandoc-crossref (download from GitHub releases)
-# https://github.com/lierdakil/pandoc-crossref/releases
-wget https://github.com/lierdakil/pandoc-crossref/releases/download/v0.3.17.0/pandoc-crossref-Linux.tar.xz
-tar -xf pandoc-crossref-Linux.tar.xz
-sudo mv pandoc-crossref /usr/local/bin/
-
-# Clone and install rev
-git clone https://github.com/gcol33/rev.git
-cd rev
-npm install
-
-# Add alias to ~/.bashrc
-echo 'alias rev="node $HOME/path/to/rev/bin/rev.js"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### Windows
-
-```powershell
-# Install prerequisites via winget or Chocolatey
-winget install OpenJS.NodeJS
-winget install JohnMacFarlane.Pandoc
-
-# Or with Chocolatey
-choco install nodejs pandoc
-
-# Install pandoc-crossref (download from GitHub releases)
-# https://github.com/lierdakil/pandoc-crossref/releases
-# Extract pandoc-crossref.exe to a directory in your PATH
-
-# Clone and install rev
-git clone https://github.com/gcol33/rev.git
-cd rev
-npm install
-
-# Option 1: Add to PowerShell profile
-Add-Content $PROFILE 'function rev { node "C:\path\to\rev\bin\rev.js" $args }'
-
-# Option 2: Create batch file in PATH (e.g., C:\Users\<you>\bin\rev.cmd)
-# Contents: @node "C:\path\to\rev\bin\rev.js" %*
-
-# Verify installation
-rev --version
-```
-
-### Global npm install (all platforms)
-
-```bash
-# After cloning
-cd rev
-npm install -g .
-
-# Now 'rev' is available globally
-rev --version
-```
 
 ## Quick Start
 

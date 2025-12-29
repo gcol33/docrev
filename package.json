@@ -1,10 +1,10 @@
 {
-  "name": "rev-cli",
+  "name": "docrev",
   "version": "0.2.0",
-  "description": "Revision workflow for Word ↔ Markdown round-trips",
+  "description": "Academic paper revision workflow: Word ↔ Markdown round-trips, DOI validation, reviewer comments",
   "type": "module",
   "bin": {
-    "rev": "./bin/rev.js"
+    "rev": "bin/rev.js"
   },
   "scripts": {
     "build": "echo 'No build needed'",
@@ -12,12 +12,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gcol33/rev.git"
+    "url": "git+https://github.com/gcol33/docrev.git"
   },
   "bugs": {
-    "url": "https://github.com/gcol33/rev/issues"
+    "url": "https://github.com/gcol33/docrev/issues"
   },
-  "homepage": "https://github.com/gcol33/rev#readme",
+  "homepage": "https://github.com/gcol33/docrev#readme",
   "keywords": [
     "markdown",
     "word",

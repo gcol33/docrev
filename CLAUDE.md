@@ -1,6 +1,6 @@
-# Claude Instructions for rev
+# Claude Instructions for docrev
 
-This is `rev`, a CLI tool for academic paper workflows with Word ↔ Markdown round-trips.
+This is `docrev` (command: `rev`), a CLI tool for academic paper workflows with Word ↔ Markdown round-trips.
 
 ## Key Commands for Claude
 

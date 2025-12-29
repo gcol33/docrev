@@ -1,0 +1,22 @@
+# Development
+.git
+.gitignore
+.DS_Store
+
+# Tests
+test/
+tests/
+*.test.js
+
+# Documentation (README included by default)
+docs/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+*.log
+.env
