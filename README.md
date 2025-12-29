@@ -234,6 +234,17 @@ rev build docx
 | `rev grammar --learn <word>` | Add word to custom dictionary |
 | `rev grammar --list` | Show custom dictionary |
 
+### Spelling
+
+| Command | Description |
+|---------|-------------|
+| `rev spelling` | Check spelling in all sections |
+| `rev spelling --british` | Use British English dictionary |
+| `rev spelling --learn <word>` | Add word to global dictionary |
+| `rev spelling --learn-project <word>` | Add word to project dictionary |
+| `rev spelling --list` | Show global dictionary |
+| `rev spelling --list-all` | Show global + project dictionaries |
+
 ### Direct DOCX Editing
 
 | Command | Description |

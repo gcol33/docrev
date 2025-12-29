@@ -111,6 +111,19 @@ rev grammar --list           # Show custom dictionary
 rev grammar -s warning       # Filter by severity
 ```
 
+### rev spelling
+Check spelling in all sections.
+```bash
+rev spelling                 # Check all sections
+rev spelling --british       # Use British English dictionary
+rev spelling --learn word    # Add to global dictionary (~/.rev-dictionary)
+rev spelling --learn-project word  # Add to project dictionary
+rev spelling --forget word   # Remove from global dictionary
+rev spelling --list          # Show global dictionary
+rev spelling --list-all      # Show global + project dictionaries
+```
+Built-in scientific vocabulary reduces false positives. Possible author names are shown separately for easy review.
+
 ### rev validate
 Check against journal requirements.
 ```bash

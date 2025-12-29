@@ -75,6 +75,7 @@ rev response                         # Generate point-by-point response letter
 | Pre-submission check | `rev check` |
 | Validate citations | `rev citations` |
 | Check grammar/style | `rev grammar` |
+| Check spelling | `rev spelling` |
 | Open PDF preview | `rev preview pdf` |
 | Auto-rebuild on changes | `rev watch` |
 

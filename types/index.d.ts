@@ -492,3 +492,34 @@ export interface TrackChangeMarker {
 export function prepareForTrackChanges(text: string): { text: string; markers: TrackChangeMarker[] };
 export function applyTrackChangesToDocx(docxPath: string, markers: TrackChangeMarker[], author?: string): Promise<void>;
 export function buildWithTrackChanges(markdownPath: string, outputPath: string, options?: object): Promise<{ success: boolean; message: string }>;
+
+// ============================================
+// Spelling (lib/spelling.js)
+// ============================================
+
+export interface SpellingIssue {
+  word: string;
+  line: number;
+  column: number;
+  file?: string;
+  suggestions?: string[];
+}
+
+export interface SpellingResult {
+  misspelled: SpellingIssue[];
+  possibleNames: SpellingIssue[];
+}
+
+export function getGlobalDictPath(): string;
+export function getProjectDictPath(directory?: string): string;
+export function loadDictionaryFile(dictPath: string): Set<string>;
+export function saveDictionaryFile(words: Set<string>, dictPath: string): void;
+export function loadAllCustomWords(projectDir?: string): Set<string>;
+export function addWord(word: string, global?: boolean, projectDir?: string): boolean;
+export function removeWord(word: string, global?: boolean, projectDir?: string): boolean;
+export function listWords(global?: boolean, projectDir?: string): string[];
+export function getSpellchecker(projectDir?: string, lang?: 'en' | 'en-gb'): Promise<object>;
+export function clearCache(): void;
+export function extractWords(text: string): Array<{ word: string; line: number; column: number }>;
+export function checkSpelling(text: string, options?: { projectDir?: string; lang?: 'en' | 'en-gb' }): Promise<SpellingResult>;
+export function checkFile(filePath: string, options?: { projectDir?: string; lang?: 'en' | 'en-gb' }): Promise<SpellingResult>;
