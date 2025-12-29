@@ -2341,26 +2341,54 @@ ${chalk.bold('ANNOTATION SYNTAX')} ${chalk.dim('(CriticMarkup)')}
   ${chalk.yellow('{~~old~>new~~}')}           Text that was changed
   ${chalk.blue('{>>Author: comment<<}')}   Reviewer comment
 
-${chalk.bold('COMMANDS')}
+${chalk.bold('IMPORT & BUILD')}
 
-  ${chalk.bold('rev sections')} <docx>       Import Word doc to section files (recommended)
-      ${chalk.dim('Extracts track changes AND Word comments')}
-      ${chalk.dim('--dry-run')}              Preview without saving
+  ${chalk.bold('rev sections')} <docx>       Import Word doc to section files
+  ${chalk.bold('rev import')} <docx> [md]    Import/diff Word against Markdown
+  ${chalk.bold('rev extract')} <docx>        Extract plain text from Word
+  ${chalk.bold('rev build')} [formats]       Build PDF/DOCX/TEX from sections
+  ${chalk.bold('rev new')} [name]            Create new project from template
 
-  ${chalk.bold('rev import')} <docx> <md>    Import changes to single file
-      ${chalk.dim('-o, --output <file>')}    Output to different file
-      ${chalk.dim('-a, --author <name>')}    Set author name for changes
-      ${chalk.dim('--dry-run')}              Preview without saving
+${chalk.bold('REVIEW & EDIT')}
 
   ${chalk.bold('rev review')} <file>         Interactive accept/reject TUI
   ${chalk.bold('rev status')} <file>         Show annotation statistics
   ${chalk.bold('rev comments')} <file>       List all comments with context
+  ${chalk.bold('rev reply')} <file>          Reply to reviewer comments
   ${chalk.bold('rev strip')} <file>          Output clean text (no annotations)
-      ${chalk.dim('-o, --output <file>')}    Write to file instead of stdout
-      ${chalk.dim('-c, --keep-comments')}    Keep comments, strip track changes
+  ${chalk.bold('rev resolve')} <file>        Mark comments resolved/pending
 
-  ${chalk.bold('rev extract')} <docx>        Extract plain text from Word
-  ${chalk.bold('rev help')} [topic]          Show help (topics: workflow, syntax, commands)
+${chalk.bold('CROSS-REFERENCES')}
+
+  ${chalk.bold('rev refs')} [file]           Show figure/table registry
+  ${chalk.bold('rev migrate')} <file>        Convert "Fig. 1" to @fig:label
+  ${chalk.bold('rev figures')} [files]       List figures with ref counts
+
+${chalk.bold('CITATIONS & EQUATIONS')}
+
+  ${chalk.bold('rev citations')} [files]     Validate citations against .bib
+  ${chalk.bold('rev equations')} <action>    Extract/export LaTeX equations
+  ${chalk.bold('rev response')} [files]      Generate response letter
+
+${chalk.bold('CONFIGURATION')}
+
+  ${chalk.bold('rev config')} <key> [value]  Set user preferences
+  ${chalk.bold('rev init')}                  Generate sections.yaml
+  ${chalk.bold('rev install')}               Check/install dependencies
+  ${chalk.bold('rev help')} [topic]          Show help (workflow, syntax, commands)
+
+${chalk.bold('BIBLIOGRAPHY & DOIs')}
+
+  ${chalk.bold('rev doi check')} [file.bib]  Validate DOIs via Crossref + DataCite
+      ${chalk.dim('--strict')}               Fail if articles missing DOIs
+
+  ${chalk.bold('rev doi lookup')} [file.bib] Search for missing DOIs by title/author/year
+      ${chalk.dim('--confidence <level>')}   Filter by: high, medium, low
+
+  ${chalk.bold('rev doi fetch')} <doi>       Fetch BibTeX entry from DOI
+  ${chalk.bold('rev doi add')} <doi>         Fetch and add entry to bibliography
+
+  ${chalk.dim('Skip entries: add nodoi = {true} or % no-doi comment')}
 
 ${chalk.bold('EXAMPLES')}
 
@@ -2381,6 +2409,12 @@ ${chalk.bold('EXAMPLES')}
 
   ${chalk.dim('# Get clean text for PDF build')}
   rev strip paper.md -o paper_clean.md
+
+  ${chalk.dim('# Validate DOIs in bibliography')}
+  rev doi check references.bib
+
+  ${chalk.dim('# Find missing DOIs')}
+  rev doi lookup references.bib --confidence medium
 
 ${chalk.bold('BUILD INTEGRATION')}
 
