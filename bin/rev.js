@@ -1524,6 +1524,7 @@ program
   .option('--no-crossref', 'Skip pandoc-crossref filter')
   .option('--toc', 'Include table of contents')
   .option('--show-changes', 'Export DOCX with visible track changes (audit mode)')
+  .option('--dual', 'Output both clean DOCX and DOCX with Word comments (paper.docx + paper_comments.docx)')
   .action(async (formats, options) => {
     const dir = path.resolve(options.dir);
 
@@ -1558,6 +1559,7 @@ program
     console.log(chalk.dim(`  Crossref: ${hasPandocCrossref() && options.crossref !== false ? 'enabled' : 'disabled'}`));
     if (tocEnabled) console.log(chalk.dim(`  TOC: enabled`));
     if (options.showChanges) console.log(chalk.dim(`  Track changes: visible`));
+    if (options.dual) console.log(chalk.dim(`  Dual output: clean + with comments`));
     console.log('');
 
     // Override config with CLI options
@@ -1641,6 +1643,34 @@ program
           console.error(chalk.red(`\n${f.format} error:\n${f.error}`));
         }
         process.exit(1);
+      }
+
+      // Handle --dual mode: create a second DOCX with proper Word comments
+      if (options.dual) {
+        const docxResult = results.find(r => r.format === 'docx' && r.success);
+        if (docxResult) {
+          const { injectComments } = await import('../lib/wordcomments.js');
+
+          // Read the combined paper.md (with comments still in it)
+          const markdown = fs.readFileSync(paperPath, 'utf-8');
+
+          // Generate comments DOCX path
+          const commentsDocxPath = docxResult.outputPath.replace(/\.docx$/, '_comments.docx');
+
+          const spinComments = fmt.spinner('Injecting Word comments...').start();
+          const commentResult = await injectComments(docxResult.outputPath, markdown, commentsDocxPath);
+          spinComments.stop();
+
+          if (commentResult.success) {
+            console.log(chalk.cyan('\nDual output:'));
+            console.log(`  Clean:    ${path.basename(docxResult.outputPath)}`);
+            console.log(`  Comments: ${path.basename(commentsDocxPath)} (${commentResult.commentCount} comments)`);
+          } else {
+            console.error(chalk.yellow(`\nWarning: Could not create comments DOCX: ${commentResult.error}`));
+          }
+        } else {
+          console.error(chalk.yellow('\n--dual requires docx format to be built'));
+        }
       }
 
       console.log(chalk.green('\nBuild complete!'));

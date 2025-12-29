@@ -4,7 +4,7 @@ This is `docrev` (command: `rev`), a CLI tool for academic paper workflows with 
 
 ## Project Overview
 
-- **Version**: 0.5.2
+- **Version**: 0.6.0
 - **Node.js**: >=18.0.0
 - **Test coverage**: 508 tests across 23 modules
 - **TypeScript**: Full type definitions in `types/index.d.ts`
@@ -40,6 +40,7 @@ rev build                 # Build PDF and DOCX
 rev build pdf             # PDF only
 rev build docx            # DOCX only
 rev build --toc           # Include table of contents
+rev build --dual          # Output paper.docx (clean) + paper_comments.docx (with Word comments)
 ```
 
 ### Validation & Analysis

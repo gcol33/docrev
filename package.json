@@ -1,6 +1,6 @@
 {
   "name": "docrev",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Academic paper revision workflow: Word ↔ Markdown round-trips, DOI validation, reviewer comments",
   "type": "module",
   "types": "types/index.d.ts",
@@ -68,6 +68,10 @@
     "./spelling": {
       "types": "./types/index.d.ts",
       "import": "./lib/spelling.js"
+    },
+    "./wordcomments": {
+      "types": "./types/index.d.ts",
+      "import": "./lib/wordcomments.js"
     }
   },
   "engines": {
