@@ -4801,6 +4801,7 @@ program
   .option('--list-project', 'List project dictionary words')
   .option('--list-all', 'List all custom words (global + project)')
   .option('--british', 'Use British English dictionary')
+  .option('--add-names', 'Add detected names to global dictionary')
   .action(async (files, options) => {
     const spelling = await import('../lib/spelling.js');
 
@@ -4923,7 +4924,8 @@ program
 
     const lang = options.british ? 'en-gb' : 'en';
     console.log(fmt.header(`Spelling Check (${options.british ? 'British' : 'US'} English)`));
-    let totalIssues = 0;
+    let totalMisspelled = 0;
+    const allNames = new Set();
 
     for (const file of filesToCheck) {
       if (!fs.existsSync(file)) {
@@ -4931,24 +4933,54 @@ program
         continue;
       }
 
-      const issues = await spelling.checkFile(file, { projectDir: '.', lang });
+      const result = await spelling.checkFile(file, { projectDir: '.', lang });
+      const { misspelled, possibleNames } = result;
 
-      if (issues.length > 0) {
+      // Collect names
+      for (const n of possibleNames) {
+        allNames.add(n.word);
+      }
+
+      if (misspelled.length > 0) {
         console.log(chalk.cyan(`\n${file}:`));
-        for (const issue of issues) {
+        for (const issue of misspelled) {
           const suggestions = issue.suggestions.length > 0
             ? chalk.dim(` → ${issue.suggestions.join(', ')}`)
             : '';
           console.log(`  ${chalk.yellow(issue.word)} ${chalk.dim(`(line ${issue.line})`)}${suggestions}`);
         }
-        totalIssues += issues.length;
+        totalMisspelled += misspelled.length;
       }
     }
 
-    if (totalIssues === 0) {
+    // Show possible names separately
+    if (allNames.size > 0) {
+      const nameList = [...allNames].sort();
+
+      if (options.addNames) {
+        // Add all names to dictionary
+        console.log(fmt.header('Adding Names to Dictionary'));
+        for (const name of nameList) {
+          spelling.addWord(name, true);
+          console.log(chalk.green(`  ✓ ${name}`));
+        }
+        console.log(chalk.dim(`\nAdded ${nameList.length} name(s) to global dictionary`));
+      } else {
+        console.log(fmt.header('Possible Names'));
+        console.log(chalk.dim(`  ${nameList.join(', ')}`));
+        console.log(chalk.dim(`\n  Run with --add-names to add all to dictionary`));
+      }
+    }
+
+    if (totalMisspelled === 0 && allNames.size === 0) {
       console.log(fmt.status('success', 'No spelling errors found'));
     } else {
-      console.log(chalk.yellow(`\n${totalIssues} spelling issue(s) found`));
+      if (totalMisspelled > 0) {
+        console.log(chalk.yellow(`\n${totalMisspelled} spelling error(s)`));
+      }
+      if (allNames.size > 0) {
+        console.log(chalk.blue(`${allNames.size} possible name(s)`));
+      }
       console.log(chalk.dim('Use --learn <word> to add words to dictionary'));
     }
   });

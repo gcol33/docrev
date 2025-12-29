@@ -77,29 +77,37 @@ describe('spelling.js', () => {
   describe('checkSpelling', () => {
     test('finds misspelled words', async () => {
       clearCache();
-      const issues = await checkSpelling('This is a tset.');
-      assert.ok(issues.some(i => i.word === 'tset'));
+      const { misspelled } = await checkSpelling('This is a tset.');
+      assert.ok(misspelled.some(i => i.word === 'tset'));
     });
 
     test('provides suggestions', async () => {
       clearCache();
-      const issues = await checkSpelling('This is a tset.');
-      const tset = issues.find(i => i.word === 'tset');
+      const { misspelled } = await checkSpelling('This is a tset.');
+      const tset = misspelled.find(i => i.word === 'tset');
       assert.ok(tset);
       assert.ok(tset.suggestions.includes('test'));
     });
 
     test('accepts correct words', async () => {
       clearCache();
-      const issues = await checkSpelling('This is correct English text.');
-      assert.strictEqual(issues.length, 0);
+      const { misspelled, possibleNames } = await checkSpelling('This is correct English text.');
+      assert.strictEqual(misspelled.length, 0);
+      assert.strictEqual(possibleNames.length, 0);
     });
 
     test('only reports each word once', async () => {
       clearCache();
-      const issues = await checkSpelling('tset tset tset');
-      const tsetIssues = issues.filter(i => i.word === 'tset');
+      const { misspelled } = await checkSpelling('tset tset tset');
+      const tsetIssues = misspelled.filter(i => i.word === 'tset');
       assert.strictEqual(tsetIssues.length, 1);
+    });
+
+    test('separates capitalized words as possible names', async () => {
+      clearCache();
+      const { misspelled, possibleNames } = await checkSpelling('Chytry wrote about tset.');
+      assert.ok(misspelled.some(i => i.word === 'tset'));
+      assert.ok(possibleNames.some(i => i.word === 'Chytry'));
     });
   });
 
