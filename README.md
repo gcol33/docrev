@@ -213,6 +213,15 @@ rev build docx
 | `rev reply <file>` | Interactive reply to reviewer comments |
 | `rev reply <file> -n 1 -m "text"` | Reply to specific comment (non-interactive) |
 
+### Bibliography & DOIs
+
+| Command | Description |
+|---------|-------------|
+| `rev doi check [file.bib]` | Validate DOIs in bibliography (Crossref + DataCite) |
+| `rev doi lookup [file.bib]` | Search for missing DOIs by title/author/year |
+| `rev doi fetch <doi>` | Fetch BibTeX entry from DOI |
+| `rev doi add <doi>` | Fetch and add DOI entry to bibliography |
+
 ### Configuration
 
 | Command | Description |
@@ -327,6 +336,31 @@ When importing from Word, hardcoded refs are auto-converted:
 | PDF | Stripped (clean) | `@fig:label` → "Figure 1" |
 | DOCX | Comments kept | `@fig:label` → "Figure 1" |
 | TEX | Stripped (clean) | LaTeX labels |
+
+## DOI Management
+
+Check and find DOIs for your bibliography:
+
+```bash
+# Validate all DOIs in references.bib
+rev doi check references.bib
+
+# Look up missing DOIs automatically
+rev doi lookup references.bib --confidence medium
+
+# Fetch BibTeX from a DOI
+rev doi fetch 10.1038/nature12373
+
+# Add a citation by DOI
+rev doi add 10.1038/nature12373
+```
+
+**Features:**
+- Validates DOIs via Crossref API (+ DataCite for Zenodo/Figshare)
+- Smart lookup using title, author, year, and journal matching
+- Filters out supplement/figure DOIs and F1000 reviews
+- Confidence levels: `high`, `medium`, `low` (use `--confidence low` to see all matches)
+- Skip entries with `nodoi = {true}` or `% no-doi` comment
 
 ## Dependencies
 

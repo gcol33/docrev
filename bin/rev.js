@@ -16,6 +16,7 @@ import {
   stripAnnotations,
   countAnnotations,
   getComments,
+  setCommentStatus,
 } from '../lib/annotations.js';
 import { interactiveReview, listComments } from '../lib/review.js';
 import {
@@ -44,6 +45,11 @@ import {
 import { getTemplate, listTemplates } from '../lib/templates.js';
 import { getUserName, setUserName, getConfigPath } from '../lib/config.js';
 import * as fmt from '../lib/format.js';
+import { inlineDiffPreview } from '../lib/format.js';
+import { parseCommentsWithReplies, collectComments, generateResponseLetter, groupByReviewer } from '../lib/response.js';
+import { validateCitations, getCitationStats } from '../lib/citations.js';
+import { extractEquations, getEquationStats, createEquationsDoc } from '../lib/equations.js';
+import { parseBibEntries, checkBibDois, fetchBibtex, addToBib, isValidDoiFormat, lookupDoi, lookupMissingDois } from '../lib/doi.js';
 
 program
   .name('rev')
@@ -177,14 +183,129 @@ program
   .command('comments')
   .description('List all comments in the document')
   .argument('<file>', 'Markdown file')
-  .action((file) => {
+  .option('-p, --pending', 'Show only pending (unresolved) comments')
+  .option('-r, --resolved', 'Show only resolved comments')
+  .action((file, options) => {
     if (!fs.existsSync(file)) {
       console.error(chalk.red(`Error: File not found: ${file}`));
       process.exit(1);
     }
 
     const text = fs.readFileSync(file, 'utf-8');
-    listComments(text);
+    const comments = getComments(text, {
+      pendingOnly: options.pending,
+      resolvedOnly: options.resolved,
+    });
+
+    if (comments.length === 0) {
+      if (options.pending) {
+        console.log(fmt.status('success', 'No pending comments'));
+      } else if (options.resolved) {
+        console.log(fmt.status('info', 'No resolved comments'));
+      } else {
+        console.log(fmt.status('info', 'No comments found'));
+      }
+      return;
+    }
+
+    const filter = options.pending ? ' (pending)' : options.resolved ? ' (resolved)' : '';
+    console.log(fmt.header(`Comments in ${path.basename(file)}${filter}`));
+    console.log();
+
+    for (let i = 0; i < comments.length; i++) {
+      const c = comments[i];
+      const statusIcon = c.resolved ? chalk.green('✓') : chalk.yellow('○');
+      const authorLabel = c.author ? chalk.blue(`[${c.author}]`) : chalk.dim('[Anonymous]');
+      const preview = c.content.length > 60 ? c.content.slice(0, 60) + '...' : c.content;
+
+      console.log(`  ${chalk.bold(`#${i + 1}`)} ${statusIcon} ${authorLabel} ${chalk.dim(`L${c.line}`)}`);
+      console.log(`     ${preview}`);
+      if (c.before) {
+        console.log(chalk.dim(`     "${c.before.trim().slice(-40)}..."`));
+      }
+      console.log();
+    }
+
+    // Summary
+    const allComments = getComments(text);
+    const pending = allComments.filter((c) => !c.resolved).length;
+    const resolved = allComments.filter((c) => c.resolved).length;
+    console.log(chalk.dim(`  Total: ${allComments.length} | Pending: ${pending} | Resolved: ${resolved}`));
+  });
+
+// ============================================================================
+// RESOLVE command - Mark comments as resolved/pending
+// ============================================================================
+
+program
+  .command('resolve')
+  .description('Mark comments as resolved or pending')
+  .argument('<file>', 'Markdown file')
+  .option('-n, --number <n>', 'Comment number to toggle', parseInt)
+  .option('-a, --all', 'Mark all comments as resolved')
+  .option('-u, --unresolve', 'Mark as pending (unresolve)')
+  .action((file, options) => {
+    if (!fs.existsSync(file)) {
+      console.error(chalk.red(`Error: File not found: ${file}`));
+      process.exit(1);
+    }
+
+    let text = fs.readFileSync(file, 'utf-8');
+    const comments = getComments(text);
+
+    if (comments.length === 0) {
+      console.log(fmt.status('info', 'No comments found'));
+      return;
+    }
+
+    const resolveStatus = !options.unresolve;
+
+    if (options.all) {
+      // Mark all comments
+      let count = 0;
+      for (const comment of comments) {
+        if (comment.resolved !== resolveStatus) {
+          text = setCommentStatus(text, comment, resolveStatus);
+          count++;
+        }
+      }
+      fs.writeFileSync(file, text, 'utf-8');
+      console.log(fmt.status('success', `Marked ${count} comment(s) as ${resolveStatus ? 'resolved' : 'pending'}`));
+      return;
+    }
+
+    if (options.number !== undefined) {
+      const idx = options.number - 1;
+      if (idx < 0 || idx >= comments.length) {
+        console.error(chalk.red(`Invalid comment number. File has ${comments.length} comments.`));
+        process.exit(1);
+      }
+      const comment = comments[idx];
+      text = setCommentStatus(text, comment, resolveStatus);
+      fs.writeFileSync(file, text, 'utf-8');
+      console.log(fmt.status('success', `Comment #${options.number} marked as ${resolveStatus ? 'resolved' : 'pending'}`));
+      return;
+    }
+
+    // No options: show current status
+    console.log(fmt.header(`Comment Status in ${path.basename(file)}`));
+    console.log();
+
+    for (let i = 0; i < comments.length; i++) {
+      const c = comments[i];
+      const statusIcon = c.resolved ? chalk.green('✓') : chalk.yellow('○');
+      const preview = c.content.length > 50 ? c.content.slice(0, 50) + '...' : c.content;
+      console.log(`  ${statusIcon} #${i + 1} ${preview}`);
+    }
+
+    console.log();
+    const pending = comments.filter((c) => !c.resolved).length;
+    const resolved = comments.filter((c) => c.resolved).length;
+    console.log(chalk.dim(`  Pending: ${pending} | Resolved: ${resolved}`));
+    console.log();
+    console.log(chalk.dim('  Usage: rev resolve <file> -n <number>    Mark specific comment'));
+    console.log(chalk.dim('         rev resolve <file> -a             Mark all as resolved'));
+    console.log(chalk.dim('         rev resolve <file> -n 1 -u        Unresolve comment #1'));
   });
 
 // ============================================================================
@@ -663,6 +784,8 @@ program
   .option('-c, --config <file>', 'Sections config file', 'sections.yaml')
   .option('-d, --dir <directory>', 'Directory with section files', '.')
   .option('--no-crossref', 'Skip converting hardcoded figure/table refs')
+  .option('--no-diff', 'Skip showing diff preview')
+  .option('--force', 'Overwrite files without conflict warning')
   .option('--dry-run', 'Preview without writing files')
   .action(async (docx, options) => {
     if (!fs.existsSync(docx)) {
@@ -712,6 +835,50 @@ program
       spin.stop();
       console.log(fmt.header(`Import from ${path.basename(docx)}`));
       console.log();
+
+      // Conflict detection: check if files already have annotations
+      if (!options.force && !options.dryRun) {
+        const conflicts = [];
+        for (const section of wordSections) {
+          const sectionPath = path.join(options.dir, section.file);
+          if (fs.existsSync(sectionPath)) {
+            const existing = fs.readFileSync(sectionPath, 'utf-8');
+            const existingCounts = countAnnotations(existing);
+            if (existingCounts.total > 0) {
+              conflicts.push({
+                file: section.file,
+                annotations: existingCounts.total,
+              });
+            }
+          }
+        }
+
+        if (conflicts.length > 0) {
+          console.log(fmt.status('warning', 'Files with existing annotations will be overwritten:'));
+          for (const c of conflicts) {
+            console.log(chalk.yellow(`  - ${c.file} (${c.annotations} annotations)`));
+          }
+          console.log();
+
+          // Prompt for confirmation
+          const rl = await import('readline');
+          const readline = rl.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+          });
+
+          const answer = await new Promise((resolve) =>
+            readline.question(chalk.cyan('Continue and overwrite? [y/N] '), resolve)
+          );
+          readline.close();
+
+          if (answer.toLowerCase() !== 'y') {
+            console.log(chalk.dim('Aborted. Use --force to skip this check.'));
+            process.exit(0);
+          }
+          console.log();
+        }
+      }
 
       // Collect results for summary table
       const sectionResults = [];
@@ -803,6 +970,27 @@ program
         { align: ['left', 'left', 'right', 'right', 'right', 'right', 'right'] }
       ));
       console.log();
+
+      // Show diff preview if there are changes
+      if (options.diff !== false && totalChanges > 0) {
+        console.log(fmt.header('Changes Preview'));
+        console.log();
+        // Collect all annotated content for preview
+        for (const result of sectionResults) {
+          if (result.status === 'ok' && result.stats && result.stats.total > 0) {
+            const sectionPath = path.join(options.dir, result.file);
+            if (fs.existsSync(sectionPath)) {
+              const content = fs.readFileSync(sectionPath, 'utf-8');
+              const preview = inlineDiffPreview(content, { maxLines: 3 });
+              if (preview) {
+                console.log(chalk.bold(result.file) + ':');
+                console.log(preview);
+                console.log();
+              }
+            }
+          }
+        }
+      }
 
       // Summary box
       if (options.dryRun) {
@@ -1187,7 +1375,8 @@ program
       process.exit(1);
     }
 
-    console.log(chalk.cyan(`Building ${config.title || 'document'}...\n`));
+    console.log(fmt.header(`Building ${config.title || 'document'}`));
+    console.log();
 
     // Show what we're building
     const targetFormats = formats.length > 0 ? formats : ['pdf', 'docx'];
@@ -1195,10 +1384,14 @@ program
     console.log(chalk.dim(`  Crossref: ${hasPandocCrossref() && options.crossref !== false ? 'enabled' : 'disabled'}`));
     console.log('');
 
+    const spin = fmt.spinner('Building...').start();
+
     try {
       const { results, paperPath } = await build(dir, targetFormats, {
         crossref: options.crossref,
       });
+
+      spin.stop();
 
       // Report results
       console.log(chalk.cyan('Combined sections → paper.md'));
@@ -1218,7 +1411,8 @@ program
 
       console.log(chalk.green('\nBuild complete!'));
     } catch (err) {
-      console.error(chalk.red(`Error: ${err.message}`));
+      spin.stop();
+      console.error(fmt.status('error', err.message));
       if (process.env.DEBUG) console.error(err.stack);
       process.exit(1);
     }
@@ -1429,6 +1623,662 @@ function addReply(text, comment, author, message) {
   // Insert reply right after the original comment
   return text.slice(0, insertPos) + ' ' + replyAnnotation + text.slice(insertPos);
 }
+
+// ============================================================================
+// RESPONSE command - Generate response letter for reviewers
+// ============================================================================
+
+program
+  .command('response')
+  .description('Generate response letter from reviewer comments')
+  .argument('[files...]', 'Markdown files to process (default: all section files)')
+  .option('-o, --output <file>', 'Output file (default: response-letter.md)')
+  .option('-a, --author <name>', 'Author name for identifying replies')
+  .option('--no-context', 'Omit context snippets')
+  .option('--no-location', 'Omit file:line references')
+  .action(async (files, options) => {
+    // If no files specified, find all .md files
+    let mdFiles = files;
+    if (!mdFiles || mdFiles.length === 0) {
+      const allFiles = fs.readdirSync('.').filter(f =>
+        f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
+      );
+      mdFiles = allFiles;
+    }
+
+    if (mdFiles.length === 0) {
+      console.error(fmt.status('error', 'No markdown files found'));
+      process.exit(1);
+    }
+
+    const spin = fmt.spinner('Collecting comments...').start();
+
+    const comments = collectComments(mdFiles);
+    spin.stop();
+
+    if (comments.length === 0) {
+      console.log(fmt.status('info', 'No comments found in files'));
+      return;
+    }
+
+    // Generate response letter
+    const letter = generateResponseLetter(comments, {
+      authorName: options.author || getUserName() || 'Author',
+      includeContext: options.context !== false,
+      includeLocation: options.location !== false,
+    });
+
+    const outputPath = options.output || 'response-letter.md';
+    fs.writeFileSync(outputPath, letter, 'utf-8');
+
+    // Show summary
+    const grouped = groupByReviewer(comments);
+    const reviewers = [...grouped.keys()].filter(r =>
+      !r.toLowerCase().includes('claude') &&
+      r.toLowerCase() !== (options.author || '').toLowerCase()
+    );
+
+    console.log(fmt.header('Response Letter Generated'));
+    console.log();
+
+    const rows = reviewers.map(r => [r, grouped.get(r).length.toString()]);
+    console.log(fmt.table(['Reviewer', 'Comments'], rows));
+    console.log();
+    console.log(fmt.status('success', `Created ${outputPath}`));
+  });
+
+// ============================================================================
+// CITATIONS command - Validate citations against .bib file
+// ============================================================================
+
+program
+  .command('citations')
+  .alias('cite')
+  .description('Validate citations against bibliography')
+  .argument('[files...]', 'Markdown files to check (default: all section files)')
+  .option('-b, --bib <file>', 'Bibliography file', 'references.bib')
+  .action((files, options) => {
+    // If no files specified, find all .md files
+    let mdFiles = files;
+    if (!mdFiles || mdFiles.length === 0) {
+      mdFiles = fs.readdirSync('.').filter(f =>
+        f.endsWith('.md') && !['README.md', 'CLAUDE.md'].includes(f)
+      );
+    }
+
+    if (!fs.existsSync(options.bib)) {
+      console.error(fmt.status('error', `Bibliography not found: ${options.bib}`));
+      process.exit(1);
+    }
+
+    const stats = getCitationStats(mdFiles, options.bib);
+
+    console.log(fmt.header('Citation Check'));
+    console.log();
+
+    // Summary table
+    const rows = [
+      ['Total citations', stats.totalCitations.toString()],
+      ['Unique keys cited', stats.uniqueCited.toString()],
+      ['Bib entries', stats.bibEntries.toString()],
+      [chalk.green('Valid'), chalk.green(stats.valid.toString())],
+      [stats.missing > 0 ? chalk.red('Missing') : 'Missing', stats.missing > 0 ? chalk.red(stats.missing.toString()) : '0'],
+      [chalk.dim('Unused in bib'), chalk.dim(stats.unused.toString())],
+    ];
+    console.log(fmt.table(['Metric', 'Count'], rows));
+
+    // Show missing keys
+    if (stats.missingKeys.length > 0) {
+      console.log();
+      console.log(fmt.status('error', 'Missing citations:'));
+      for (const key of stats.missingKeys) {
+        console.log(chalk.red(`  - ${key}`));
+      }
+    }
+
+    // Show unused (if verbose)
+    if (stats.unusedKeys.length > 0 && stats.unusedKeys.length <= 10) {
+      console.log();
+      console.log(chalk.dim('Unused bib entries:'));
+      for (const key of stats.unusedKeys.slice(0, 10)) {
+        console.log(chalk.dim(`  - ${key}`));
+      }
+      if (stats.unusedKeys.length > 10) {
+        console.log(chalk.dim(`  ... and ${stats.unusedKeys.length - 10} more`));
+      }
+    }
+
+    console.log();
+    if (stats.missing === 0) {
+      console.log(fmt.status('success', 'All citations valid'));
+    } else {
+      console.log(fmt.status('warning', `${stats.missing} citation(s) missing from ${options.bib}`));
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
+// FIGURES command - Figure/table inventory
+// ============================================================================
+
+program
+  .command('figures')
+  .alias('figs')
+  .description('List all figures and tables with reference counts')
+  .argument('[files...]', 'Markdown files to scan')
+  .action((files) => {
+    // If no files specified, find all .md files
+    let mdFiles = files;
+    if (!mdFiles || mdFiles.length === 0) {
+      mdFiles = fs.readdirSync('.').filter(f =>
+        f.endsWith('.md') && !['README.md', 'CLAUDE.md'].includes(f)
+      );
+    }
+
+    // Build registry
+    const registry = buildRegistry('.');
+
+    // Count references in files
+    const refCounts = new Map();
+    for (const file of mdFiles) {
+      if (!fs.existsSync(file)) continue;
+      const text = fs.readFileSync(file, 'utf-8');
+
+      // Count @fig: and @tbl: references
+      const figRefs = text.matchAll(/@fig:([a-zA-Z0-9_-]+)/g);
+      for (const match of figRefs) {
+        const key = `fig:${match[1]}`;
+        refCounts.set(key, (refCounts.get(key) || 0) + 1);
+      }
+
+      const tblRefs = text.matchAll(/@tbl:([a-zA-Z0-9_-]+)/g);
+      for (const match of tblRefs) {
+        const key = `tbl:${match[1]}`;
+        refCounts.set(key, (refCounts.get(key) || 0) + 1);
+      }
+    }
+
+    console.log(fmt.header('Figure & Table Inventory'));
+    console.log();
+
+    // Figures
+    if (registry.figures.size > 0) {
+      const figRows = [...registry.figures.entries()].map(([label, info]) => {
+        const key = `fig:${label}`;
+        const refs = refCounts.get(key) || 0;
+        const num = info.isSupp ? `S${info.num}` : info.num.toString();
+        return [
+          `Figure ${num}`,
+          chalk.cyan(`@fig:${label}`),
+          info.file,
+          refs > 0 ? chalk.green(refs.toString()) : chalk.yellow('0'),
+        ];
+      });
+      console.log(fmt.table(['#', 'Label', 'File', 'Refs'], figRows));
+      console.log();
+    }
+
+    // Tables
+    if (registry.tables.size > 0) {
+      const tblRows = [...registry.tables.entries()].map(([label, info]) => {
+        const key = `tbl:${label}`;
+        const refs = refCounts.get(key) || 0;
+        const num = info.isSupp ? `S${info.num}` : info.num.toString();
+        return [
+          `Table ${num}`,
+          chalk.cyan(`@tbl:${label}`),
+          info.file,
+          refs > 0 ? chalk.green(refs.toString()) : chalk.yellow('0'),
+        ];
+      });
+      console.log(fmt.table(['#', 'Label', 'File', 'Refs'], tblRows));
+      console.log();
+    }
+
+    if (registry.figures.size === 0 && registry.tables.size === 0) {
+      console.log(chalk.dim('No figures or tables found.'));
+      console.log(chalk.dim('Add anchors like {#fig:label} to your figures.'));
+    }
+
+    // Warn about unreferenced
+    const unreferenced = [];
+    for (const [label] of registry.figures) {
+      if (!refCounts.get(`fig:${label}`)) unreferenced.push(`@fig:${label}`);
+    }
+    for (const [label] of registry.tables) {
+      if (!refCounts.get(`tbl:${label}`)) unreferenced.push(`@tbl:${label}`);
+    }
+
+    if (unreferenced.length > 0) {
+      console.log(fmt.status('warning', `${unreferenced.length} unreferenced figure(s)/table(s)`));
+    }
+  });
+
+// ============================================================================
+// EQUATIONS command - Extract and convert equations
+// ============================================================================
+
+program
+  .command('equations')
+  .alias('eq')
+  .description('Extract equations or convert to Word')
+  .argument('<action>', 'Action: list, extract, convert')
+  .argument('[input]', 'Input file (for extract/convert)')
+  .option('-o, --output <file>', 'Output file')
+  .action(async (action, input, options) => {
+    if (action === 'list') {
+      // List equations in all section files
+      const mdFiles = fs.readdirSync('.').filter(f =>
+        f.endsWith('.md') && !['README.md', 'CLAUDE.md'].includes(f)
+      );
+
+      const stats = getEquationStats(mdFiles);
+
+      console.log(fmt.header('Equations'));
+      console.log();
+
+      if (stats.byFile.length === 0) {
+        console.log(chalk.dim('No equations found.'));
+        return;
+      }
+
+      const rows = stats.byFile.map(f => [
+        f.file,
+        f.display > 0 ? chalk.cyan(f.display.toString()) : chalk.dim('-'),
+        f.inline > 0 ? chalk.yellow(f.inline.toString()) : chalk.dim('-'),
+      ]);
+      rows.push([
+        chalk.bold('Total'),
+        chalk.bold.cyan(stats.display.toString()),
+        chalk.bold.yellow(stats.inline.toString()),
+      ]);
+
+      console.log(fmt.table(['File', 'Display', 'Inline'], rows));
+
+    } else if (action === 'extract') {
+      if (!input) {
+        console.error(fmt.status('error', 'Input file required'));
+        process.exit(1);
+      }
+
+      const output = options.output || input.replace('.md', '-equations.md');
+      const result = await createEquationsDoc(input, output);
+
+      if (result.success) {
+        console.log(fmt.status('success', result.message));
+        console.log(chalk.dim(`  ${result.stats.display} display, ${result.stats.inline} inline equations`));
+      } else {
+        console.error(fmt.status('error', result.message));
+        process.exit(1);
+      }
+
+    } else if (action === 'convert') {
+      if (!input) {
+        console.error(fmt.status('error', 'Input file required'));
+        process.exit(1);
+      }
+
+      const output = options.output || input.replace('.md', '.docx');
+
+      const spin = fmt.spinner(`Converting ${path.basename(input)} to Word...`).start();
+
+      try {
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+
+        await execAsync(`pandoc "${input}" -o "${output}" --mathml`);
+        spin.success(`Created ${output}`);
+      } catch (err) {
+        spin.error(err.message);
+        process.exit(1);
+      }
+    } else {
+      console.error(fmt.status('error', `Unknown action: ${action}`));
+      console.log(chalk.dim('Actions: list, extract, convert'));
+      process.exit(1);
+    }
+  });
+
+// ============================================================================
+// DOI command - Validate and fetch DOIs
+// ============================================================================
+
+program
+  .command('doi')
+  .description('Validate DOIs in bibliography or fetch citations from DOI')
+  .argument('<action>', 'Action: check, fetch, add, lookup')
+  .argument('[input]', 'DOI (for fetch/add) or .bib file (for check)')
+  .option('-b, --bib <file>', 'Bibliography file', 'references.bib')
+  .option('--strict', 'Fail on missing DOIs for articles')
+  .option('--no-resolve', 'Only check format, skip resolution check')
+  .option('--confidence <level>', 'Minimum confidence: high, medium, low (default: medium)', 'medium')
+  .action(async (action, input, options) => {
+    if (action === 'check') {
+      const bibPath = input || options.bib;
+
+      if (!fs.existsSync(bibPath)) {
+        console.error(fmt.status('error', `File not found: ${bibPath}`));
+        process.exit(1);
+      }
+
+      console.log(fmt.header(`DOI Check: ${path.basename(bibPath)}`));
+      console.log();
+
+      const spin = fmt.spinner('Validating DOIs...').start();
+
+      try {
+        const results = await checkBibDois(bibPath, {
+          checkMissing: options.strict,
+        });
+
+        spin.stop();
+
+        // Group results by status
+        const valid = results.entries.filter(e => e.status === 'valid');
+        const invalid = results.entries.filter(e => e.status === 'invalid');
+        const missing = results.entries.filter(e => e.status === 'missing');
+        const skipped = results.entries.filter(e => e.status === 'skipped');
+
+        // Summary table
+        const summaryRows = [
+          [chalk.green('Valid'), chalk.green(valid.length.toString())],
+          [invalid.length > 0 ? chalk.red('Invalid') : 'Invalid', invalid.length > 0 ? chalk.red(invalid.length.toString()) : '0'],
+          [missing.length > 0 ? chalk.yellow('Missing (articles)') : 'Missing', missing.length > 0 ? chalk.yellow(missing.length.toString()) : '0'],
+          [chalk.dim('Skipped'), chalk.dim(skipped.length.toString())],
+        ];
+        console.log(fmt.table(['Status', 'Count'], summaryRows));
+        console.log();
+
+        // Show invalid DOIs
+        if (invalid.length > 0) {
+          console.log(chalk.red('Invalid DOIs:'));
+          for (const e of invalid) {
+            console.log(`  ${chalk.bold(e.key)}: ${e.doi || 'N/A'}`);
+            console.log(chalk.dim(`    ${e.message}`));
+          }
+          console.log();
+        }
+
+        // Show missing (articles without DOI)
+        if (missing.length > 0) {
+          console.log(chalk.yellow('Missing DOIs (should have DOI):'));
+          for (const e of missing) {
+            console.log(`  ${chalk.bold(e.key)} [${e.type}]`);
+            if (e.title) console.log(chalk.dim(`    "${e.title}"`));
+          }
+          console.log();
+        }
+
+        // Show skipped breakdown
+        if (skipped.length > 0) {
+          // Count by reason
+          const manualSkip = skipped.filter(e => e.message === 'Marked as no-doi');
+          const bookTypes = skipped.filter(e => e.message?.includes('typically has no DOI'));
+          const noField = skipped.filter(e => e.message === 'No DOI field');
+
+          console.log(chalk.dim('Skipped entries:'));
+          if (manualSkip.length > 0) {
+            console.log(chalk.dim(`  ${manualSkip.length} marked with nodoi={true}`));
+          }
+          if (bookTypes.length > 0) {
+            const types = [...new Set(bookTypes.map(e => e.type))].join(', ');
+            console.log(chalk.dim(`  ${bookTypes.length} by type (${types})`));
+          }
+          if (noField.length > 0) {
+            console.log(chalk.dim(`  ${noField.length} with no DOI field`));
+          }
+          console.log();
+        }
+
+        // Final status
+        if (invalid.length === 0 && missing.length === 0) {
+          console.log(fmt.status('success', 'All DOIs valid'));
+        } else if (invalid.length > 0) {
+          console.log(fmt.status('error', `${invalid.length} invalid DOI(s) found`));
+          if (options.strict) process.exit(1);
+        } else {
+          console.log(fmt.status('warning', `${missing.length} article(s) missing DOI`));
+        }
+
+        // Hint about skipping
+        console.log();
+        console.log(chalk.dim('To skip DOI check for an entry, add: nodoi = {true}'));
+        console.log(chalk.dim('Or add comment before entry: % no-doi'));
+
+      } catch (err) {
+        spin.stop();
+        console.error(fmt.status('error', err.message));
+        process.exit(1);
+      }
+
+    } else if (action === 'fetch') {
+      if (!input) {
+        console.error(fmt.status('error', 'DOI required'));
+        console.log(chalk.dim('Usage: rev doi fetch 10.1234/example'));
+        process.exit(1);
+      }
+
+      const spin = fmt.spinner(`Fetching BibTeX for ${input}...`).start();
+
+      try {
+        const result = await fetchBibtex(input);
+
+        if (result.success) {
+          spin.success('BibTeX retrieved');
+          console.log();
+          console.log(result.bibtex);
+        } else {
+          spin.error(result.error);
+          process.exit(1);
+        }
+      } catch (err) {
+        spin.error(err.message);
+        process.exit(1);
+      }
+
+    } else if (action === 'add') {
+      if (!input) {
+        console.error(fmt.status('error', 'DOI required'));
+        console.log(chalk.dim('Usage: rev doi add 10.1234/example'));
+        process.exit(1);
+      }
+
+      const bibPath = options.bib;
+      const spin = fmt.spinner(`Fetching and adding ${input}...`).start();
+
+      try {
+        const fetchResult = await fetchBibtex(input);
+
+        if (!fetchResult.success) {
+          spin.error(fetchResult.error);
+          process.exit(1);
+        }
+
+        const addResult = addToBib(bibPath, fetchResult.bibtex);
+
+        if (addResult.success) {
+          spin.success(`Added @${addResult.key} to ${bibPath}`);
+        } else {
+          spin.error(addResult.error);
+          process.exit(1);
+        }
+      } catch (err) {
+        spin.error(err.message);
+        process.exit(1);
+      }
+
+    } else if (action === 'lookup') {
+      const bibPath = input || options.bib;
+
+      if (!fs.existsSync(bibPath)) {
+        console.error(fmt.status('error', `File not found: ${bibPath}`));
+        process.exit(1);
+      }
+
+      console.log(fmt.header(`DOI Lookup: ${path.basename(bibPath)}`));
+      console.log();
+
+      const entries = parseBibEntries(bibPath);
+      const missing = entries.filter(e => !e.doi && !e.skip && e.expectDoi);
+
+      if (missing.length === 0) {
+        console.log(fmt.status('success', 'No entries need DOI lookup'));
+        return;
+      }
+
+      console.log(chalk.dim(`Found ${missing.length} entries without DOIs to search...\n`));
+
+      let found = 0;
+      let notFound = 0;
+      let lowConfidence = 0;
+      const results = [];
+
+      for (let i = 0; i < missing.length; i++) {
+        const entry = missing[i];
+
+        // Extract first author last name
+        let author = '';
+        if (entry.authorRaw) {
+          const firstAuthor = entry.authorRaw.split(' and ')[0];
+          // Handle "Last, First" or "First Last" formats
+          if (firstAuthor.includes(',')) {
+            author = firstAuthor.split(',')[0].trim();
+          } else {
+            const parts = firstAuthor.trim().split(/\s+/);
+            author = parts[parts.length - 1]; // Last word is usually surname
+          }
+        }
+
+        process.stdout.write(`\r${chalk.dim(`[${i + 1}/${missing.length}]`)} ${entry.key}...`);
+
+        const result = await lookupDoi(entry.title, author, entry.year, entry.journal);
+
+        if (result.found) {
+          if (result.confidence === 'high') {
+            found++;
+            results.push({ entry, result, status: 'found' });
+          } else if (result.confidence === 'medium') {
+            found++;
+            results.push({ entry, result, status: 'found' });
+          } else {
+            lowConfidence++;
+            results.push({ entry, result, status: 'low' });
+          }
+        } else {
+          notFound++;
+          results.push({ entry, result, status: 'not-found' });
+        }
+
+        // Rate limiting
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      // Clear progress line
+      process.stdout.write('\r\x1B[K');
+
+      // Show results
+      console.log(fmt.table(
+        ['Status', 'Count'],
+        [
+          [chalk.green('Found (high/medium confidence)'), chalk.green(found.toString())],
+          [chalk.yellow('Found (low confidence)'), chalk.yellow(lowConfidence.toString())],
+          [chalk.dim('Not found'), chalk.dim(notFound.toString())],
+        ]
+      ));
+      console.log();
+
+      // Filter by confidence level
+      const confLevel = options.confidence || 'medium';
+      const confLevels = { high: 3, medium: 2, low: 1 };
+      const minConf = confLevels[confLevel] || 2;
+
+      const filteredResults = results.filter(r => {
+        if (r.status === 'not-found') return false;
+        const resultConf = confLevels[r.result.confidence] || 1;
+        return resultConf >= minConf;
+      });
+
+      const hiddenCount = results.filter(r => {
+        if (r.status === 'not-found') return false;
+        const resultConf = confLevels[r.result.confidence] || 1;
+        return resultConf < minConf;
+      }).length;
+
+      if (filteredResults.length > 0) {
+        console.log(chalk.cyan(`Found DOIs (${confLevel}+ confidence):`));
+        console.log();
+
+        for (const { entry, result } of filteredResults) {
+          const conf = result.confidence === 'high' ? chalk.green('●') :
+                       result.confidence === 'medium' ? chalk.yellow('●') :
+                       chalk.red('○');
+
+          // Check year match
+          const entryYear = entry.year;
+          const foundYear = result.metadata?.year;
+          const yearExact = entryYear && foundYear && entryYear === foundYear;
+          const yearClose = entryYear && foundYear && Math.abs(entryYear - foundYear) === 1;
+          const yearMismatch = entryYear && foundYear && Math.abs(entryYear - foundYear) > 1;
+
+          console.log(`  ${conf} ${chalk.bold(entry.key)} (${entryYear || '?'})`);
+          console.log(chalk.dim(`     Title: ${entry.title}`));
+          console.log(chalk.cyan(`     DOI: ${result.doi}`));
+
+          if (result.metadata?.journal) {
+            let yearDisplay;
+            if (yearExact) {
+              yearDisplay = chalk.green(`(${foundYear})`);
+            } else if (yearClose) {
+              yearDisplay = chalk.yellow(`(${foundYear}) ≈`);
+            } else if (yearMismatch) {
+              yearDisplay = chalk.red.bold(`(${foundYear}) ⚠ YEAR MISMATCH`);
+            } else {
+              yearDisplay = chalk.dim(`(${foundYear || '?'})`);
+            }
+            console.log(`     ${chalk.dim('Found:')} ${result.metadata.journal} ${yearDisplay}`);
+          }
+
+          // Extra warning for year mismatch
+          if (yearMismatch) {
+            console.log(chalk.red(`     ⚠ Expected ${entryYear}, found ${foundYear} - verify this is correct!`));
+          }
+
+          console.log();
+        }
+
+        // Offer to add DOIs
+        console.log(chalk.dim('To add a DOI to your .bib file:'));
+        console.log(chalk.dim('  1. Open references.bib'));
+        console.log(chalk.dim('  2. Add: doi = {10.xxxx/xxxxx}'));
+        console.log();
+        console.log(chalk.dim('Or use: rev doi add <doi> to fetch full BibTeX'));
+      }
+
+      // Show hidden count
+      if (hiddenCount > 0) {
+        console.log(chalk.yellow(`\n${hiddenCount} lower-confidence matches hidden.`));
+        if (confLevel === 'high') {
+          console.log(chalk.dim('Use --confidence medium or --confidence low to show more.'));
+        } else if (confLevel === 'medium') {
+          console.log(chalk.dim('Use --confidence low to show all matches.'));
+        }
+      }
+
+      // Show not found
+      if (notFound > 0) {
+        console.log(chalk.dim(`${notFound} entries could not be matched. These may be:`));
+        console.log(chalk.dim('  - Books, theses, or reports (often no DOI)'));
+        console.log(chalk.dim('  - Very old papers (pre-DOI era)'));
+        console.log(chalk.dim('  - Title mismatch (special characters, abbreviations)'));
+      }
+
+    } else {
+      console.error(fmt.status('error', `Unknown action: ${action}`));
+      console.log(chalk.dim('Actions: check, fetch, add, lookup'));
+      process.exit(1);
+    }
+  });
 
 // ============================================================================
 // HELP command - Comprehensive help
