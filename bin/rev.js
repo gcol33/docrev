@@ -43,6 +43,7 @@ import {
 } from '../lib/build.js';
 import { getTemplate, listTemplates } from '../lib/templates.js';
 import { getUserName, setUserName, getConfigPath } from '../lib/config.js';
+import * as fmt from '../lib/format.js';
 
 program
   .name('rev')
@@ -131,36 +132,40 @@ program
     const counts = countAnnotations(text);
 
     if (counts.total === 0) {
-      console.log(chalk.green('No annotations found.'));
+      console.log(fmt.status('success', 'No annotations found.'));
       return;
     }
 
-    console.log(chalk.cyan(`\nAnnotations in ${path.basename(file)}:\n`));
+    console.log(fmt.header(`Annotations in ${path.basename(file)}`));
+    console.log();
 
-    if (counts.inserts > 0) {
-      console.log(chalk.green(`  + Insertions:    ${counts.inserts}`));
-    }
-    if (counts.deletes > 0) {
-      console.log(chalk.red(`  - Deletions:     ${counts.deletes}`));
-    }
-    if (counts.substitutes > 0) {
-      console.log(chalk.yellow(`  ~ Substitutions: ${counts.substitutes}`));
-    }
-    if (counts.comments > 0) {
-      console.log(chalk.blue(`  # Comments:      ${counts.comments}`));
-    }
+    // Build stats table
+    const rows = [];
+    if (counts.inserts > 0) rows.push([chalk.green('+'), 'Insertions', chalk.green(counts.inserts)]);
+    if (counts.deletes > 0) rows.push([chalk.red('-'), 'Deletions', chalk.red(counts.deletes)]);
+    if (counts.substitutes > 0) rows.push([chalk.yellow('~'), 'Substitutions', chalk.yellow(counts.substitutes)]);
+    if (counts.comments > 0) rows.push([chalk.blue('#'), 'Comments', chalk.blue(counts.comments)]);
+    rows.push([chalk.dim('Σ'), chalk.dim('Total'), chalk.dim(counts.total)]);
 
-    console.log(chalk.dim(`\n  Total: ${counts.total}`));
+    console.log(fmt.table(['', 'Type', 'Count'], rows, { align: ['center', 'left', 'right'] }));
 
-    // List comments with authors
+    // List comments with authors in a table
     const comments = getComments(text);
     if (comments.length > 0) {
-      console.log(chalk.cyan('\nComments:'));
-      for (const c of comments) {
-        const author = c.author ? `[${c.author}]` : '';
-        const preview = c.content.length > 50 ? c.content.slice(0, 50) + '...' : c.content;
-        console.log(chalk.dim(`  Line ${c.line}:`) + ` ${author} ${preview}`);
-      }
+      console.log();
+      console.log(fmt.header('Comments'));
+      console.log();
+
+      const commentRows = comments.map((c, i) => [
+        chalk.dim(i + 1),
+        c.author ? chalk.blue(c.author) : chalk.dim('Anonymous'),
+        c.content.length > 45 ? c.content.slice(0, 45) + '...' : c.content,
+        chalk.dim(`L${c.line}`),
+      ]);
+
+      console.log(fmt.table(['#', 'Author', 'Comment', 'Line'], commentRows, {
+        align: ['right', 'left', 'left', 'right'],
+      }));
     }
   });
 
@@ -661,18 +666,18 @@ program
   .option('--dry-run', 'Preview without writing files')
   .action(async (docx, options) => {
     if (!fs.existsSync(docx)) {
-      console.error(chalk.red(`File not found: ${docx}`));
+      console.error(fmt.status('error', `File not found: ${docx}`));
       process.exit(1);
     }
 
     const configPath = path.resolve(options.dir, options.config);
     if (!fs.existsSync(configPath)) {
-      console.error(chalk.red(`Config not found: ${configPath}`));
-      console.error(chalk.dim('Run "rev init" first to generate sections.yaml'));
+      console.error(fmt.status('error', `Config not found: ${configPath}`));
+      console.error(chalk.dim('  Run "rev init" first to generate sections.yaml'));
       process.exit(1);
     }
 
-    console.log(chalk.cyan(`Importing ${path.basename(docx)} with section awareness...\n`));
+    const spin = fmt.spinner(`Importing ${path.basename(docx)}...`).start();
 
     try {
       const config = loadConfig(configPath);
@@ -689,9 +694,6 @@ program
       // Extract comments and anchors from Word doc
       const comments = await extractWordComments(docx);
       const anchors = await extractCommentAnchors(docx);
-      if (comments.length > 0) {
-        console.log(chalk.blue(`Found ${comments.length} comments in Word document.\n`));
-      }
 
       // Extract text from Word
       const wordResult = await mammoth.extractRawText({ path: docx });
@@ -701,20 +703,30 @@ program
       const wordSections = extractSectionsFromText(wordText, config.sections);
 
       if (wordSections.length === 0) {
-        console.error(chalk.yellow('No sections detected in Word document.'));
-        console.error(chalk.dim('Check that headings match sections.yaml'));
+        spin.stop();
+        console.error(fmt.status('warning', 'No sections detected in Word document.'));
+        console.error(chalk.dim('  Check that headings match sections.yaml'));
         process.exit(1);
       }
 
-      console.log(chalk.green(`Detected ${wordSections.length} sections in Word doc:\n`));
+      spin.stop();
+      console.log(fmt.header(`Import from ${path.basename(docx)}`));
+      console.log();
 
+      // Collect results for summary table
+      const sectionResults = [];
       let totalChanges = 0;
 
       for (const section of wordSections) {
         const sectionPath = path.join(options.dir, section.file);
 
         if (!fs.existsSync(sectionPath)) {
-          console.log(chalk.yellow(`  ${section.file} - not found, skipping`));
+          sectionResults.push({
+            file: section.file,
+            header: section.header,
+            status: 'skipped',
+            stats: null,
+          });
           continue;
         }
 
@@ -738,9 +750,7 @@ program
         // Insert Word comments into the annotated markdown
         let commentsInserted = 0;
         if (comments.length > 0 && anchors.size > 0) {
-          const beforeLen = annotated.length;
           annotated = insertCommentsIntoMarkdown(annotated, comments, anchors);
-          // Count how many comments were inserted (rough estimate by counting {>> markers)
           commentsInserted = (annotated.match(/\{>>/g) || []).length - (result.annotated?.match(/\{>>/g) || []).length;
           if (commentsInserted > 0) {
             stats.comments = (stats.comments || 0) + commentsInserted;
@@ -749,44 +759,73 @@ program
 
         totalChanges += stats.total;
 
-        console.log(`  ${chalk.bold(section.file)}`);
-        console.log(chalk.dim(`    Word heading: "${section.header}"`));
+        sectionResults.push({
+          file: section.file,
+          header: section.header,
+          status: 'ok',
+          stats,
+          refs: refConversions.length,
+        });
 
-        if (stats.total > 0 || refConversions.length > 0) {
-          const parts = [];
-          if (stats.insertions > 0) parts.push(chalk.green(`+${stats.insertions}`));
-          if (stats.deletions > 0) parts.push(chalk.red(`-${stats.deletions}`));
-          if (stats.substitutions > 0) parts.push(chalk.yellow(`~${stats.substitutions}`));
-          if (stats.comments > 0) parts.push(chalk.blue(`#${stats.comments}`));
-          if (refConversions.length > 0) parts.push(chalk.magenta(`@${refConversions.length} refs`));
-          console.log(`    Changes: ${parts.join(' ')}`);
-
-          if (!options.dryRun) {
-            fs.writeFileSync(sectionPath, annotated, 'utf-8');
-          }
-        } else {
-          console.log(chalk.dim('    No changes'));
+        if (!options.dryRun && (stats.total > 0 || refConversions.length > 0)) {
+          fs.writeFileSync(sectionPath, annotated, 'utf-8');
         }
       }
 
-      console.log('');
-
-      if (options.dryRun) {
-        console.log(chalk.yellow('(Dry run - no files written)'));
-      } else if (totalChanges > 0 || totalRefConversions > 0) {
-        console.log(chalk.green(`Updated section files with ${totalChanges} annotations.`));
-        if (totalRefConversions > 0) {
-          console.log(chalk.magenta(`Converted ${totalRefConversions} hardcoded refs to @-syntax.`));
+      // Build summary table
+      const tableRows = sectionResults.map((r) => {
+        if (r.status === 'skipped') {
+          return [
+            chalk.dim(r.file),
+            chalk.dim(r.header.slice(0, 25)),
+            chalk.yellow('skipped'),
+            '',
+            '',
+            '',
+            '',
+          ];
         }
-        console.log(chalk.cyan('\nNext steps:'));
+        const s = r.stats;
+        return [
+          chalk.bold(r.file),
+          r.header.length > 25 ? r.header.slice(0, 22) + '...' : r.header,
+          s.insertions > 0 ? chalk.green(`+${s.insertions}`) : chalk.dim('-'),
+          s.deletions > 0 ? chalk.red(`-${s.deletions}`) : chalk.dim('-'),
+          s.substitutions > 0 ? chalk.yellow(`~${s.substitutions}`) : chalk.dim('-'),
+          s.comments > 0 ? chalk.blue(`#${s.comments}`) : chalk.dim('-'),
+          r.refs > 0 ? chalk.magenta(`@${r.refs}`) : chalk.dim('-'),
+        ];
+      });
+
+      console.log(fmt.table(
+        ['File', 'Section', 'Ins', 'Del', 'Sub', 'Cmt', 'Ref'],
+        tableRows,
+        { align: ['left', 'left', 'right', 'right', 'right', 'right', 'right'] }
+      ));
+      console.log();
+
+      // Summary box
+      if (options.dryRun) {
+        console.log(fmt.box(chalk.yellow('Dry run - no files written'), { padding: 0 }));
+      } else if (totalChanges > 0 || totalRefConversions > 0 || comments.length > 0) {
+        const summaryLines = [];
+        summaryLines.push(`${chalk.bold(wordSections.length)} sections processed`);
+        if (totalChanges > 0) summaryLines.push(`${chalk.bold(totalChanges)} annotations imported`);
+        if (comments.length > 0) summaryLines.push(`${chalk.bold(comments.length)} comments placed`);
+        if (totalRefConversions > 0) summaryLines.push(`${chalk.bold(totalRefConversions)} refs converted to @-syntax`);
+
+        console.log(fmt.box(summaryLines.join('\n'), { title: 'Summary', padding: 0 }));
+        console.log();
+        console.log(chalk.dim('Next steps:'));
         console.log(chalk.dim('  1. rev review <section.md>  - Accept/reject changes'));
-        console.log(chalk.dim('  2. Address comments with Claude'));
-        console.log(chalk.dim('  3. ./build.sh docx  - Rebuild'));
+        console.log(chalk.dim('  2. rev comments <section.md> - View/address comments'));
+        console.log(chalk.dim('  3. rev build docx  - Rebuild Word doc'));
       } else {
-        console.log(chalk.green('No changes detected.'));
+        console.log(fmt.status('success', 'No changes detected.'));
       }
     } catch (err) {
-      console.error(chalk.red(`Error: ${err.message}`));
+      spin.stop();
+      console.error(fmt.status('error', err.message));
       if (process.env.DEBUG) console.error(err.stack);
       process.exit(1);
     }
