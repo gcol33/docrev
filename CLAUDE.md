@@ -85,6 +85,14 @@ rev watch                 # Auto-rebuild on file changes
 rev watch pdf --no-open   # Watch without opening
 
 rev lint                  # Check for broken refs, missing citations
+
+rev clean                 # Remove generated files (paper.md, PDFs, DOCXs)
+rev clean --all           # Also remove backups and exports
+
+rev check                 # Pre-submission check (lint + grammar + citations)
+
+rev open                  # Open project folder
+rev open paper.pdf        # Open specific file
 ```
 
 ### Grammar & Style
