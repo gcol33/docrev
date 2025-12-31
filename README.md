@@ -1,23 +1,18 @@
 # docrev
 
 [![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**Write papers in plain text. Generate Word when needed.**
-
-## Why
-
-Scientific papers go through many revision cycles. You send a Word document to collaborators, they add comments and track changes, you address the feedback and send it back. Then journal submission, reviewer comments, more revisions. After a few rounds, track changes become unreadable, you have fifteen versions of the same file, and nobody knows which one is current. Equations break when copying between documents. Figures get embedded at the wrong resolution or disappear entirely.
-
-docrev takes a different approach. You write in plain text using Markdown, a simple formatting syntax that takes ten minutes to learn. When you need to share with collaborators or submit to a journal, docrev generates a Word document or PDF. Your collaborators review and comment in Word as usual. When they send it back, docrev imports their feedback into your Markdown files. You address the comments, rebuild the document, and send it back. The cycle continues, but your source files stay clean and under version control.
-
-Your collaborators do not need to install anything or change how they work. They keep using Word. You handle the conversion on your end. The result is proper version history, equations that never break, figures that stay linked rather than embedded, and automated citation formatting.
+Write scientific papers in Markdown. Generate Word documents for collaborators. Import their feedback. Repeat.
 
 ```
-Markdown files  -->  docrev  -->  Word/PDF
-      ^                              |
-      |                              v
-      +---- docrev <---- reviewer feedback
+Markdown  ──►  docrev  ──►  Word/PDF  ──►  Collaborators
+    ▲                                           │
+    └───────────  docrev  ◄─────────────────────┘
+                (import feedback)
 ```
+
+Scientific papers go through many revision cycles with collaborators and reviewers. Track changes become unreadable, versions multiply, equations break when copying, figures get embedded at wrong resolutions. docrev keeps your source in plain Markdown under version control while generating Word documents for the review cycle. Your collaborators keep using Word as usual. You handle conversion on your end.
 
 ## Install
 
