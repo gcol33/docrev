@@ -246,11 +246,7 @@ test('Single comment inserted at correct position', () => {
   const anchors = new Map([['1', 'significant']]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  assertContains(result, '{>>Reviewer: Add p-value<<}');
-  // Comment should be after "significant"
-  const sigPos = result.indexOf('significant');
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos > sigPos, 'Comment should be after anchor text');
+  assertContains(result, '{>>Reviewer: Add p-value<<}[significant]{.mark}');
 });
 
 test('Multiple comments inserted correctly', () => {
@@ -302,10 +298,8 @@ test('Context helps disambiguate duplicate anchors', () => {
   const anchors = new Map([['1', { anchor: 'species', before: 'another', after: 'showed low diversity' }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Comment should be after the second "species"
-  const secondSpeciesPos = result.indexOf('species', result.indexOf('species') + 1);
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos > secondSpeciesPos, 'Comment should be after second species (based on context)');
+  // Comment should be on the second "species" (format: {>>comment<<}[anchor]{.mark})
+  assertContains(result, 'another {>>Reviewer: Which species?<<}[species]{.mark} showed low diversity');
 });
 
 test('Multiple duplicate anchors with different contexts', () => {
@@ -413,7 +407,7 @@ test('Citation renders differently: [@Smith2021] vs (Smith 2021)', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  assertContains(result, 'habitat {>>Reviewer: Add more citations<<}');
+  assertContains(result, '{>>Reviewer: Add more citations<<}[habitat]{.mark}');
 });
 
 test('Multiple citations in context: different rendering lengths', () => {
@@ -427,11 +421,8 @@ test('Multiple citations in context: different rendering lengths', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Should match the first "habitat" (near "loss"), not the second one
-  const firstHabitatPos = result.indexOf('habitat');
-  const commentPos = result.indexOf('{>>R1');
-  assert.ok(commentPos > firstHabitatPos && commentPos < result.indexOf('habitat', firstHabitatPos + 1),
-    'Comment should be after first habitat, before second');
+  // Should match the first "habitat" (near "loss") - format: {>>comment<<}[habitat]{.mark}
+  assertContains(result, '{>>R1: Which habitat?<<}[habitat]{.mark} loss');
 });
 
 test('Math renders differently: $p < 0.05$ vs p < 0.05', () => {
@@ -446,7 +437,7 @@ test('Math renders differently: $p < 0.05$ vs p < 0.05', () => {
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
   // Should find first species (after math)
-  assertContains(result, 'species {>>Reviewer: Which species?<<}');
+  assertContains(result, '{>>Reviewer: Which species?<<}[species]{.mark}');
 });
 
 test('Display math block renders as text', () => {
@@ -460,10 +451,8 @@ test('Display math block renders as text', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Should match first habitat
-  const firstHabitatPos = result.indexOf('habitat');
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos > firstHabitatPos, 'Comment should be after first habitat');
+  // Should match first habitat - format: {>>comment<<}[habitat]{.mark}
+  assertContains(result, 'Results for {>>R1: Define variables<<}[habitat]{.mark} were clear');
 });
 
 test('Bold/italic stripped in Word context', () => {
@@ -477,7 +466,7 @@ test('Bold/italic stripped in Word context', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  assertContains(result, 'habitat {>>R1: How significant?<<} effects');
+  assertContains(result, '{>>R1: How significant?<<}[habitat]{.mark} effects');
 });
 
 test('HTML entities in Word: &gt; &lt; &amp;', () => {
@@ -491,10 +480,8 @@ test('HTML entities in Word: &gt; &lt; &amp;', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Should find first habitat
-  const firstHabitatPos = result.indexOf('habitat');
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos === firstHabitatPos + 'habitat'.length + 1, 'Comment after first habitat');
+  // Should find first habitat - format: {>>comment<<}[habitat]{.mark}
+  assertContains(result, 'Values > 100 showed {>>R1: Check threshold<<}[habitat]{.mark} preference');
 });
 
 test('Figure reference renders: @fig:map vs Figure 1', () => {
@@ -508,7 +495,7 @@ test('Figure reference renders: @fig:map vs Figure 1', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  assertContains(result, 'habitat {>>R1: Add scale bar<<} distribution');
+  assertContains(result, '{>>R1: Add scale bar<<}[habitat]{.mark} distribution');
 });
 
 test('Table reference renders: @tbl:results vs Table 1', () => {
@@ -521,7 +508,7 @@ test('Table reference renders: @tbl:results vs Table 1', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  assertContains(result, 'habitat {>>R1: Check numbers<<} associations');
+  assertContains(result, '{>>R1: Check numbers<<}[habitat]{.mark} associations');
 });
 
 test('Mixed elements: citation + math + crossref', () => {
@@ -535,11 +522,8 @@ test('Mixed elements: citation + math + crossref', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Should match first habitat
-  const firstHabitatPos = result.indexOf('habitat');
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos > firstHabitatPos && commentPos < result.lastIndexOf('habitat'),
-    'Comment should be on first habitat');
+  // Should match first habitat - format: {>>comment<<}[habitat]{.mark}
+  assertContains(result, 'see @fig:results for {>>R1: Elaborate<<}[habitat]{.mark} effects');
 });
 
 test('Whitespace normalization: multiple spaces collapsed', () => {
@@ -567,10 +551,8 @@ test('Line breaks in Word become spaces', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Should match second habitat
-  const lastHabitatPos = result.lastIndexOf('habitat');
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos > lastHabitatPos, 'Comment should be after second habitat');
+  // Should match second habitat - format: {>>comment<<}[habitat]{.mark}
+  assertContains(result, 'Second paragraph about {>>R1: On second<<}[habitat]{.mark}.');
 });
 
 test('Parenthetical citation at sentence end', () => {
@@ -583,10 +565,9 @@ test('Parenthetical citation at sentence end', () => {
   }]]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
-  // Should match second Habitat
-  const secondHabitatPos = result.indexOf('Habitat', 10);
-  const commentPos = result.indexOf('{>>');
-  assert.ok(commentPos > secondHabitatPos, 'Comment should be after second Habitat');
+  // Should match second Habitat - format: {>>comment<<}[anchor]{.mark}
+  // Comment is placed BEFORE anchor text in new format
+  assertContains(result, '{>>R1: Recent data?<<}[Habitat]{.mark} restoration helps');
 });
 
 test('Three identical anchors with distinct contexts', () => {
