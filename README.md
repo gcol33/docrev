@@ -354,16 +354,16 @@ Run `rev help` to see all commands, or `rev help <command>` for details on a spe
 
 Full command reference: [docs/commands.md](docs/commands.md)
 
-## AI Skill
+## Claude Code Skill
 
-Install the docrev skill for AI coding assistants:
+Install the docrev skill for [Claude Code](https://claude.ai/code):
 
 ```bash
-rev install-cli-skill      # install skill to ~/.claude/skills/docrev
-rev uninstall-cli-skill    # remove the skill
+rev install-cli-skill      # install to ~/.claude/skills/docrev
+rev uninstall-cli-skill    # remove
 ```
 
-Once installed, your AI assistant understands docrev commands and can help navigate comments, draft replies, and manage your revision cycle.
+Once installed, Claude understands docrev commands and can help navigate comments, draft replies, and manage your revision cycle.
 
 ## Requirements
 
