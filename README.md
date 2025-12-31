@@ -1,7 +1,10 @@
 # docrev
 
 [![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
+[![npm downloads](https://img.shields.io/npm/dm/docrev)](https://www.npmjs.com/package/docrev)
+[![node](https://img.shields.io/node/v/docrev)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
 
 Write scientific papers in Markdown. Generate Word documents for collaborators. Import their feedback. Repeat.
 
