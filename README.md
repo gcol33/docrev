@@ -146,7 +146,7 @@ output:
     fontsize: 12pt
 ```
 
-Change the template, rebuild, and every document gets the new formatting. Your content stays clean.
+Change the template, rebuild, and every document gets the new formatting. Built-in journal styles (Nature, Science, PNAS, and 18 others) handle formatting requirements automatically. Your content stays clean.
 
 ## The Revision Cycle
 
