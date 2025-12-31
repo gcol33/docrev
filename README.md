@@ -14,6 +14,8 @@ Write in Markdown with citations, equations, and cross-references. Build to a pr
 
 Why Markdown? It's plain text: you can use any editor, diff changes line by line, merge branches, grep your manuscript, and keep everything in git. No vendor lock-in, no binary blobs, no corruption.
 
+Work entirely from the command line. List comments, reply to reviewers, resolve threads, check word counts, validate citations - all without opening Word.
+
 If your collaborators use Word, you know the problem: they send track changes and comments, but those documents don't diff, don't merge, and don't version control. docrev bridges this gap:
 
 ```
