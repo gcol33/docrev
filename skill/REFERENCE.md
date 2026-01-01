@@ -18,10 +18,12 @@ rev import manuscript.docx
 rev import manuscript.docx --output ./project
 ```
 
-### rev sections
-Import feedback from a reviewed Word document into existing markdown sections.
+### rev sync
+Sync feedback from a reviewed Word document into existing markdown sections.
 ```bash
-rev sections reviewed.docx   # Updates markdown with track changes/comments
+rev sync reviewed.docx       # Updates markdown with track changes/comments
+rev sync                     # Auto-detect most recent .docx
+rev sync reviewed.docx methods  # Sync only methods section
 ```
 
 ### rev build
@@ -31,7 +33,7 @@ rev build                    # Build PDF and DOCX
 rev build pdf                # PDF only
 rev build docx               # DOCX only
 rev build --toc              # Include table of contents
-rev build --dual             # Clean + annotated versions
+rev build docx --dual        # Clean + annotated versions
 ```
 
 The `--dual` flag produces:
@@ -82,9 +84,44 @@ rev resolve methods.md -n 1,2,3   # Multiple comments
 ```
 
 ### rev status
-Show annotation counts for a file.
+Show project overview or annotation counts for a file.
 ```bash
-rev status methods.md
+rev status               # Project overview (words, comments, changes)
+rev status methods.md    # Specific file annotations
+```
+
+### rev next / rev prev
+Navigate pending comments.
+```bash
+rev next                 # Show next pending comment
+rev next -n 3            # Show 3rd pending comment
+rev prev                 # Show last pending comment
+rev first methods        # First comment in methods section
+rev last                 # Last comment overall
+```
+
+### rev todo
+List all pending comments as a checklist.
+```bash
+rev todo                 # List all pending
+rev todo --by-author     # Group by author
+```
+
+### rev accept / rev reject
+Accept or reject track changes.
+```bash
+rev accept methods.md         # List all changes
+rev accept methods.md -n 1    # Accept change #1
+rev accept methods.md -a      # Accept all
+rev reject methods.md -n 2    # Reject change #2
+```
+
+### rev archive
+Archive reviewer .docx files.
+```bash
+rev archive              # Move all .docx to archive/
+rev archive --by Smith   # Specify reviewer name
+rev archive --dry-run    # Preview without moving
 ```
 
 ### rev strip

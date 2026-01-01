@@ -44,14 +44,17 @@ Send to reviewers. They add comments and track changes in Word.
 ### 3. Import feedback
 
 ```bash
-rev sections reviewed.docx   # Updates markdown with annotations
+rev sync reviewed.docx       # Updates markdown with annotations
+rev sync                     # Auto-detect most recent .docx
 ```
 
 ### 4. View and address comments
 
 ```bash
+rev status                   # Project overview
+rev todo                     # List all pending comments
+rev next                     # Show next pending comment
 rev comments methods.md      # List all comments with context
-rev status methods.md        # Show annotation counts
 ```
 
 ### 5. Reply to reviewer comments
@@ -74,13 +77,19 @@ rev resolve methods.md -n 1  # Mark comment #1 as resolved
 ### 7. Rebuild with comment threads
 
 ```bash
-rev build --dual             # Produces clean + annotated versions
+rev build docx --dual        # Produces clean + annotated versions
 ```
 
 - `paper.docx` — clean, for submission
 - `paper_comments.docx` — includes comment threads as Word comments
 
-### 8. Generate response letter
+### 8. Archive reviewer files
+
+```bash
+rev archive                  # Move reviewer files to archive/
+```
+
+### 9. Generate response letter
 
 ```bash
 rev response                 # Generate point-by-point response letter
@@ -100,9 +109,14 @@ rev response                 # Generate point-by-point response letter
 |------|---------|
 | Create project | `rev new my-project` |
 | Import Word doc | `rev import manuscript.docx` |
-| Import feedback | `rev sections reviewed.docx` |
+| Sync feedback | `rev sync reviewed.docx` |
+| Project status | `rev status` |
+| Next pending | `rev next` |
+| List pending | `rev todo` |
+| Accept all changes | `rev accept file.md -a` |
 | Build Word | `rev build docx` |
-| Build clean + annotated | `rev build --dual` |
+| Build clean + annotated | `rev build docx --dual` |
+| Archive reviewer files | `rev archive` |
 | Word count per section | `rev word-count` |
 | Project dashboard | `rev stats` |
 | Search all sections | `rev search "query"` |
@@ -163,11 +177,13 @@ my-document/
 ## When Helping Users
 
 1. **Setup**: Ensure `rev config user "Name"` is set for replies
-2. **Import phase**: Run `rev import` or `rev sections` to get feedback as markdown
-3. **Review phase**: Use `rev comments` to see all comments, then `rev reply` to respond
-4. **Build phase**: Run `rev build docx` or `rev build --dual` for annotated version
-5. **Validation phase**: Run `rev check` before submission (lint + grammar + citations)
-6. **Response letter**: Use `rev response` to generate point-by-point responses
+2. **Sync phase**: Run `rev sync` to get feedback as markdown
+3. **Review phase**: Use `rev todo` and `rev next` to navigate comments, `rev reply` to respond
+4. **Accept phase**: Use `rev accept -a` or `rev review` to handle track changes
+5. **Build phase**: Run `rev build docx` or `rev build docx --dual` for annotated version
+6. **Archive phase**: Run `rev archive` to move reviewer files
+7. **Validation phase**: Run `rev check` before submission
+8. **Response letter**: Use `rev response` to generate point-by-point responses
 
 ## Critical: Ask Questions When Unsure
 
