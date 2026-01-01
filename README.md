@@ -256,11 +256,13 @@ Generate both a clean version and one showing comment threads:
 
 ```bash
 rev build docx --dual
+rev build pdf --dual
 ```
 
 Produces:
-- `paper.docx` - clean, for submission
-- `paper_comments.docx` - includes threaded comments visible in Word's comment pane
+- `paper.docx` / `paper.pdf` - clean, for submission
+- `paper_comments.docx` - threaded comments in Word's comment pane
+- `paper_comments.pdf` - comments as margin notes
 
 ### 7. Repeat
 

@@ -2490,7 +2490,7 @@ program
   .option('--no-crossref', 'Skip pandoc-crossref filter')
   .option('--toc', 'Include table of contents')
   .option('--show-changes', 'Export DOCX with visible track changes (audit mode)')
-  .option('--dual', 'Output both clean DOCX and DOCX with Word comments (paper.docx + paper_comments.docx)')
+  .option('--dual', 'Output both clean version and annotated version (with comments)')
   .option('--reference <docx>', 'Reference DOCX for comment position alignment (use with --dual)')
   .action(async (formats, options) => {
     const dir = path.resolve(options.dir);
@@ -2700,8 +2700,61 @@ program
               }
             }
           }
-        } else {
-          console.error(chalk.yellow('\n--dual requires docx format to be built'));
+        }
+
+        // Handle PDF dual mode: create annotated PDF with margin notes
+        const pdfResult = results.find(r => r.format === 'pdf' && r.success);
+        if (pdfResult) {
+          const { prepareMarkdownForAnnotatedPdf } = await import('../lib/pdf-comments.js');
+          const { runPandoc } = await import('../lib/build.js');
+
+          // Read the combined paper.md
+          let markdown = fs.readFileSync(paperPath, 'utf-8');
+
+          // Strip track changes but keep comments
+          markdown = stripAnnotations(markdown, { keepComments: true });
+
+          // Convert comments to LaTeX margin notes
+          const spinPdf = fmt.spinner('Preparing annotated PDF...').start();
+          const { markdown: annotatedMd, preamble, commentCount } = prepareMarkdownForAnnotatedPdf(markdown, {
+            useTodonotes: true,
+            stripResolved: true,
+          });
+
+          if (commentCount === 0) {
+            spinPdf.stop();
+            console.log(chalk.yellow('\nNo comments found - skipping annotated PDF'));
+          } else {
+            // Write annotated markdown to temp file
+            const annotatedPath = path.join(dir, '.paper-annotated.md');
+            fs.writeFileSync(annotatedPath, annotatedMd, 'utf-8');
+
+            // Add preamble to config
+            const annotatedConfig = JSON.parse(JSON.stringify(config));
+            annotatedConfig.pdf = annotatedConfig.pdf || {};
+            annotatedConfig.pdf['header-includes'] = (annotatedConfig.pdf['header-includes'] || '') + preamble;
+            // Wider margins for margin notes
+            annotatedConfig.pdf.geometry = 'left=2.5cm,right=4.5cm,top=2.5cm,bottom=2.5cm,marginparwidth=3.5cm';
+
+            // Build annotated PDF
+            const annotatedPdfPath = pdfResult.outputPath.replace(/\.pdf$/, '_comments.pdf');
+            spinPdf.text = 'Building annotated PDF...';
+            const pandocResult = await runPandoc(annotatedPath, 'pdf', annotatedConfig, { ...options, outputPath: annotatedPdfPath });
+            spinPdf.stop();
+
+            // Clean up temp file
+            if (!process.env.DEBUG) {
+              try { fs.unlinkSync(annotatedPath); } catch { /* ignore */ }
+            }
+
+            if (pandocResult.success) {
+              console.log(chalk.cyan('\nPDF dual output:'));
+              console.log(`  Clean:    ${path.basename(pdfResult.outputPath)}`);
+              console.log(`  Comments: ${path.basename(annotatedPdfPath)} (${commentCount} margin notes)`);
+            } else {
+              console.error(chalk.yellow(`\nWarning: Could not create annotated PDF: ${pandocResult.error}`));
+            }
+          }
         }
       }
 
