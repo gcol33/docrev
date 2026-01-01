@@ -45,6 +45,7 @@ Complete list of `rev` commands.
 | Command | Description |
 |---------|-------------|
 | `rev pdf-comments <pdf>` | Extract and display comments from annotated PDF |
+| `rev pdf-comments <pdf> --with-text` | Also extract the highlighted text content |
 | `rev pdf-comments <pdf> --append <file.md>` | Append extracted comments to markdown file |
 | `rev pdf-comments <pdf> --json` | Output comments as JSON |
 | `rev pdf-comments <pdf> --by-page` | Group comments by page (default) |
@@ -54,10 +55,13 @@ Complete list of `rev` commands.
 **Supported PDF Annotations:**
 - Sticky notes (Text annotations)
 - Text boxes (FreeText)
-- Highlights with comments
-- Underlines with comments
-- Strikethrough (deletion suggestions)
-- Squiggly underlines
+- Highlights with comments (text extraction supported)
+- Underlines with comments (text extraction supported)
+- Strikethrough/deletion suggestions (text extraction supported)
+- Squiggly underlines (text extraction supported)
+
+**Text Extraction:**
+Use `--with-text` to extract the actual text that was highlighted, underlined, or struck through. This is slower but shows exactly what the reviewer marked.
 
 **PDF Dual Export:**
 When building with `--dual`, produces:

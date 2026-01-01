@@ -3676,6 +3676,7 @@ program
   .option('--json', 'Output as JSON')
   .option('--by-page', 'Group comments by page')
   .option('--by-author', 'Group comments by author')
+  .option('--with-text', 'Extract highlighted text (slower but shows what was highlighted)')
   .action(async (pdf, options) => {
     if (!fs.existsSync(pdf)) {
       console.error(fmt.status('error', `File not found: ${pdf}`));
@@ -3687,13 +3688,45 @@ program
       process.exit(1);
     }
 
-    const { extractPdfComments, formatPdfComments, getPdfCommentStats, insertPdfCommentsIntoMarkdown } = await import('../lib/pdf-import.js');
+    const {
+      extractPdfComments,
+      extractPdfAnnotationsWithText,
+      formatPdfComments,
+      getPdfCommentStats,
+      insertPdfCommentsIntoMarkdown,
+      formatAnnotationWithText,
+    } = await import('../lib/pdf-import.js');
 
     const spin = fmt.spinner(`Extracting comments from ${path.basename(pdf)}...`).start();
 
     try {
-      const comments = await extractPdfComments(pdf);
-      spin.stop();
+      let comments;
+
+      if (options.withText) {
+        // Use the new text extraction feature
+        const annotations = await extractPdfAnnotationsWithText(pdf);
+        spin.stop();
+
+        if (annotations.length === 0) {
+          console.log(fmt.status('info', 'No annotations found in PDF.'));
+          return;
+        }
+
+        // Convert to comment format with highlighted text
+        comments = annotations.map(a => ({
+          author: a.author || 'Reviewer',
+          text: a.highlightedText
+            ? `"${a.highlightedText}"${a.contents ? ' → ' + a.contents : ''}`
+            : a.contents,
+          page: a.page,
+          type: a.type,
+          date: a.date,
+          highlightedText: a.highlightedText,
+        })).filter(c => c.text);
+      } else {
+        comments = await extractPdfComments(pdf);
+        spin.stop();
+      }
 
       if (comments.length === 0) {
         console.log(fmt.status('info', 'No comments found in PDF.'));
@@ -3739,14 +3772,35 @@ program
         for (const [author, authorComments] of Object.entries(byAuthor)) {
           console.log(chalk.bold(`${author} (${authorComments.length}):`));
           for (const c of authorComments) {
-            console.log(`  [p.${c.page}] ${c.text}`);
+            if (c.highlightedText) {
+              console.log(`  [p.${c.page}] ${chalk.yellow(`"${c.highlightedText}"`)}${c.text !== c.highlightedText ? ` → ${c.text.replace(`"${c.highlightedText}" → `, '')}` : ''}`);
+            } else {
+              console.log(`  [p.${c.page}] ${c.text}`);
+            }
           }
           console.log();
         }
       } else {
         // Default: by page
-        console.log(formatPdfComments(comments));
-        console.log();
+        if (options.withText) {
+          let currentPage = 0;
+          for (const c of comments) {
+            if (c.page !== currentPage) {
+              if (currentPage > 0) console.log();
+              console.log(`Page ${c.page}:`);
+              currentPage = c.page;
+            }
+            if (c.highlightedText) {
+              console.log(`  ${chalk.yellow(`"${c.highlightedText}"`)} → ${c.text.replace(`"${c.highlightedText}" → `, '')}`);
+            } else {
+              console.log(`  ${c.text}`);
+            }
+          }
+          console.log();
+        } else {
+          console.log(formatPdfComments(comments));
+          console.log();
+        }
       }
 
       // Summary
@@ -3755,6 +3809,9 @@ program
         .join(', ');
       console.log(chalk.dim(`Total: ${stats.total} comments from ${authorList}`));
       console.log();
+      if (!options.withText) {
+        console.log(chalk.dim(`Tip: Use --with-text to extract the highlighted text content`));
+      }
       console.log(chalk.dim(`Tip: Use --append <file.md> to add comments to your markdown`));
 
     } catch (err) {
