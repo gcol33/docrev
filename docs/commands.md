@@ -24,8 +24,13 @@ Complete list of `rev` commands.
 |---------|-------------|
 | `rev import <docx>` | Bootstrap project from Word (creates sections + rev.yaml) |
 | `rev import <docx> <md>` | Import changes by diffing Word against your MD |
-| `rev sections <docx>` | Import Word doc to existing section files |
+| `rev sync [docx] [sections...]` | Sync feedback from Word to section files |
+| `rev sync` | Auto-detect most recent .docx |
+| `rev sync reviewed.docx methods` | Sync only methods section |
 | `rev extract <docx>` | Extract plain text from Word |
+| `rev archive` | Move reviewer .docx files to archive folder |
+| `rev archive --by Smith` | Specify reviewer name |
+| `rev archive --dry-run` | Preview without moving |
 
 **Word Import Features:**
 - Extracts text preserving structure
@@ -38,11 +43,36 @@ Complete list of `rev` commands.
 | Command | Description |
 |---------|-------------|
 | `rev review <file>` | Interactive accept/reject TUI for track changes |
-| `rev status <file>` | Show annotation counts |
+| `rev status` | Show project overview (words, comments, changes) |
+| `rev status <file>` | Show annotation counts for specific file |
 | `rev comments <file>` | List all comments with context |
 | `rev comments <file> --export comments.csv` | Export comments to CSV |
 | `rev resolve <file> -n 1` | Mark comment #1 as resolved |
 | `rev strip <file>` | Output clean Markdown (annotations applied) |
+
+## Comment Navigation
+
+| Command | Description |
+|---------|-------------|
+| `rev next` | Show next pending comment |
+| `rev next -n 3` | Show 3rd pending comment |
+| `rev prev` | Show last pending comment |
+| `rev prev -n 2` | Show 2nd from last pending |
+| `rev first` | Show first comment (all, not just pending) |
+| `rev first methods` | First comment in methods section |
+| `rev last` | Show last comment |
+| `rev todo` | List all pending comments as checklist |
+| `rev todo --by-author` | Group pending comments by author |
+
+## Track Changes
+
+| Command | Description |
+|---------|-------------|
+| `rev accept <file>` | List track changes |
+| `rev accept <file> -n 1` | Accept change #1 |
+| `rev accept <file> -a` | Accept all changes |
+| `rev reject <file> -n 1` | Reject change #1 |
+| `rev reject <file> -a` | Reject all changes |
 
 ## Cross-References
 

@@ -3765,25 +3765,13 @@ ${chalk.bold('DESCRIPTION')}
 
 ${chalk.bold('TYPICAL WORKFLOW')}
 
-  ${chalk.dim('1.')} You send ${chalk.yellow('paper.docx')} to reviewers
-  ${chalk.dim('2.')} They return ${chalk.yellow('reviewed.docx')} with edits and comments
-  ${chalk.dim('3.')} Import their changes (extracts both track changes AND comments):
-
-     ${chalk.green('rev sections reviewed.docx')}
-
-  ${chalk.dim('4.')} Review track changes interactively:
-
-     ${chalk.green('rev review paper.md')}
-
-     Use: ${chalk.dim('[a]ccept [r]eject [s]kip [A]ccept-all [q]uit')}
-
-  ${chalk.dim('5.')} Address comments with Claude:
-
-     ${chalk.dim('"Go through each comment in paper.md and help me address them"')}
-
-  ${chalk.dim('6.')} Rebuild:
-
-     ${chalk.green('./build.sh docx')}
+  ${chalk.dim('1.')} Build and send: ${chalk.green('rev build docx')}
+  ${chalk.dim('2.')} Reviewers return ${chalk.yellow('reviewed.docx')} with edits and comments
+  ${chalk.dim('3.')} Sync their feedback: ${chalk.green('rev sync reviewed.docx')}
+  ${chalk.dim('4.')} Work through comments: ${chalk.green('rev next')} / ${chalk.green('rev todo')}
+  ${chalk.dim('5.')} Accept/reject changes: ${chalk.green('rev accept -a')} or ${chalk.green('rev review')}
+  ${chalk.dim('6.')} Rebuild: ${chalk.green('rev build docx')}
+  ${chalk.dim('7.')} Archive old files: ${chalk.green('rev archive')}
 
 ${chalk.bold('ANNOTATION SYNTAX')} ${chalk.dim('(CriticMarkup)')}
 
@@ -3794,20 +3782,27 @@ ${chalk.bold('ANNOTATION SYNTAX')} ${chalk.dim('(CriticMarkup)')}
 
 ${chalk.bold('IMPORT & BUILD')}
 
-  ${chalk.bold('rev sections')} <docx>       Import Word doc to section files
+  ${chalk.bold('rev sync')} [docx] [sections] Sync feedback from Word to sections
   ${chalk.bold('rev import')} <docx> [md]    Import/diff Word against Markdown
-  ${chalk.bold('rev extract')} <docx>        Extract plain text from Word
   ${chalk.bold('rev build')} [formats]       Build PDF/DOCX/TEX from sections
   ${chalk.bold('rev new')} [name]            Create new project from template
+  ${chalk.bold('rev archive')}               Archive reviewer .docx files
 
-${chalk.bold('REVIEW & EDIT')}
+${chalk.bold('REVIEW & NAVIGATE')}
 
-  ${chalk.bold('rev review')} <file>         Interactive accept/reject TUI
-  ${chalk.bold('rev status')} <file>         Show annotation statistics
+  ${chalk.bold('rev status')}                Project overview (words, comments)
+  ${chalk.bold('rev next')} / ${chalk.bold('prev')}           Navigate pending comments
+  ${chalk.bold('rev first')} / ${chalk.bold('last')}          Jump to first/last comment
+  ${chalk.bold('rev todo')}                  List pending comments as checklist
   ${chalk.bold('rev comments')} <file>       List all comments with context
+
+${chalk.bold('ACCEPT & RESOLVE')}
+
+  ${chalk.bold('rev accept')} <file> [-n N] [-a]  Accept track changes
+  ${chalk.bold('rev reject')} <file> [-n N] [-a]  Reject track changes
   ${chalk.bold('rev reply')} <file>          Reply to reviewer comments
-  ${chalk.bold('rev strip')} <file>          Output clean text (no annotations)
   ${chalk.bold('rev resolve')} <file>        Mark comments resolved/pending
+  ${chalk.bold('rev review')} <file>         Interactive accept/reject TUI
 
 ${chalk.bold('CROSS-REFERENCES')}
 
@@ -3843,29 +3838,28 @@ ${chalk.bold('BIBLIOGRAPHY & DOIs')}
 
 ${chalk.bold('EXAMPLES')}
 
-  ${chalk.dim('# Import reviewer feedback')}
-  rev import reviewed.docx methods.md
+  ${chalk.dim('# Sync reviewer feedback')}
+  rev sync reviewed.docx
 
-  ${chalk.dim('# Preview changes without saving')}
-  rev import reviewed.docx methods.md --dry-run
+  ${chalk.dim('# Sync only methods section')}
+  rev sync reviewed.docx methods
 
-  ${chalk.dim('# See what needs attention')}
-  rev status paper.md
+  ${chalk.dim('# See project status')}
+  rev status
 
-  ${chalk.dim('# Accept/reject changes one by one')}
-  rev review paper.md
+  ${chalk.dim('# Work through pending comments')}
+  rev next
+  rev reply methods.md -n 1 -m "Fixed"
+  rev resolve methods.md -n 1
 
-  ${chalk.dim('# List all pending comments')}
-  rev comments paper.md
+  ${chalk.dim('# Accept all track changes')}
+  rev accept methods.md -a
 
-  ${chalk.dim('# Get clean text for PDF build')}
-  rev strip paper.md -o paper_clean.md
+  ${chalk.dim('# Archive old reviewer files')}
+  rev archive
 
-  ${chalk.dim('# Validate DOIs in bibliography')}
-  rev doi check references.bib
-
-  ${chalk.dim('# Find missing DOIs')}
-  rev doi lookup references.bib --confidence medium
+  ${chalk.dim('# Compare against last commit')}
+  rev diff
 
 ${chalk.bold('BUILD INTEGRATION')}
 
@@ -3891,12 +3885,10 @@ ${chalk.bold('OVERVIEW')}
   but collaborators review in Word. When they return edited documents,
   you need to merge their changes back into your source files.
 
-${chalk.bold('STEP 1: SEND TO REVIEWERS')}
+${chalk.bold('STEP 1: BUILD & SEND')}
 
-  Build your Word document and send it:
-
-  ${chalk.green('./build.sh docx')}
-  ${chalk.dim('# Send paper.docx to reviewers')}
+  ${chalk.green('rev build docx')}
+  ${chalk.dim('# Send the .docx to reviewers')}
 
 ${chalk.bold('STEP 2: RECEIVE FEEDBACK')}
 
@@ -3904,50 +3896,36 @@ ${chalk.bold('STEP 2: RECEIVE FEEDBACK')}
   ${chalk.dim('•')} Track changes (insertions, deletions)
   ${chalk.dim('•')} Comments (questions, suggestions)
 
-${chalk.bold('STEP 3: IMPORT CHANGES')}
+${chalk.bold('STEP 3: SYNC CHANGES')}
 
-  Compare their version against your original:
+  ${chalk.green('rev sync reviewed.docx')}
+  ${chalk.dim('# Or just: rev sync (auto-detects most recent .docx)')}
 
-  ${chalk.green('rev import reviewed.docx paper.md')}
+  Your markdown files now contain their feedback as annotations.
 
-  This generates annotated markdown showing all differences:
-  ${chalk.dim('•')} ${chalk.green('{++new text++}')} - Reviewer added this
-  ${chalk.dim('•')} ${chalk.red('{--old text--}')} - Reviewer deleted this
-  ${chalk.dim('•')} ${chalk.yellow('{~~old~>new~~}')} - Reviewer changed this
-  ${chalk.dim('•')} ${chalk.blue('{>>comment<<}')} - Reviewer comment
+${chalk.bold('STEP 4: WORK THROUGH COMMENTS')}
 
-${chalk.bold('STEP 4: REVIEW TRACK CHANGES')}
+  ${chalk.green('rev todo')}              ${chalk.dim('# See all pending comments')}
+  ${chalk.green('rev next')}              ${chalk.dim('# Show next pending comment')}
+  ${chalk.green('rev reply file.md -n 1 -m "Done"')}
+  ${chalk.green('rev resolve file.md -n 1')}
 
-  Go through changes interactively:
+${chalk.bold('STEP 5: ACCEPT/REJECT CHANGES')}
 
-  ${chalk.green('rev review paper.md')}
-
-  For each change, choose:
-  ${chalk.dim('•')} ${chalk.bold('a')} - Accept (apply the change)
-  ${chalk.dim('•')} ${chalk.bold('r')} - Reject (keep original)
-  ${chalk.dim('•')} ${chalk.bold('s')} - Skip (decide later)
-  ${chalk.dim('•')} ${chalk.bold('A')} - Accept all remaining
-  ${chalk.dim('•')} ${chalk.bold('q')} - Quit
-
-${chalk.bold('STEP 5: ADDRESS COMMENTS')}
-
-  Comments remain in your file as ${chalk.blue('{>>Author: text<<}')}
-
-  Work with Claude to address them:
-
-  ${chalk.dim('"Go through each reviewer comment in methods.md')}
-  ${chalk.dim(' and help me address them one by one"')}
-
-  Delete comment annotations as you resolve them.
+  ${chalk.green('rev accept file.md -a')} ${chalk.dim('# Accept all changes')}
+  ${chalk.green('rev reject file.md -n 2')} ${chalk.dim('# Reject specific change')}
+  ${chalk.dim('# Or use interactive mode:')}
+  ${chalk.green('rev review file.md')}
 
 ${chalk.bold('STEP 6: REBUILD')}
 
-  Generate new Word document:
+  ${chalk.green('rev build docx')}
+  ${chalk.green('rev build docx --dual')} ${chalk.dim('# Clean + comments version')}
 
-  ${chalk.green('./build.sh docx')}
+${chalk.bold('STEP 7: ARCHIVE & REPEAT')}
 
-  ${chalk.dim('•')} Remaining comments stay visible in output
-  ${chalk.dim('•')} PDF build strips all annotations
+  ${chalk.green('rev archive')}           ${chalk.dim('# Move reviewer files to archive/')}
+  ${chalk.dim('# Send new .docx, repeat cycle')}
 `);
 }
 

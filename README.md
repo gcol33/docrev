@@ -326,14 +326,17 @@ The reference `@fig:map` becomes "Figure 1" in output. Numbers update automatica
 | Build PDF | `rev build pdf` |
 | Build clean + annotated | `rev build docx --dual` |
 | Sync feedback | `rev sync reviewed.docx` |
-| List comments | `rev comments file.md` |
+| Project status | `rev status` |
+| Next pending comment | `rev next` |
+| List pending comments | `rev todo` |
+| Accept all changes | `rev accept file.md -a` |
+| Reject change | `rev reject file.md -n 1` |
 | Reply to comment | `rev reply file.md -n 1 -m "response"` |
 | Resolve comment | `rev resolve file.md -n 1` |
+| Archive reviewer files | `rev archive` |
 | Check DOIs | `rev doi check references.bib` |
-| Find missing DOIs | `rev doi lookup references.bib` |
-| Word count | `rev word-count` |
+| Word count | `rev wc` |
 | Pre-submission check | `rev check` |
-| Watch for changes | `rev watch docx` |
 
 Run `rev help` to see all commands, or `rev help <command>` for details on a specific command.
 

@@ -111,10 +111,12 @@ rev watch docx           # Auto-rebuild on save
 
 When reviewers return a Word doc with track changes and comments:
 
-### Import to section files
+### Sync feedback to section files
 
 ```bash
-rev sections reviewed.docx
+rev sync reviewed.docx              # explicit file
+rev sync                            # auto-detect most recent .docx
+rev sync reviewed.docx methods      # sync only methods section
 ```
 
 This:
@@ -123,29 +125,24 @@ This:
 - Converts equations (OMML → LaTeX)
 - Extracts images to `media/`
 
-### Review track changes
-
-Interactive TUI:
-```bash
-rev review methods.md
-```
-
-Controls: `a` accept, `r` reject, `s` skip, `q` quit
-
-### See all comments
+### Navigate comments
 
 ```bash
-rev comments methods.md
+rev status                # project overview
+rev todo                  # list all pending comments
+rev next                  # show next pending comment
+rev next -n 3             # skip to 3rd pending
+rev first methods         # first comment in methods section
 ```
 
-Output:
-```
-#1 [Guy Colling] line 45
-   "explain what you mean here"
-   Context: ...This classification obscured substantial heterogeneity...
+### Accept/reject track changes
 
-#2 [Guy Colling] line 67
-   "add citation needed"
+```bash
+rev accept methods.md            # list all changes
+rev accept methods.md -n 1       # accept change #1
+rev accept methods.md -a         # accept all
+rev reject methods.md -n 2       # reject change #2
+rev review methods.md            # interactive TUI (a/r/s/q)
 ```
 
 ---
@@ -182,7 +179,7 @@ rev reply methods.md
 ### Rebuild with threaded comments
 
 ```bash
-rev build --dual
+rev build docx --dual
 ```
 
 The `paper_comments.docx` will have your replies threaded under the original comments - just like a conversation in Word.
@@ -197,13 +194,26 @@ Creates a point-by-point response document.
 
 ---
 
-## Phase 7: Repeat
+## Phase 7: Archive & Repeat
 
-The cycle continues:
-1. Receive more feedback → `rev sections reviewed_v2.docx`
-2. Review and reply
-3. Rebuild → `rev build --dual`
-4. Send back
+### Archive reviewer files
+
+```bash
+rev archive                    # move all .docx to archive/
+rev archive --by Smith         # name the reviewer
+rev archive --dry-run          # preview first
+```
+
+Files are renamed with timestamps: `20241215_143022_Smith_my-paper.docx`
+
+### The cycle continues
+
+1. Archive old files → `rev archive`
+2. Receive more feedback → `rev sync`
+3. Review and reply → `rev next`, `rev reply`, `rev resolve`
+4. Accept changes → `rev accept -a`
+5. Rebuild → `rev build docx --dual`
+6. Send back
 
 **Your markdown files remain the source of truth.** Word is just the exchange format.
 
@@ -215,13 +225,16 @@ The cycle continues:
 |------|---------|
 | Start from Word | `rev import manuscript.docx` |
 | Start fresh | `rev new my-paper` |
-| Build Word | `rev build docx` |
-| Build with comments | `rev build --dual` |
+| Build DOCX | `rev build docx` |
+| Build with comments | `rev build docx --dual` |
 | Build PDF | `rev build pdf` |
-| Import feedback | `rev sections reviewed.docx` |
-| Review changes | `rev review methods.md` |
-| See comments | `rev comments methods.md` |
-| Reply to comment | `rev reply methods.md -n 1 -m "..."` |
+| Sync feedback | `rev sync reviewed.docx` |
+| Project status | `rev status` |
+| List pending | `rev todo` |
+| Next comment | `rev next` |
+| Accept all changes | `rev accept file.md -a` |
+| Reply to comment | `rev reply file.md -n 1 -m "..."` |
+| Archive reviewer files | `rev archive` |
 | Response letter | `rev response` |
 | Pre-submit check | `rev check` |
 
