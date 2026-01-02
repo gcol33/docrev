@@ -6,7 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
 
-Write in Markdown. Build to DOCX or PDF. Round-trip track changes and comments.
+A CLI for writing documents in Markdown while collaborating with Word users.
+
+You write in Markdown under version control. Your collaborators use Word (or PDF). docrev converts between the two, preserving track changes, comments, equations, and cross-references.
 
 ## The Problem
 
