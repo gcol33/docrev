@@ -8,6 +8,23 @@
 
 Write in Markdown. Build to DOCX or PDF. Round-trip track changes and comments.
 
+## The Problem
+
+You've been here before:
+
+```
+manuscript_v1.docx
+manuscript_v2_john_comments.docx
+manuscript_v2_jane_comments.docx
+manuscript_v3_merged_final.docx
+manuscript_v3_merged_final_REAL.docx
+manuscript_v3_merged_final_REAL_submitted.docx
+```
+
+Three reviewers send back three Word files. You manually compare changes, copy-paste between documents, lose track of who said what. A week later, you can't remember which version has the figure updates.
+
+**docrev fixes this.** You write in plain text. Reviewers use Word. Their feedback flows back into your files automatically. One source of truth, full version history, no more file chaos.
+
 ## Quick Example
 
 Write your paper in Markdown with citations, figures, and equations:
@@ -131,7 +148,7 @@ Your entire revision cycle stays in the terminal. `final_v3_REAL_final.docx` is 
 npm install -g docrev
 ```
 
-Requires [Node.js](https://nodejs.org) 20+, [Pandoc](https://pandoc.org) 2.11+, and a [LaTeX distribution](#installing-dependencies) for PDF output.
+Requires [Node.js](https://nodejs.org) 18+, [Pandoc](https://pandoc.org) 2.11+, and a [LaTeX distribution](#installing-dependencies) for PDF output.
 
 Configure your name for comment replies:
 

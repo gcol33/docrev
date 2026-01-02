@@ -15,15 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Timeout support for PDF extraction (30s default)
 
 ### Changed
-- **Breaking**: Requires Node.js 20+ (dropped Node 18 support)
 - Consolidated YAML dependencies (removed `js-yaml`, using `yaml` package only)
 - Improved annotation false positive detection (code blocks, URLs, LaTeX patterns)
 - Enhanced error messages for Word import and PDF extraction
-- Updated `rev doctor` to check for Node 20+
 - Updated User-Agent strings for API requests
+- Improved README with problem statement and quick example
 
 ### Fixed
 - CI lint step now checks all command files separately
+- Windows temp directory paths in tests
 
 ## [0.3.2] - 2024-12-29
 
