@@ -8,6 +8,58 @@
 
 Write in Markdown. Build to DOCX or PDF. Round-trip track changes and comments.
 
+## Quick Example
+
+Write your paper in Markdown with citations, figures, and equations:
+
+```markdown
+# Introduction
+
+Climate change poses significant challenges [@IPCC2021]. As shown in
+@fig:temperature, global temperatures have risen steadily since 1880.
+
+![Global temperature anomalies from 1880-2020](figures/temperature.png){#fig:temperature}
+
+The relationship between CO₂ and temperature follows:
+
+$$
+\Delta T = \lambda \cdot \Delta F
+$$ {#eq:forcing}
+
+where $\lambda$ is climate sensitivity (@eq:forcing). Recent studies
+[@Smith2020; @Jones2021] suggest $\lambda \approx 3°C$ per doubling.
+
+# Methods
+
+We analyzed data from @tbl:sites using the approach described in @sec:analysis.
+
+| Site | Lat | Long | Years |
+|------|-----|------|-------|
+| A    | 45  | -120 | 30    |
+| B    | 52  | -105 | 25    |
+
+: Study sites and data coverage {#tbl:sites}
+```
+
+Build to Word or PDF:
+
+```bash
+rev build docx    # → paper.docx (for collaborators)
+rev build pdf     # → paper.pdf  (for journals)
+```
+
+The output has:
+- Formatted citations and auto-generated bibliography
+- Numbered figures, tables, and equations
+- Cross-references like "Figure 1" and "Table 2" that update automatically
+- Professional layout from your template or journal style
+
+When collaborators return the Word doc with track changes, import their feedback:
+
+```bash
+rev sync reviewed.docx    # their comments → your markdown
+```
+
 ## Why Markdown
 
 **Write once, output anywhere.** The same source file becomes a Word document for collaborators or a PDF for journal submission. Change citation styles with one line, not hours of reformatting.
@@ -79,7 +131,7 @@ Your entire revision cycle stays in the terminal. `final_v3_REAL_final.docx` is 
 npm install -g docrev
 ```
 
-Requires [Node.js](https://nodejs.org) 18+, [Pandoc](https://pandoc.org) 2.11+, and a [LaTeX distribution](#installing-dependencies) for PDF output.
+Requires [Node.js](https://nodejs.org) 20+, [Pandoc](https://pandoc.org) 2.11+, and a [LaTeX distribution](#installing-dependencies) for PDF output.
 
 Configure your name for comment replies:
 
