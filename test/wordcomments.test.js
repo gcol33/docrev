@@ -6,6 +6,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { prepareMarkdownWithMarkers, injectCommentsAtMarkers } from '../lib/wordcomments.js';
@@ -113,7 +114,7 @@ describe('wordcomments.js', () => {
 
   describe('injectCommentsAtMarkers', () => {
     it('should handle document with no comments', async () => {
-      const tmpDir = fs.mkdtempSync('/tmp/docrev-test-');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
       const docxPath = path.join(tmpDir, 'test.docx');
       const outputPath = path.join(tmpDir, 'output.docx');
 
@@ -131,7 +132,7 @@ describe('wordcomments.js', () => {
     });
 
     it('should inject a single comment', async () => {
-      const tmpDir = fs.mkdtempSync('/tmp/docrev-test-');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
       const docxPath = path.join(tmpDir, 'test.docx');
       const outputPath = path.join(tmpDir, 'output.docx');
 
@@ -161,7 +162,7 @@ describe('wordcomments.js', () => {
     });
 
     it('should handle comments with replies', async () => {
-      const tmpDir = fs.mkdtempSync('/tmp/docrev-test-');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
       const docxPath = path.join(tmpDir, 'test.docx');
       const outputPath = path.join(tmpDir, 'output.docx');
 
@@ -189,7 +190,7 @@ describe('wordcomments.js', () => {
     });
 
     it('should handle multiple comments', async () => {
-      const tmpDir = fs.mkdtempSync('/tmp/docrev-test-');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
       const docxPath = path.join(tmpDir, 'test.docx');
       const outputPath = path.join(tmpDir, 'output.docx');
 
@@ -215,7 +216,7 @@ describe('wordcomments.js', () => {
     });
 
     it('should escape XML special characters', async () => {
-      const tmpDir = fs.mkdtempSync('/tmp/docrev-test-');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
       const docxPath = path.join(tmpDir, 'test.docx');
       const outputPath = path.join(tmpDir, 'output.docx');
 
