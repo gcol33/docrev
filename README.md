@@ -168,7 +168,7 @@ If you have a Word document to convert:
 rev import manuscript.docx
 ```
 
-This creates a project folder and splits the document into section files. Any existing track changes and comments are preserved as markdown annotations.
+This creates a project folder and splits the document into section files. Images are extracted to `figures/`, equations are converted to LaTeX, and track changes/comments are preserved as markdown annotations.
 
 ### Configuration
 
@@ -200,6 +200,34 @@ Data was collected {~~monthly~>weekly~~}.              # substitution
 {>>Reviewer 2: Please clarify.<<}                      # comment
 ```
 
+## Writing Tips
+
+Track word count changes between versions:
+
+```bash
+rev diff                    # compare against last commit
+#  methods.md     +142 words  -38 words
+#  results.md      +89 words  -12 words
+```
+
+Add references to `references.bib` (BibTeX format):
+
+```bibtex
+@article{Smith2020,
+  author = {Smith, Jane},
+  title = {Paper Title},
+  journal = {Nature},
+  year = {2020},
+  doi = {10.1038/example}
+}
+```
+
+Cite with `[@Smith2020]` or `[@Smith2020; @Jones2021]` for multiple sources.
+
+Equations use LaTeX: inline `$E = mc^2$` or display `$$\sum_{i=1}^{n} x_i$$`.
+
+Cross-references: `@fig:label`, `@tbl:label`, `@eq:label` → "Figure 1", "Table 2", "Equation 3".
+
 ## Command Reference
 
 | Task | Command |
@@ -207,6 +235,7 @@ Data was collected {~~monthly~>weekly~~}.              # substitution
 | Create project | `rev new my-project` |
 | Create LaTeX project | `rev new my-project --template latex` |
 | Import Word document | `rev import manuscript.docx` |
+| Extract Word equations | `rev equations from-word doc.docx` |
 | Build DOCX | `rev build docx` |
 | Build PDF | `rev build pdf` |
 | Build clean + annotated | `rev build docx --dual` |
@@ -227,6 +256,8 @@ Data was collected {~~monthly~>weekly~~}.              # substitution
 | Lookup ORCID | `rev orcid 0000-0002-1825-0097` |
 | Archive reviewer files | `rev archive` |
 | Check DOIs | `rev doi check references.bib` |
+| Find missing DOIs | `rev doi lookup references.bib` |
+| Add citation from DOI | `rev doi add 10.1038/example` |
 | Word count | `rev wc` |
 | Pre-submission check | `rev check` |
 | Check for updates | `rev upgrade --check` |
