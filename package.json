@@ -1,6 +1,6 @@
 {
   "name": "docrev",
-  "version": "0.6.13",
+  "version": "0.7.0",
   "description": "Academic paper revision workflow: Word ↔ Markdown round-trips, DOI validation, reviewer comments",
   "type": "module",
   "types": "types/index.d.ts",
@@ -75,7 +75,7 @@
     }
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "bin": {
     "rev": "bin/rev.js"
@@ -114,7 +114,6 @@
     "dictionary-en": "^4.0.0",
     "dictionary-en-gb": "^3.0.0",
     "diff": "^8.0.2",
-    "js-yaml": "^4.1.1",
     "mammoth": "^1.6.0",
     "mathml-to-latex": "^1.5.0",
     "nspell": "^2.1.5",
