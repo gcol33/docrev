@@ -11,6 +11,8 @@ import {
   normalizeType,
   parseRefNumber,
   getRefStatus,
+  detectForwardRefs,
+  resolveForwardRefs,
 } from '../lib/crossref.js';
 
 // Helper to extract number strings from parsed refs
@@ -357,5 +359,139 @@ describe('detectDynamicRefs edge cases', () => {
     const text = 'See @fig:test here.';
     const refs = detectDynamicRefs(text);
     assert.strictEqual(refs[0].position, 4); // 'See '
+  });
+});
+
+// Tests for forward reference detection and resolution
+describe('detectForwardRefs', () => {
+  it('should detect reference appearing before its anchor', () => {
+    const text = 'See @fig:map in the methods.\n\n![Map](map.png){#fig:map}';
+    const { forwardRefs } = detectForwardRefs(text);
+
+    assert.strictEqual(forwardRefs.length, 1);
+    assert.strictEqual(forwardRefs[0].label, 'map');
+  });
+
+  it('should not flag reference appearing after its anchor', () => {
+    const text = '![Map](map.png){#fig:map}\n\nSee @fig:map above.';
+    const { forwardRefs } = detectForwardRefs(text);
+
+    assert.strictEqual(forwardRefs.length, 0);
+  });
+
+  it('should detect multiple forward refs', () => {
+    const text = 'See @fig:a and @fig:b.\n\n![A](a.png){#fig:a}\n![B](b.png){#fig:b}';
+    const { forwardRefs } = detectForwardRefs(text);
+
+    assert.strictEqual(forwardRefs.length, 2);
+  });
+
+  it('should handle mixed forward and backward refs', () => {
+    const text = '![First](1.png){#fig:first}\n\nSee @fig:first and @fig:second.\n\n![Second](2.png){#fig:second}';
+    const { forwardRefs } = detectForwardRefs(text);
+
+    // Only @fig:second is a forward ref
+    assert.strictEqual(forwardRefs.length, 1);
+    assert.strictEqual(forwardRefs[0].label, 'second');
+  });
+
+  it('should flag refs with no anchor as forward refs', () => {
+    const text = 'See @fig:missing for details.';
+    const { forwardRefs } = detectForwardRefs(text);
+
+    assert.strictEqual(forwardRefs.length, 1);
+    assert.strictEqual(forwardRefs[0].label, 'missing');
+  });
+
+  it('should track anchor positions correctly', () => {
+    const text = '![Map](map.png){#fig:map}';
+    const { anchorPositions } = detectForwardRefs(text);
+
+    assert.ok(anchorPositions.has('fig:map'));
+    // Anchor {#fig:map} starts at position 15 (after ![Map](map.png))
+    assert.strictEqual(anchorPositions.get('fig:map'), 15);
+  });
+});
+
+describe('resolveForwardRefs', () => {
+  // Mock registry for testing
+  const mockRegistry = {
+    figures: new Map([
+      ['map', { label: 'map', num: 1, isSupp: false, file: 'methods.md' }],
+      ['chart', { label: 'chart', num: 2, isSupp: false, file: 'results.md' }],
+      ['suppfig', { label: 'suppfig', num: 1, isSupp: true, file: 'supplementary.md' }],
+    ]),
+    tables: new Map([
+      ['data', { label: 'data', num: 1, isSupp: false, file: 'results.md' }],
+    ]),
+    equations: new Map(),
+    byNumber: {
+      fig: new Map([[1, 'map'], [2, 'chart']]),
+      figS: new Map([[1, 'suppfig']]),
+      tbl: new Map([[1, 'data']]),
+      tblS: new Map(),
+      eq: new Map(),
+    },
+  };
+
+  it('should resolve forward reference to display format', () => {
+    const text = 'See @fig:map.\n\n![Map](map.png){#fig:map}';
+    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+
+    assert.ok(result.includes('Figure 1'));
+    assert.ok(!result.includes('@fig:map'));
+    assert.strictEqual(resolved.length, 1);
+    assert.strictEqual(resolved[0].from, '@fig:map');
+    assert.strictEqual(resolved[0].to, 'Figure 1');
+  });
+
+  it('should not resolve backward references', () => {
+    const text = '![Map](map.png){#fig:map}\n\nSee @fig:map.';
+    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+
+    // Backward ref should remain as @fig:map for pandoc-crossref
+    assert.ok(result.includes('@fig:map'));
+    assert.strictEqual(resolved.length, 0);
+  });
+
+  it('should resolve supplementary figure correctly', () => {
+    const text = 'See @fig:suppfig.\n\n![Supp](s.png){#fig:suppfig}';
+    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+
+    assert.ok(result.includes('Figure S1'));
+    assert.strictEqual(resolved.length, 1);
+  });
+
+  it('should resolve tables too', () => {
+    const text = 'See @tbl:data.\n\n| Col |{#tbl:data}';
+    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+
+    assert.ok(result.includes('Table 1'));
+    assert.strictEqual(resolved.length, 1);
+  });
+
+  it('should track unresolved refs', () => {
+    const text = 'See @fig:nonexistent.\n\n![Other](o.png){#fig:other}';
+    const { unresolved } = resolveForwardRefs(text, mockRegistry);
+
+    assert.strictEqual(unresolved.length, 1);
+    assert.strictEqual(unresolved[0].ref, '@fig:nonexistent');
+  });
+
+  it('should handle multiple forward refs in correct order', () => {
+    const text = 'See @fig:chart then @fig:map.\n\n![Map](m.png){#fig:map}\n![Chart](c.png){#fig:chart}';
+    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+
+    assert.ok(result.includes('Figure 2'));  // chart
+    assert.ok(result.includes('Figure 1'));  // map
+    assert.strictEqual(resolved.length, 2);
+  });
+
+  it('should preserve text around resolved refs', () => {
+    const text = 'As shown in @fig:map, the results...';
+    const { text: result } = resolveForwardRefs(text, mockRegistry);
+
+    assert.ok(result.startsWith('As shown in Figure 1'));
+    assert.ok(result.includes(', the results...'));
   });
 });
