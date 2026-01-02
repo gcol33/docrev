@@ -1,6 +1,6 @@
 {
   "name": "docrev",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Academic paper revision workflow: Word ↔ Markdown round-trips, DOI validation, reviewer comments",
   "type": "module",
   "types": "types/index.d.ts",
