@@ -25,72 +25,47 @@ Three reviewers send back three Word files. You manually compare changes, copy-p
 
 **docrev fixes this.** You write in plain text. Reviewers use Word. Their feedback flows back into your files automatically. One source of truth, full version history, no more file chaos.
 
-## Quick Example
+## Highlights
 
-Write your paper in Markdown with citations, figures, and equations:
+- **Markdown → Word/PDF** with citations, figures, equations, cross-references
+- **Round-trip sync**: import Word track changes and comments back to Markdown
+- **CLI review workflow**: reply to comments, accept/reject changes from terminal
+- **DOI tools**: validate, lookup, and auto-add references from DOIs
+- **21 journal styles**: Nature, Science, PNAS, and more
+- **Version control friendly**: plain text source, full git history
 
-```markdown
-# Introduction
+## Install
 
-Climate change poses significant challenges [@IPCC2021]. As shown in
-@fig:temperature, global temperatures have risen steadily since 1880.
-
-![Global temperature anomalies from 1880-2020](figures/temperature.png){#fig:temperature}
-
-The relationship between CO₂ and temperature follows:
-
-$$
-\Delta T = \lambda \cdot \Delta F
-$$ {#eq:forcing}
-
-where $\lambda$ is climate sensitivity (@eq:forcing). Recent studies
-[@Smith2020; @Jones2021] suggest $\lambda \approx 3°C$ per doubling.
-
-# Methods
-
-We analyzed data from @tbl:sites using the approach described in @sec:analysis.
-
-| Site | Lat | Long | Years |
-|------|-----|------|-------|
-| A    | 45  | -120 | 30    |
-| B    | 52  | -105 | 25    |
-
-: Study sites and data coverage {#tbl:sites}
+```bash
+npm install -g docrev
 ```
 
-Build to Word or PDF:
+Requires [Node.js](https://nodejs.org) 18+, [Pandoc](https://pandoc.org) 2.11+, and [LaTeX](#installing-dependencies) for PDF output.
+
+## Quick Example
+
+Write in Markdown with citations and cross-references:
+
+```markdown
+Climate change poses significant challenges [@IPCC2021]. As shown in
+@fig:temperature, global temperatures have risen steadily.
+
+![Temperature anomalies](figures/temperature.png){#fig:temperature}
+
+The relationship follows $\Delta T = \lambda \cdot \Delta F$ (@eq:forcing).
+```
+
+Build and share:
 
 ```bash
 rev build docx    # → paper.docx (for collaborators)
 rev build pdf     # → paper.pdf  (for journals)
 ```
 
-The output has:
-- Formatted citations and auto-generated bibliography
-- Numbered figures, tables, and equations
-- Cross-references like "Figure 1" and "Table 2" that update automatically
-- Professional layout from your template or journal style
-
-When collaborators return the Word doc with track changes, import their feedback:
+When collaborators return the Word doc with track changes:
 
 ```bash
 rev sync reviewed.docx    # their comments → your markdown
-```
-
-## Why Markdown
-
-**Write once, output anywhere.** The same source file becomes a Word document for collaborators or a PDF for journal submission. Change citation styles with one line, not hours of reformatting.
-
-**Automatic numbering.** Figures, tables, equations - all numbered for you. Move Figure 3 before Figure 1? References update automatically. No more "please renumber all figures."
-
-**Citations that just work.** Write `[@Smith2020]` once. It renders correctly in every format, every citation style. Add a reference, delete a reference - the bibliography rebuilds itself.
-
-**Real version control.** Your manuscript is plain text. Diff changes line by line, merge contributions from coauthors, roll back mistakes. See exactly what changed between drafts:
-
-```bash
-rev diff                          # compare against last commit
-#  methods.md     +142 words  -38 words
-#  results.md      +89 words  -12 words
 ```
 
 ## How It Works
@@ -141,20 +116,6 @@ rev pdf-comments annotated.pdf --append methods.md
 ```
 
 Your entire revision cycle stays in the terminal. `final_v3_REAL_final.docx` is over.
-
-## Install
-
-```bash
-npm install -g docrev
-```
-
-Requires [Node.js](https://nodejs.org) 18+, [Pandoc](https://pandoc.org) 2.11+, and a [LaTeX distribution](#installing-dependencies) for PDF output.
-
-Configure your name for comment replies:
-
-```bash
-rev config user "Your Name"
-```
 
 ## Getting Started
 
@@ -209,11 +170,9 @@ rev import manuscript.docx
 
 This creates a project folder and splits the document into section files. Any existing track changes and comments are preserved as markdown annotations.
 
-## Content and Layout, Separated
+### Configuration
 
-In Markdown, you focus on content. Write your text, add citations with `[@key]`, insert equations with `$...$`, reference figures with `@fig:label`. No fiddling with fonts, margins, or styles.
-
-Layout is controlled separately in `rev.yaml`:
+Layout is controlled in `rev.yaml`:
 
 ```yaml
 title: "My Document"
@@ -225,192 +184,21 @@ output:
     fontsize: 12pt
 ```
 
-Change the template, rebuild, and every document gets the new formatting. Built-in journal styles (Nature, Science, PNAS, and 18 others) handle formatting requirements automatically. Your content stays clean.
-
-## The Revision Cycle
-
-### 1. Build and Share
-
-Generate a Word document:
+Configure your name for comment replies:
 
 ```bash
-rev build docx
+rev config user "Your Name"
 ```
 
-Send this to reviewers. They add comments and track changes in Word as usual.
+## Annotation Syntax
 
-### 2. Import Feedback
-
-When the reviewed document returns:
-
-```bash
-rev sync reviewed.docx
-```
-
-Your markdown files now contain their feedback as inline annotations.
-
-### 3. Review Changes
-
-Track changes appear as inline markup:
+Track changes from Word appear as [CriticMarkup](http://criticmarkup.com/):
 
 ```markdown
-The sample size was {--100--}{++150++} participants.
-Data was collected {~~monthly~>weekly~~} from each site.
+The sample size was {--100--}{++150++} participants.   # deletion + insertion
+Data was collected {~~monthly~>weekly~~}.              # substitution
+{>>Reviewer 2: Please clarify.<<}                      # comment
 ```
-
-- `{++text++}` - inserted text
-- `{--text--}` - deleted text
-- `{~~old~>new~~}` - substitution
-
-To accept a change, keep the new text and remove the markup. To reject, keep the old text.
-
-### 4. Review Comments
-
-Comments appear inline:
-
-```markdown
-We used a random sampling approach.
-{>>Reviewer 2: Please clarify the sampling method.<<}
-```
-
-List all comments in a file:
-
-```bash
-rev comments methods.md
-```
-
-Example output:
-
-```
-methods.md: 3 comments
-
-  #1 [line 12] Reviewer 2
-     "Please clarify the sampling method."
-     Context: "We used a random sampling approach."
-
-  #2 [line 34] Reviewer 1
-     "Citation needed here."
-     Context: "Previous studies have shown this effect."
-
-  #3 [line 45] Editor
-     "Consider shortening this section."
-     Context: "The methodology employed in this study..."
-```
-
-### 5. Reply to Comments
-
-Reply directly from the command line:
-
-```bash
-rev reply methods.md -n 1 -m "Added clarification in paragraph 2"
-```
-
-Your reply threads beneath the original:
-
-```markdown
-We used a random sampling approach.
-{>>Reviewer 2: Please clarify the sampling method.<<}
-{>>Your Name: Added clarification in paragraph 2.<<}
-```
-
-Mark resolved comments:
-
-```bash
-rev resolve methods.md -n 1
-```
-
-### 6. Rebuild with Threads
-
-Generate both a clean version and one showing comment threads:
-
-```bash
-rev build docx --dual
-rev build pdf --dual
-```
-
-Produces:
-- `paper.docx` / `paper.pdf` - clean, for submission
-- `paper_comments.docx` - threaded comments in Word's comment pane
-- `paper_comments.pdf` - comments as margin notes
-
-### 7. Repeat
-
-Send the updated document. Import new feedback. Continue until done.
-
-## Before Submission
-
-### Validate Your Bibliography
-
-Check DOIs resolve correctly:
-
-```bash
-rev doi check references.bib
-```
-
-Find DOIs for entries missing them:
-
-```bash
-rev doi lookup references.bib
-```
-
-Add citations directly from a DOI:
-
-```bash
-rev doi add 10.1038/s41586-020-2649-2
-```
-
-### Run Pre-Submission Checks
-
-Check for broken references, missing citations, and common issues:
-
-```bash
-rev check
-```
-
-## Writing in Markdown
-
-### Citations
-
-Add references to `references.bib`:
-
-```bibtex
-@article{Smith2020,
-  author = {Smith, Jane},
-  title = {Paper Title},
-  journal = {Nature},
-  year = {2020},
-  doi = {10.1038/example}
-}
-```
-
-Cite in text:
-
-```markdown
-Previous work [@Smith2020] established this relationship.
-Multiple sources support this [@Smith2020; @Jones2021].
-```
-
-### Equations
-
-Inline: `$E = mc^2$`
-
-Display:
-
-```markdown
-$$
-\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i
-$$
-```
-
-### Figures and Cross-References
-
-```markdown
-![Study site locations](figures/map.png){#fig:map}
-
-Results are shown in @fig:map.
-```
-
-The reference `@fig:map` becomes "Figure 1" in output. Numbers update automatically when figures reorder. Tables and equations work the same: `@tbl:label`, `@eq:label`.
 
 ## Command Reference
 
