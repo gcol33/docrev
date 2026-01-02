@@ -82,9 +82,9 @@
   },
   "scripts": {
     "build": "echo 'No build needed'",
-    "test": "node --test \"test/*.test.js\"",
-    "test:watch": "node --test --watch \"test/*.test.js\"",
-    "test:coverage": "c8 --reporter=text --reporter=lcov node --test \"test/*.test.js\""
+    "test": "node --test test/*.test.js",
+    "test:watch": "node --test --watch test/*.test.js",
+    "test:coverage": "c8 --reporter=text --reporter=lcov node --test test/*.test.js"
   },
   "repository": {
     "type": "git",
