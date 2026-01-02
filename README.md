@@ -157,10 +157,25 @@ my-report/
 Write your content in the markdown files. When ready to share:
 
 ```bash
-rev build docx
+rev build docx pdf
 ```
 
-This produces `my-report.docx` with citations resolved, equations rendered, and cross-references numbered. Use `rev build pdf` for PDF output instead.
+After building, your project structure looks like:
+
+```
+my-report/
+├── intro.md
+├── methods.md
+├── results.md
+├── discussion.md
+├── references.bib
+├── rev.yaml
+├── paper.md              ← combined sections (auto-generated)
+├── my-report.docx        ← output for collaborators
+└── my-report.pdf         ← output for journals
+```
+
+The output filename is derived from your project title in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered.
 
 ### Starting from an Existing Word Document
 
