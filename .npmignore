@@ -25,3 +25,7 @@ docs/
 # Misc
 *.log
 .env
+
+# Dev files
+improvements.md
+ARCHITECTURE.md
