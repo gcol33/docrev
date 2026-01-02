@@ -5,6 +5,18 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-01-02
+
+### Added
+- Writing Markdown guide in docs (tables, equations, citations, cross-refs)
+- Grid table syntax documentation for merged cells
+
+### Changed
+- README restructured for better scannability (490 → 290 lines)
+- Install section moved up for faster onboarding
+- Added Highlights section with quick feature overview
+- Condensed overlapping sections
+
 ## [0.7.0] - 2025-01-02
 
 ### Added

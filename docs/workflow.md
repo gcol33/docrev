@@ -219,6 +219,79 @@ Files are renamed with timestamps: `20241215_143022_Smith_my-paper.docx`
 
 ---
 
+## Writing Markdown
+
+### Tables
+
+**Simple tables** (pipe syntax):
+
+```markdown
+| Site | Lat  | Long  |
+|------|------|-------|
+| A    | 45.2 | -120.5|
+| B    | 52.1 | -105.3|
+
+: Study sites and coordinates {#tbl:sites}
+```
+
+**Complex tables with merged cells** (grid syntax):
+
+```markdown
++---------------+---------------+---------------+
+| Results                                       |
++===============+===============+===============+
+| Site          | 2023          | 2024          |
++---------------+---------------+---------------+
+| A             | 100           | 150           |
++---------------+---------------+---------------+
+| B             | 200           | 250           |
++---------------+---------------+---------------+
+
+: Annual measurements {#tbl:results}
+```
+
+Grid tables support:
+- Column spanning (header row above)
+- Row spanning (repeat `|` for continuation)
+- Multi-line cell content
+
+### Equations
+
+**Inline:** `$E = mc^2$` renders as E = mc²
+
+**Display:**
+
+```markdown
+$$
+\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i
+$$ {#eq:mean}
+```
+
+Reference with `@eq:mean` → "Equation 1"
+
+### Citations
+
+```markdown
+Previous work [@Smith2020] showed this effect.
+Multiple sources [@Smith2020; @Jones2021] confirm this.
+As Smith [-@Smith2020] demonstrated...  (suppress author)
+```
+
+### Cross-references
+
+```markdown
+![Caption text](figures/plot.png){#fig:results}
+
+See @fig:results and @tbl:sites.
+```
+
+- `@fig:label` → "Figure 1"
+- `@tbl:label` → "Table 2"
+- `@eq:label` → "Equation 3"
+- `@sec:label` → "Section 4"
+
+---
+
 ## Quick Reference
 
 | Task | Command |
