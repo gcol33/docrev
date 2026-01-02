@@ -5,6 +5,26 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-01-02
+
+### Added
+- API rate limiting with exponential backoff for Crossref/DataCite/doi.org APIs
+- Windows support in CI matrix
+- Architecture documentation for contributors (`ARCHITECTURE.md`)
+- Exclusion patterns for cross-reference false positives (e.g., "Table of Contents")
+- Timeout support for PDF extraction (30s default)
+
+### Changed
+- **Breaking**: Requires Node.js 20+ (dropped Node 18 support)
+- Consolidated YAML dependencies (removed `js-yaml`, using `yaml` package only)
+- Improved annotation false positive detection (code blocks, URLs, LaTeX patterns)
+- Enhanced error messages for Word import and PDF extraction
+- Updated `rev doctor` to check for Node 20+
+- Updated User-Agent strings for API requests
+
+### Fixed
+- CI lint step now checks all command files separately
+
 ## [0.3.2] - 2024-12-29
 
 ### Added
