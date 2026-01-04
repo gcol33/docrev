@@ -117,6 +117,14 @@ rev sync annotated.pdf            # extract PDF comments
 rev pdf-comments annotated.pdf --append methods.md
 ```
 
+Multiple reviewers sending back separate files? Merge them:
+
+```bash
+rev merge reviewer_A.docx reviewer_B.docx   # three-way merge
+```
+
+The merge command uses the original document (auto-saved in `.rev/base.docx` on build) to detect what each reviewer changed, identifies conflicts when reviewers edit the same text differently, and lets you resolve them interactively.
+
 Your entire revision cycle stays in the terminal. `final_v3_REAL_final.docx` is over.
 
 ## Getting Started
@@ -271,6 +279,7 @@ Cross-references: `@fig:label`, `@tbl:label`, `@eq:label` → "Figure 1", "Table
 | Resolve comment | `rev resolve file.md -n 1` |
 | Show contributors | `rev contributors` |
 | Lookup ORCID | `rev orcid 0000-0002-1825-0097` |
+| Merge reviewer feedback | `rev merge reviewer_A.docx reviewer_B.docx` |
 | Archive reviewer files | `rev archive` |
 | Check DOIs | `rev doi check references.bib` |
 | Find missing DOIs | `rev doi lookup references.bib` |

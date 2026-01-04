@@ -150,6 +150,49 @@ await build({
 })
 ```
 
+## Merge
+
+```javascript
+import {
+  extractChanges,
+  extractChangesWordLevel,
+  detectConflicts,
+  applyChanges,
+  mergeThreeWay,
+  storeBaseDocument,
+  getBaseDocument,
+} from 'docrev/merge'
+
+// Extract changes between original and modified text
+const changes = extractChanges(originalText, modifiedText, 'Reviewer Name')
+// Returns: [{ type, reviewer, start, end, oldText, newText }]
+
+// Word-level extraction (finer granularity)
+const wordChanges = extractChangesWordLevel(originalText, modifiedText, 'Reviewer')
+
+// Detect conflicts between multiple reviewers' changes
+const conflicts = detectConflicts([changes1, changes2])
+// Returns: [{ id, start, end, original, changes, resolved }]
+
+// Apply non-conflicting changes
+const merged = applyChanges(originalText, allChanges, conflicts)
+
+// Three-way merge from Word documents
+const result = await mergeThreeWay(baseDocx, [reviewerA, reviewerB], {
+  names: ['Alice', 'Bob'],
+  strategy: 'interactive',  // or 'first', 'latest'
+  diffLevel: 'sentence',    // or 'word'
+})
+// Returns: { merged, conflicts, stats }
+
+// Store base document for future merges (called automatically on build)
+storeBaseDocument(projectDir, docxPath)
+
+// Get stored base document path
+const basePath = getBaseDocument(projectDir)
+// Returns: path or null
+```
+
 ## TypeScript
 
 Full type definitions available:
