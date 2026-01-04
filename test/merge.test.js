@@ -5,7 +5,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import {
-  extractChanges,
+  extractChangesWordLevel as extractChanges,
   detectConflicts,
   applyChanges,
   applyChangesAsAnnotations,

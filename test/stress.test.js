@@ -19,7 +19,7 @@ import {
 } from '../lib/annotations.js';
 
 import {
-  extractChanges,
+  extractChangesWordLevel as extractChanges,
   detectConflicts,
   applyChanges,
   applyChangesAsAnnotations,
