@@ -13,6 +13,7 @@ import {
   getRefStatus,
   detectForwardRefs,
   resolveForwardRefs,
+  convertHardcodedRefs,
 } from '../lib/crossref.js';
 
 // Helper to extract number strings from parsed refs
@@ -493,5 +494,62 @@ describe('resolveForwardRefs', () => {
 
     assert.ok(result.startsWith('As shown in Figure 1'));
     assert.ok(result.includes(', the results...'));
+  });
+});
+
+describe('convertHardcodedRefs', () => {
+  // Registry format matches buildRegistry() output
+  const mockRegistry = {
+    figures: new Map([
+      ['map', { label: 'map', num: 1, isSupp: false }],
+      ['chart', { label: 'chart', num: 2, isSupp: false }],
+    ]),
+    tables: new Map([['data', { label: 'data', num: 1, isSupp: false }]]),
+    byNumber: {
+      fig: new Map([[1, 'map'], [2, 'chart']]),
+      figS: new Map(),
+      tbl: new Map([[1, 'data']]),
+      tblS: new Map(),
+      eq: new Map(),
+    },
+  };
+
+  it('should convert Figure 1 to @fig:map', () => {
+    const text = 'See Figure 1 for details.';
+    const { converted, conversions } = convertHardcodedRefs(text, mockRegistry);
+
+    assert.strictEqual(converted, 'See @fig:map for details.');
+    assert.strictEqual(conversions.length, 1);
+  });
+
+  it('should skip conversion when @-ref already precedes hardcoded ref', () => {
+    // This simulates the bug: after import, we might have "@fig:mapFigure 1"
+    // from restore + Word text concatenation. Should not double-convert.
+    const text = '@fig:mapFigure 1 shows the study area.';
+    const { converted, conversions } = convertHardcodedRefs(text, mockRegistry);
+
+    // Should NOT add another @fig:map
+    assert.strictEqual(converted, '@fig:mapFigure 1 shows the study area.');
+    assert.strictEqual(conversions.length, 0);
+  });
+
+  it('should skip when @-ref appears in annotation before hardcoded ref', () => {
+    // Simulates: "@fig:map{++@fig:map++}Figure 1" pattern from botched import
+    const text = '@fig:map{++@fig:map++}Figure 1 caption here.';
+    const { converted, conversions } = convertHardcodedRefs(text, mockRegistry);
+
+    // Should not convert Figure 1 since @fig:map already present
+    assert.strictEqual(converted, text);
+    assert.strictEqual(conversions.length, 0);
+  });
+
+  it('should convert when @-ref is for different figure', () => {
+    // @fig:chart precedes Figure 1, but Figure 1 = @fig:map, so should convert
+    // The check looks at textBefore, which has @fig:chart, not @fig:map
+    const text = '@fig:chart Figure 1 shows something else.';
+    const { converted, conversions } = convertHardcodedRefs(text, mockRegistry);
+
+    assert.strictEqual(converted, '@fig:chart @fig:map shows something else.');
+    assert.strictEqual(conversions.length, 1);
   });
 });

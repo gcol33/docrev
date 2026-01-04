@@ -860,6 +860,83 @@ test('Large document (50 paragraphs)', () => {
 });
 
 // ============================================================================
+// TABLE PROTECTION
+// ============================================================================
+
+console.log('\n📋 Table Protection');
+
+test('should preserve markdown tables unchanged when Word has same content', () => {
+  const md = `Some text before.
+
+| Header 1 | Header 2 |
+|----------|----------|
+| Cell A   | Cell B   |
+| Cell C   | Cell D   |
+
+Some text after.`;
+
+  // Word extracts table as plain text (simplified representation)
+  const wordText = `Some text before.
+
+Header 1 Header 2
+Cell A Cell B
+Cell C Cell D
+
+Some text after.`;
+
+  const result = generateSmartDiff(md, wordText, 'Reviewer');
+
+  // Table should be preserved intact
+  assertContains(result, '| Header 1 | Header 2 |', 'table header preserved');
+  assertContains(result, '|----------|----------|', 'table separator preserved');
+  assertContains(result, '| Cell A   | Cell B   |', 'table rows preserved');
+});
+
+test('should protect complex tables with formatting', () => {
+  const md = `**Table 1.** Model results.
+
+| Trait | Hurdle (OR) | Count (IRR) |
+|-------|-------------|-------------|
+| *Growth form* | | |
+| Herbaceous | 0.76 (0.57, 1.01) | 1.24 (0.94, 1.64) |
+| Tree | **0.69** | 1.15 |
+
+Paragraph after table.`;
+
+  const wordText = `Table 1. Model results.
+
+Trait Hurdle (OR) Count (IRR)
+Growth form
+Herbaceous 0.76 (0.57, 1.01) 1.24 (0.94, 1.64)
+Tree 0.69 1.15
+
+Paragraph after table.`;
+
+  const result = generateSmartDiff(md, wordText, 'Reviewer');
+
+  // Table structure should be preserved
+  assertContains(result, '| Trait | Hurdle (OR) | Count (IRR) |', 'table header');
+  assertContains(result, '|-------|', 'table separator');
+  assertContains(result, '| Herbaceous |', 'table data row');
+});
+
+test('should not break non-table pipes', () => {
+  const md = `This has a | pipe character but is not a table.
+
+Another paragraph.`;
+
+  const wordText = `This has a | pipe character but is not a table.
+
+Another paragraph.`;
+
+  const result = generateSmartDiff(md, wordText, 'Reviewer');
+
+  // Should not treat as table
+  assertContains(result, '|', 'pipe preserved');
+  assertNotContains(result, 'TABLEBLOCK', 'no table placeholder leaked');
+});
+
+// ============================================================================
 // SUMMARY
 // ============================================================================
 
