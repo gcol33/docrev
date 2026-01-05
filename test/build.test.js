@@ -14,9 +14,9 @@ import {
   findSections,
   combineSections,
   buildPandocArgs,
-  hasPandoc,
-  hasPandocCrossref,
+  processTablesForFormat,
 } from '../lib/build.js';
+import { hasPandoc, hasPandocCrossref } from '../lib/dependencies.js';
 
 let tempDir;
 
@@ -297,5 +297,150 @@ describe('hasPandocCrossref', () => {
   it('should return boolean', () => {
     const result = hasPandocCrossref();
     assert.strictEqual(typeof result, 'boolean');
+  });
+});
+
+describe('processTablesForFormat', () => {
+  const pipeTable = `| Parameter | Prior | Description |
+|-----------|-------|-------------|
+| alpha | Normal(0, 0.5) | Intercept |
+| beta | Student-t(3, 0, 1) | Slope |
+| sigma | Gamma(2, 0.5) | Error |`;
+
+  it('should convert Normal() to LaTeX math in nowrap columns for pdf', () => {
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(pipeTable, config, 'pdf');
+
+    assert.ok(result.includes('$\\mathcal{N}(0, 0.5)$'));
+    assert.ok(!result.includes('Normal(0, 0.5)'));
+  });
+
+  it('should convert Student-t() to LaTeX math', () => {
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(pipeTable, config, 'pdf');
+
+    assert.ok(result.includes('$t_{3}(0, 1)$'));
+    assert.ok(!result.includes('Student-t(3, 0, 1)'));
+  });
+
+  it('should convert Gamma() to LaTeX math', () => {
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(pipeTable, config, 'pdf');
+
+    assert.ok(result.includes('$\\text{Gamma}(2, 0.5)$'));
+    assert.ok(!result.includes('Gamma(2, 0.5)'));
+  });
+
+  it('should not modify content for non-pdf formats', () => {
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(pipeTable, config, 'docx');
+
+    assert.strictEqual(result, pipeTable);
+  });
+
+  it('should not modify content when no nowrap config', () => {
+    const result = processTablesForFormat(pipeTable, {}, 'pdf');
+    assert.strictEqual(result, pipeTable);
+
+    const result2 = processTablesForFormat(pipeTable, null, 'pdf');
+    assert.strictEqual(result2, pipeTable);
+  });
+
+  it('should not modify columns not in nowrap list', () => {
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(pipeTable, config, 'pdf');
+
+    // Parameter and Description columns should be unchanged
+    assert.ok(result.includes('| alpha |'));
+    assert.ok(result.includes('| Intercept |'));
+  });
+
+  it('should handle case-insensitive column matching', () => {
+    const table = `| PRIOR | Value |
+|-------|-------|
+| Normal(0, 1) | test |`;
+
+    const config = { nowrap: ['prior'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    assert.ok(result.includes('$\\mathcal{N}(0, 1)$'));
+  });
+
+  it('should handle partial column name matching', () => {
+    const table = `| Prior Distribution | Value |
+|-------------------|-------|
+| Normal(0, 1) | test |`;
+
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    assert.ok(result.includes('$\\mathcal{N}(0, 1)$'));
+  });
+
+  it('should not modify cells already in math mode', () => {
+    const table = `| Prior | Value |
+|-------|-------|
+| $\\mathcal{N}(0, 1)$ | test |`;
+
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    // Should remain unchanged
+    assert.ok(result.includes('$\\mathcal{N}(0, 1)$'));
+    assert.ok(!result.includes('$$'));
+  });
+
+  it('should handle Half-Normal distribution', () => {
+    const table = `| Prior | Value |
+|-------|-------|
+| Half-Normal(0, 1) | test |`;
+
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    assert.ok(result.includes('$\\text{Half-Normal}(0, 1)$'));
+  });
+
+  it('should handle Exponential distribution', () => {
+    const table = `| Prior | Value |
+|-------|-------|
+| Exponential(1) | test |`;
+
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    assert.ok(result.includes('$\\text{Exp}(1)$'));
+  });
+
+  it('should work with tex format', () => {
+    const config = { nowrap: ['Prior'] };
+    const result = processTablesForFormat(pipeTable, config, 'tex');
+
+    assert.ok(result.includes('$\\mathcal{N}(0, 0.5)$'));
+  });
+
+  it('should handle multiple nowrap columns', () => {
+    const table = `| Col1 | Col2 | Col3 |
+|------|------|------|
+| Normal(0, 1) | Normal(0, 2) | Normal(0, 3) |`;
+
+    const config = { nowrap: ['Col1', 'Col3'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    assert.ok(result.includes('$\\mathcal{N}(0, 1)$'));
+    assert.ok(result.includes('Normal(0, 2)')); // Col2 not in nowrap
+    assert.ok(result.includes('$\\mathcal{N}(0, 3)$'));
+  });
+
+  it('should handle R-hat column matching', () => {
+    const table = `| Parameter | $\\widehat{R}$ |
+|-----------|---------------|
+| alpha | 1.01 |`;
+
+    const config = { nowrap: ['$\\widehat{R}$'] };
+    const result = processTablesForFormat(table, config, 'pdf');
+
+    // Should match the column (no conversion needed for numbers)
+    assert.ok(result.includes('1.01'));
   });
 });

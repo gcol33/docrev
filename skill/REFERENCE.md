@@ -313,6 +313,73 @@ rev config user "Your Name"  # Set author name for replies
 rev config                   # Show current config
 ```
 
+## rev.yaml Settings
+
+### Tables
+
+Configure table formatting for PDF output:
+
+```yaml
+tables:
+  nowrap:
+    - Prior           # Column headers to keep on one line
+    - "$\\widehat{R}$"
+```
+
+In `nowrap` columns, distribution notation is auto-converted to LaTeX math:
+- `Normal(0, 0.5)` → `$\mathcal{N}(0, 0.5)$`
+- `Student-t(3, 0, 1)` → `$t_3(0, 1)$`
+- `Gamma(2, 0.5)` → `$\text{Gamma}(2, 0.5)$`
+- `Half-Normal(0, 1)` → `$\text{Half-Normal}(0, 1)$`
+- `Exponential(1)` → `$\text{Exp}(1)$`
+
+**Tip:** For complex tables, use simple tables (space-aligned with dashes) instead of pipe tables to avoid column width issues:
+
+```markdown
+  Parameter    Prior                       Description
+  ----------   -------------------------   ------------------
+  alpha        $\mathcal{N}(0, 0.5)$       Intercept prior
+  beta         $t_3(0, 2.5)$               Slope prior
+```
+
+### Postprocess Scripts
+
+Run custom scripts after output generation:
+
+```yaml
+postprocess:
+  pdf: ./scripts/fix-pdf.py      # Runs after PDF
+  docx: ./scripts/add-meta.js    # Runs after DOCX
+  tex: ./scripts/tweak-latex.sh  # Runs after TEX
+  pptx: ./scripts/fix-slides.ps1 # Runs after PPTX
+  all: ./scripts/notify.js       # Runs after ANY format
+```
+
+**Environment variables** available to scripts:
+
+| Variable | Description |
+|----------|-------------|
+| `OUTPUT_FILE` | Full path to generated file |
+| `OUTPUT_FORMAT` | Format: `pdf`, `docx`, `tex`, `pptx`, `beamer` |
+| `PROJECT_DIR` | Directory containing rev.yaml |
+| `CONFIG_PATH` | Full path to rev.yaml |
+
+**Supported script types:** `.js`, `.mjs` (Node), `.py` (Python), `.ps1` (PowerShell), `.sh` (Bash)
+
+**Example Python script** (add DOCX metadata):
+```python
+import os
+from docx import Document
+doc = Document(os.environ['OUTPUT_FILE'])
+doc.core_properties.author = "Research Team"
+doc.save(os.environ['OUTPUT_FILE'])
+```
+
+Use `--verbose` flag to see script output:
+```bash
+rev build pdf --verbose
+```
+
 ## Shell Completions
 
 ### rev completions
