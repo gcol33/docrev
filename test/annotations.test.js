@@ -83,7 +83,15 @@ describe('stripAnnotations', () => {
   it('should apply deletions', () => {
     const text = 'Hello {--world--}!';
     const result = stripAnnotations(text);
+    // Whitespace is preserved - only annotation removed
     assert.strictEqual(result, 'Hello !');
+  });
+
+  it('should preserve double spaces from deletions', () => {
+    const text = 'word {--deleted--} next';
+    const result = stripAnnotations(text);
+    // Double space preserved - no whitespace manipulation
+    assert.strictEqual(result, 'word  next');
   });
 
   it('should apply substitutions', () => {
