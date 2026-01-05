@@ -223,8 +223,8 @@ describe('Annotations stress tests', () => {
 
       const result = stripAnnotations(text);
       assert.ok(!result.includes(largeContent));
-      // stripAnnotations collapses multiple spaces to single space
-      assert.strictEqual(result.trim(), 'Before after');
+      // stripAnnotations preserves whitespace (doesn't collapse spaces)
+      assert.strictEqual(result.trim(), 'Before  after');
     });
 
     it('should handle substitution with large old and new content', () => {

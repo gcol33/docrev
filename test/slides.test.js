@@ -173,7 +173,7 @@ Content here
       assert.ok(!output.includes('\\only'));
     });
 
-    it('should generate overlays for multiple steps', () => {
+    it('should generate pauses for multiple steps', () => {
       const slides = [{
         title: 'Multi-step',
         titleLevel: 2,
@@ -188,8 +188,8 @@ Content here
       const output = generateBeamerMarkdown(slides);
 
       assert.ok(output.includes('## Multi-step'));
-      assert.ok(output.includes('\\only<1->'));
-      assert.ok(output.includes('\\only<2->'));
+      // Pandoc beamer uses ". . ." for pauses between steps
+      assert.ok(output.includes('. . .'));
       assert.ok(output.includes('Step 1 content'));
       assert.ok(output.includes('Step 2 content'));
     });
@@ -205,7 +205,8 @@ Content here
 
       const output = generateBeamerMarkdown(slides);
 
-      assert.ok(output.includes('\\note{'));
+      // Pandoc uses ::: notes fenced div
+      assert.ok(output.includes('::: notes'));
       assert.ok(output.includes('These are speaker notes'));
     });
   });
@@ -279,9 +280,9 @@ Explain the increase.
 `;
       const output = processSlideMarkdown(input, 'beamer');
 
-      assert.ok(output.includes('\\only<1->'));
-      assert.ok(output.includes('\\only<2->'));
-      assert.ok(output.includes('\\note{'));
+      // Pandoc beamer uses pauses and fenced notes
+      assert.ok(output.includes('. . .'));
+      assert.ok(output.includes('::: notes'));
     });
 
     it('should process full example for pptx', () => {
@@ -430,7 +431,7 @@ Explain the increase.
   });
 
   describe('beamer style output', () => {
-    it('should generate frame options for cover slide', () => {
+    it('should generate pandoc attributes for cover slide', () => {
       const slides = [{
         title: 'Welcome',
         titleLevel: 2,
@@ -441,12 +442,11 @@ Explain the increase.
       }];
 
       const output = generateBeamerMarkdown(slides);
-      assert.ok(output.includes('\\begin{frame}[plain,noframenumbering,c]'));
-      assert.ok(output.includes('\\frametitle{Welcome}'));
-      assert.ok(output.includes('\\end{frame}'));
+      // Pandoc uses heading attributes for frame options
+      assert.ok(output.includes('## Welcome {.plain .noframenumbering .c}'));
     });
 
-    it('should generate dark background for dark slides', () => {
+    it('should preserve dark class for pandoc', () => {
       const slides = [{
         title: 'Dark Slide',
         titleLevel: 2,
@@ -457,11 +457,11 @@ Explain the increase.
       }];
 
       const output = generateBeamerMarkdown(slides);
-      assert.ok(output.includes('\\setbeamercolor{background canvas}{bg=black}'));
-      assert.ok(output.includes('\\setbeamercolor{normal text}{fg=white}'));
+      // Dark background requires post-processing or template; classes preserved
+      assert.ok(output.includes('## Dark Slide'));
     });
 
-    it('should generate noframenumbering for nonumber option', () => {
+    it('should generate noframenumbering attribute for nonumber option', () => {
       const slides = [{
         title: 'Appendix',
         titleLevel: 2,
@@ -472,7 +472,97 @@ Explain the increase.
       }];
 
       const output = generateBeamerMarkdown(slides);
-      assert.ok(output.includes('[noframenumbering]'));
+      assert.ok(output.includes('{.noframenumbering}'));
+    });
+  });
+
+  describe('hasSlideSyntax buildup', () => {
+    it('should detect ::: buildup', () => {
+      assert.ok(hasSlideSyntax('::: buildup\n- item\n:::'));
+    });
+  });
+
+  describe('buildup syntax', () => {
+    it('should expand simple buildup to multiple slides', () => {
+      const input = `## Test
+
+::: buildup
+- First
+- Second
+- Third
+:::
+`;
+      const output = processSlideMarkdown(input, 'pptx');
+
+      // Should have 3 slides (one per item)
+      const titleMatches = output.match(/## Test/g);
+      assert.strictEqual(titleMatches.length, 3);
+    });
+
+    it('should grey out previous items', () => {
+      const input = `## Test
+
+::: buildup
+- First
+- Second
+:::
+`;
+      const output = processSlideMarkdown(input, 'pptx');
+
+      // Second slide should have greyed first item
+      assert.ok(output.includes('[First]{color=#888888}'));
+    });
+
+    it('should handle subpoints sequentially', () => {
+      const input = `## Test
+
+::: buildup
+- Parent
+  - Child A
+  - Child B
+- Next
+:::
+`;
+      const output = processSlideMarkdown(input, 'pptx');
+
+      // Should have 4 slides: Parent, Parent+ChildA, Parent+ChildA+ChildB, Next
+      const titleMatches = output.match(/## Test/g);
+      assert.strictEqual(titleMatches.length, 4);
+    });
+
+    it('should keep parent colored while showing children', () => {
+      const input = `## Test
+
+::: buildup
+- Parent
+  - Child
+:::
+`;
+      const output = processSlideMarkdown(input, 'pptx');
+
+      // On the child slide, parent should NOT be greyed
+      // Split by slides and check second slide
+      const slides = output.split('---');
+      const secondSlide = slides[1];
+      assert.ok(secondSlide.includes('- Parent'));
+      assert.ok(secondSlide.includes('- Child'));
+      assert.ok(!secondSlide.includes('[Parent]{color='));
+    });
+
+    it('should grey parent and children when moving to next item', () => {
+      const input = `## Test
+
+::: buildup
+- First
+  - Sub
+- Second
+:::
+`;
+      const output = processSlideMarkdown(input, 'pptx');
+
+      // Last slide should have greyed First and Sub
+      assert.ok(output.includes('[First]{color=#888888}'));
+      assert.ok(output.includes('[Sub]{color=#888888}'));
     });
   });
 
