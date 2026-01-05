@@ -215,6 +215,39 @@ Configure your name for comment replies:
 rev config user "Your Name"
 ```
 
+### Table Formatting
+
+For PDF output, configure columns that should not wrap:
+
+```yaml
+tables:
+  nowrap:
+    - Prior              # column headers to keep on one line
+    - "$\\widehat{R}$"
+```
+
+Distribution notation in nowrap columns is auto-converted to LaTeX math:
+`Normal(0, 0.5)` → `$\mathcal{N}(0, 0.5)$`
+
+### Postprocess Scripts
+
+Run custom scripts after output generation:
+
+```yaml
+postprocess:
+  pdf: ./scripts/fix-tables.py    # runs after PDF
+  docx: ./scripts/add-meta.js     # runs after DOCX
+  all: ./scripts/notify.sh        # runs after any format
+```
+
+Scripts receive environment variables: `OUTPUT_FILE`, `OUTPUT_FORMAT`, `PROJECT_DIR`, `CONFIG_PATH`.
+
+Use `--verbose` to see script output:
+
+```bash
+rev build pdf --verbose
+```
+
 ## Annotation Syntax
 
 Track changes from Word appear as [CriticMarkup](http://criticmarkup.com/):
