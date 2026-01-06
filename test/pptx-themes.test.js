@@ -14,8 +14,8 @@ import {
 
 describe('pptx-themes.js', () => {
   describe('PPTX_THEMES', () => {
-    it('should have 5 themes', () => {
-      assert.strictEqual(Object.keys(PPTX_THEMES).length, 5);
+    it('should have 6 themes', () => {
+      assert.strictEqual(Object.keys(PPTX_THEMES).length, 6);
     });
 
     it('should have required theme names', () => {
@@ -24,6 +24,7 @@ describe('pptx-themes.js', () => {
       assert.ok(PPTX_THEMES.academic);
       assert.ok(PPTX_THEMES.minimal);
       assert.ok(PPTX_THEMES.corporate);
+      assert.ok(PPTX_THEMES.plant);
     });
 
     it('should have colors and fonts for each theme', () => {
@@ -40,10 +41,10 @@ describe('pptx-themes.js', () => {
   });
 
   describe('getThemeNames', () => {
-    it('should return array of 5 theme names', () => {
+    it('should return array of 6 theme names', () => {
       const names = getThemeNames();
       assert.ok(Array.isArray(names));
-      assert.strictEqual(names.length, 5);
+      assert.strictEqual(names.length, 6);
     });
 
     it('should include all expected names', () => {
@@ -53,6 +54,7 @@ describe('pptx-themes.js', () => {
       assert.ok(names.includes('academic'));
       assert.ok(names.includes('minimal'));
       assert.ok(names.includes('corporate'));
+      assert.ok(names.includes('plant'));
     });
   });
 
