@@ -194,7 +194,7 @@ Content here
       assert.ok(output.includes('Step 2 content'));
     });
 
-    it('should include speaker notes', () => {
+    it('should strip speaker notes (Beamer notes require pgfpages setup)', () => {
       const slides = [{
         title: 'With Notes',
         titleLevel: 2,
@@ -205,9 +205,10 @@ Content here
 
       const output = generateBeamerMarkdown(slides);
 
-      // Pandoc uses ::: notes fenced div
-      assert.ok(output.includes('::: notes'));
-      assert.ok(output.includes('These are speaker notes'));
+      // Notes are stripped from Beamer output - they're available in source markdown
+      // Beamer \note{} requires pgfpages setup which most presentations don't use
+      assert.ok(!output.includes('::: notes'));
+      assert.ok(!output.includes('These are speaker notes'));
     });
   });
 
@@ -280,9 +281,10 @@ Explain the increase.
 `;
       const output = processSlideMarkdown(input, 'beamer');
 
-      // Pandoc beamer uses pauses and fenced notes
+      // Pandoc beamer uses pauses between steps
       assert.ok(output.includes('. . .'));
-      assert.ok(output.includes('::: notes'));
+      // Notes are stripped from Beamer output (require pgfpages setup)
+      assert.ok(!output.includes('::: notes'));
     });
 
     it('should process full example for pptx', () => {
