@@ -62,7 +62,18 @@ describe('isGitRepo', () => {
 
   it('should return false for non-git directory', () => {
     process.chdir(tempDir);
-    assert.strictEqual(isGitRepo(), false);
+    // Set GIT_CEILING_DIRECTORIES to the parent of tempDir to prevent git from finding parent repos
+    const originalCeiling = process.env.GIT_CEILING_DIRECTORIES;
+    process.env.GIT_CEILING_DIRECTORIES = path.dirname(tempDir);
+    try {
+      assert.strictEqual(isGitRepo(), false);
+    } finally {
+      if (originalCeiling === undefined) {
+        delete process.env.GIT_CEILING_DIRECTORIES;
+      } else {
+        process.env.GIT_CEILING_DIRECTORIES = originalCeiling;
+      }
+    }
   });
 });
 

@@ -81,10 +81,15 @@
     "rev": "bin/rev.js"
   },
   "scripts": {
-    "build": "echo 'No build needed'",
-    "test": "node --test test/*.test.js",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "dev": "tsx bin/rev.ts",
+    "test": "tsx --test test/*.test.js",
+    "test:ts": "tsx --test test/*.test.ts",
     "test:watch": "node --test --watch test/*.test.js",
-    "test:coverage": "c8 --reporter=text --reporter=lcov node --test test/*.test.js"
+    "test:coverage": "c8 --reporter=text --reporter=lcov node --test test/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -119,10 +124,15 @@
     "nspell": "^2.1.5",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.530",
+    "tsx": "^4.21.0",
     "xml2js": "^0.6.2",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
-    "c8": "^10.1.2"
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^25.2.0",
+    "@types/xml2js": "^0.4.14",
+    "c8": "^10.1.2",
+    "typescript": "^5.9.3"
   }
 }

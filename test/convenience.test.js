@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let tempDir;
-const revPath = path.resolve(__dirname, '../bin/rev.js');
+const revPath = path.resolve(__dirname, '../bin/rev.ts');
 
 beforeEach(() => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-conv-'));
@@ -25,7 +25,7 @@ afterEach(() => {
 function runRev(args, options = {}) {
   const cwd = options.cwd || tempDir;
   try {
-    return execSync(`node "${revPath}" ${args}`, {
+    return execSync(`npx tsx "${revPath}" ${args}`, {
       cwd,
       encoding: 'utf-8',
       timeout: 30000,

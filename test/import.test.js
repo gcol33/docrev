@@ -268,7 +268,8 @@ test('Multiple comments inserted correctly', () => {
 test('Comment with no matching anchor is skipped', () => {
   const markdown = 'Some text here.';
   const comments = [{ id: '1', author: 'Reviewer', text: 'Cannot find this' }];
-  const anchors = new Map([['1', 'nonexistent anchor text']]);
+  // Use an anchor with no words matching the markdown (fuzzy matching splits on spaces)
+  const anchors = new Map([['1', 'xyzzy frobozz plugh']]);
 
   const result = insertCommentsIntoMarkdown(markdown, comments, anchors);
   // Comment should not appear since anchor doesn't match
