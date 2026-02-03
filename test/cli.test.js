@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let tempDir;
-const CLI_PATH = path.join(__dirname, '..', 'bin', 'rev.js');
+const CLI_PATH = path.join(__dirname, '..', 'bin', 'rev.ts');
 
 beforeEach(() => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-cli-'));
@@ -29,7 +29,7 @@ afterEach(() => {
 function runCli(args, options = {}) {
   const { cwd = tempDir, expectError = false } = options;
   try {
-    const result = execSync(`node "${CLI_PATH}" ${args}`, {
+    const result = execSync(`npx tsx "${CLI_PATH}" ${args}`, {
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
