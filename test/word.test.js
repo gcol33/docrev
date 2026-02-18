@@ -12,10 +12,10 @@ import {
   extractWordComments,
   extractCommentAnchors,
   extractTextFromWord,
-  extractFromWord,
   getWordMetadata,
   isWordDocument,
 } from '../lib/word.js';
+import { extractFromWord } from '../lib/import.js';
 
 // Test fixtures
 let tempDir;
@@ -177,12 +177,12 @@ describe('extractTextFromWord', () => {
 });
 
 describe('extractFromWord', () => {
-  it('should return both text and html', async () => {
+  it('should return text and comments', async () => {
     const docxPath = createTestDocx('extract.docx', { content: 'Sample text' });
     const result = await extractFromWord(docxPath);
 
     assert.ok('text' in result);
-    assert.ok('html' in result);
+    assert.ok('comments' in result);
   });
 
   it('should throw for non-existent file', async () => {
