@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import type { JournalProfile, JournalRequirements, ValidationResult } from './types.js';
+import type { JournalProfile, JournalRequirements, JournalFormatting, ValidationResult } from './types.js';
 import { loadCustomProfiles } from './plugins.js';
 import { countWords } from './utils.js';
 
@@ -23,6 +23,10 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       figures: { max: 6 },
       sections: ['Abstract', 'Introduction', 'Results', 'Discussion', 'Methods'],
     },
+    formatting: {
+      csl: 'nature',
+      pdf: { fontsize: '11pt', geometry: 'margin=2.5cm', linestretch: 2 },
+    },
   },
 
   science: {
@@ -34,6 +38,10 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       figures: { max: 4 },
       sections: ['Abstract', 'Introduction', 'Results', 'Discussion'],
     },
+    formatting: {
+      csl: 'science',
+      pdf: { fontsize: '12pt', geometry: 'margin=1in', linestretch: 2 },
+    },
   },
 
   'plos-one': {
@@ -43,6 +51,10 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       wordLimit: { abstract: 300 },
       references: { doiRequired: false },
       sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+    },
+    formatting: {
+      csl: 'plos',
+      pdf: { fontsize: '12pt', geometry: 'margin=1in', linestretch: 2 },
     },
   },
 
@@ -54,6 +66,10 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       references: { max: 50, doiRequired: true },
       figures: { max: 6 },
       sections: ['Abstract', 'Introduction', 'Results', 'Discussion'],
+    },
+    formatting: {
+      csl: 'pnas',
+      pdf: { documentclass: 'article', fontsize: '9pt', geometry: 'margin=2cm', linestretch: 1.2, numbersections: false },
     },
   },
 
@@ -97,6 +113,10 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       references: { doiRequired: true },
       sections: ['Abstract', 'Introduction', 'Results', 'Discussion', 'Methods'],
     },
+    formatting: {
+      csl: 'elife',
+      pdf: { fontsize: '11pt', geometry: 'margin=2.5cm', linestretch: 1.5 },
+    },
   },
 
   'cell': {
@@ -107,6 +127,10 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       references: { max: 100, doiRequired: true },
       figures: { max: 7 },
       sections: ['Abstract', 'Introduction', 'Results', 'Discussion'],
+    },
+    formatting: {
+      csl: 'cell',
+      pdf: { fontsize: '12pt', geometry: 'margin=2.5cm', linestretch: 2 },
     },
   },
 

@@ -119,12 +119,117 @@ rev grammar --forget acronym
 
 ## Journal Profiles
 
-21 built-in journal profiles for validation:
+21 built-in journal profiles for validation. Six also provide **build formatting defaults** (CSL citation style, PDF settings):
 
 ```bash
-rev validate --list              # List all profiles
+rev validate --list              # List all profiles ([formatting] = build support)
 rev validate -j nature           # Check against Nature requirements
 rev word-count -j ecology-letters  # Use journal word limit
 ```
 
-Profiles include: nature, science, pnas, ecology-letters, global-change-biology, etc.
+Profiles include: nature, science, pnas, elife, cell, plos-one, ecology-letters, global-change-biology, etc.
+
+### Setting a Journal
+
+In `rev.yaml`:
+
+```yaml
+journal: nature
+```
+
+Or via CLI flag (overrides rev.yaml):
+
+```bash
+rev build pdf docx -j nature
+```
+
+### Config Cascade
+
+When a journal with formatting is set, settings are applied in three layers:
+
+1. **Defaults** — docrev built-in defaults (12pt, margin=1in, linestretch=1.5, etc.)
+2. **Journal formatting** — from the journal profile (e.g., Nature uses 11pt, 2.5cm margins, double spacing)
+3. **Your rev.yaml** — explicit settings always win
+
+This means you can set `journal: nature` and still override individual settings:
+
+```yaml
+journal: nature
+pdf:
+  linestretch: 1.5    # override Nature's double spacing
+```
+
+### CSL Citation Styles
+
+Journal profiles specify a CSL style name. docrev resolves CSL files in this order:
+
+1. File path in project directory (e.g., `nature.csl`)
+2. Cached file in `~/.rev/csl/`
+3. Bare name passed to pandoc --citeproc (works for some built-in styles)
+
+Download and cache a style:
+
+```bash
+rev profiles --fetch-csl nature    # downloads to ~/.rev/csl/nature.csl
+rev profiles --fetch-csl apa       # works with short names
+rev profiles --list-csl            # list cached files
+```
+
+Known short names: apa, chicago, vancouver, ieee, nature, science, cell, pnas, plos, elife, ecology-letters, ama, acs, harvard, mla, elsevier, springer, biomed-central.
+
+### Custom Profiles with Formatting
+
+Custom profiles (YAML files in `~/.rev/profiles/` or `.rev/profiles/`) can include a `formatting` section:
+
+```yaml
+id: my-journal
+name: "My Journal"
+url: "https://journal.example.com/guidelines"
+
+# Validation requirements
+wordLimit:
+  main: 6000
+  abstract: 250
+references:
+  max: 50
+  doiRequired: true
+sections:
+  required:
+    - Abstract
+    - Introduction
+    - Methods
+    - Results
+    - Discussion
+
+# Build formatting defaults
+formatting:
+  csl: "vancouver"
+  pdf:
+    fontsize: 11pt
+    geometry: margin=2cm
+    linestretch: 2
+    numbersections: false
+  docx:
+    reference: null
+  crossref:
+    figPrefix: [Fig., Figs.]
+    tblPrefix: [Table, Tables]
+```
+
+Create a new profile template (includes formatting section):
+
+```bash
+rev profiles --new "My Journal"
+```
+
+### CLI Reference
+
+| Command | Description |
+|---------|-------------|
+| `rev validate --list` | List all profiles with formatting tags |
+| `rev validate -j nature` | Validate against journal requirements |
+| `rev build -j nature` | Build with journal formatting defaults |
+| `rev profiles --new "Name"` | Create custom profile template |
+| `rev profiles --fetch-csl name` | Download CSL style to cache |
+| `rev profiles --list-csl` | List cached CSL styles |
+| `rev profiles --dirs` | Show profile directory locations |

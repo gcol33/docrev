@@ -42,7 +42,7 @@ Three reviewers send back three Word files. You manually compare changes, copy-p
 npm install -g docrev
 ```
 
-Requires [Node.js](https://nodejs.org) 18+, [Pandoc](https://pandoc.org) 2.11+, and [LaTeX](#installing-dependencies) for PDF output.
+Requires [Node.js](https://nodejs.org) 18+. [Pandoc](https://pandoc.org) is needed for building DOCX/PDF output. [LaTeX](#installing-dependencies) is additionally needed for PDF.
 
 ## Quick Example
 
@@ -246,6 +246,30 @@ Use `--verbose` to see script output:
 
 ```bash
 rev build pdf --verbose
+```
+
+### Journal Profiles
+
+Journal profiles provide both validation rules and build formatting defaults. Set in `rev.yaml`:
+
+```yaml
+journal: nature
+```
+
+Or pass on the command line:
+
+```bash
+rev build pdf -j nature     # applies Nature's CSL style + PDF settings
+```
+
+When a journal is set, its formatting defaults (CSL citation style, font size, margins, line spacing) are applied automatically. Your explicit `rev.yaml` settings always take priority.
+
+Six profiles include formatting: `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`. All 21 profiles support validation. Custom profiles can include formatting too — see [docs/configuration.md](docs/configuration.md).
+
+```bash
+rev validate --list          # see all profiles ([formatting] tag = build support)
+rev profiles --fetch-csl apa # download a CSL style to cache
+rev profiles --list-csl      # list cached CSL styles
 ```
 
 ## Annotation Syntax
