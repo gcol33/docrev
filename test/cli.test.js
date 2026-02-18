@@ -12,8 +12,10 @@ import { execSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.join(__dirname, '..');
 let tempDir;
-const CLI_PATH = path.join(__dirname, '..', 'bin', 'rev.ts');
+const CLI_PATH = path.join(PROJECT_ROOT, 'bin', 'rev.ts');
+const TSX_PATH = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 
 beforeEach(() => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-cli-'));
@@ -29,7 +31,7 @@ afterEach(() => {
 function runCli(args, options = {}) {
   const { cwd = tempDir, expectError = false } = options;
   try {
-    const result = execSync(`npx tsx "${CLI_PATH}" ${args}`, {
+    const result = execSync(`"${TSX_PATH}" "${CLI_PATH}" ${args}`, {
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],

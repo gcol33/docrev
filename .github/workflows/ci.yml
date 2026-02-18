@@ -65,7 +65,7 @@ jobs:
         run: npm ci
 
       - name: Run coverage
-        run: c8 --reporter=text --reporter=lcov npx tsx --test test/*.test.js
+        run: npx c8 --reporter=text --reporter=lcov npx tsx --test test/*.test.js
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

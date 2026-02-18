@@ -11,8 +11,10 @@ import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.join(__dirname, '..');
 let tempDir;
-const revPath = path.resolve(__dirname, '../bin/rev.ts');
+const revPath = path.resolve(PROJECT_ROOT, 'bin/rev.ts');
+const tsxPath = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'tsx');
 
 beforeEach(() => {
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-conv-'));
@@ -25,7 +27,7 @@ afterEach(() => {
 function runRev(args, options = {}) {
   const cwd = options.cwd || tempDir;
   try {
-    return execSync(`npx tsx "${revPath}" ${args}`, {
+    return execSync(`"${tsxPath}" "${revPath}" ${args}`, {
       cwd,
       encoding: 'utf-8',
       timeout: 30000,
