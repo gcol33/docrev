@@ -38,6 +38,17 @@ interface Profile {
 }
 
 /**
+ * Journal formatting defaults
+ */
+interface ProfileFormatting {
+  csl?: string;
+  pdf?: Record<string, unknown>;
+  docx?: Record<string, unknown>;
+  crossref?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
  * Normalized profile
  */
 interface NormalizedProfile {
@@ -45,6 +56,7 @@ interface NormalizedProfile {
   url: string | null;
   custom: boolean;
   requirements: ProfileRequirements;
+  formatting?: ProfileFormatting;
 }
 
 /**
@@ -154,7 +166,7 @@ function validateProfile(profile: unknown): profile is Profile {
  * Normalize profile to standard structure
  */
 function normalizeProfile(profile: Profile): NormalizedProfile {
-  return {
+  const normalized: NormalizedProfile = {
     name: profile.name,
     url: profile.url || null,
     custom: true,
@@ -169,6 +181,14 @@ function normalizeProfile(profile: Profile): NormalizedProfile {
       ...profile.requirements,
     },
   };
+
+  // Pass through formatting if present
+  const formatting = (profile as { formatting?: ProfileFormatting }).formatting;
+  if (formatting && typeof formatting === 'object') {
+    normalized.formatting = formatting;
+  }
+
+  return normalized;
 }
 
 /**
@@ -245,6 +265,20 @@ keywords:
 dataAvailability: true
 highlights: false
 graphicalAbstract: false
+
+# Build formatting defaults (applied via rev build -j ${id})
+# formatting:
+#   csl: "${id}"            # CSL style name or path
+#   pdf:
+#     fontsize: 12pt
+#     geometry: margin=1in
+#     linestretch: 1.5
+#     numbersections: false
+#   docx:
+#     reference: null       # Path to reference .docx template
+#   crossref:
+#     figPrefix: [Fig., Figs.]
+#     tblPrefix: [Table, Tables]
 `;
 }
 

@@ -325,13 +325,32 @@ export interface JournalRequirements {
   figures?: { max?: number };
   tables?: { max?: number };
   sections?: string[];
-  formatting?: object;
+}
+
+export interface JournalFormatting {
+  csl?: string;
+  pdf?: {
+    documentclass?: string;
+    fontsize?: string;
+    geometry?: string;
+    linestretch?: number;
+    template?: string;
+    numbersections?: boolean;
+  };
+  docx?: {
+    reference?: string;
+  };
+  crossref?: {
+    figPrefix?: string | string[];
+    tblPrefix?: string | string[];
+  };
 }
 
 export interface JournalProfile {
   name: string;
   url: string;
   requirements: JournalRequirements;
+  formatting?: JournalFormatting;
 }
 
 export interface ValidationResult {

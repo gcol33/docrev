@@ -21,7 +21,9 @@ import { getThemePath, getThemeNames, PPTX_THEMES } from './pptx-themes.js';
 import { runPostprocess } from './postprocess.js';
 import { hasPandoc, hasPandocCrossref, hasLatex } from './dependencies.js';
 import { buildImageRegistry, writeImageRegistry } from './image-registry.js';
-import type { Author } from './types.js';
+import type { Author, JournalFormatting } from './types.js';
+import { getJournalProfile } from './journals.js';
+import { resolveCSL } from './csl.js';
 
 // =============================================================================
 // Constants
@@ -251,6 +253,69 @@ export const DEFAULT_CONFIG: BuildConfig = {
 // =============================================================================
 
 /**
+ * Merge journal formatting defaults into a config.
+ * Priority: DEFAULT_CONFIG < journal formatting < rev.yaml explicit settings
+ */
+export function mergeJournalFormatting(config: BuildConfig, formatting: JournalFormatting, directory: string): BuildConfig {
+  const merged = { ...config };
+
+  // CSL: only apply if user hasn't set one
+  if (formatting.csl && !config.csl) {
+    const resolved = resolveCSL(formatting.csl, directory);
+    if (resolved) {
+      merged.csl = resolved;
+    }
+    // If not resolved locally, store the name — pandoc --citeproc
+    // can sometimes resolve it, and the user can fetch with rev profiles --fetch-csl
+    if (!resolved) {
+      merged.csl = formatting.csl;
+    }
+  }
+
+  // PDF settings: merge only unset fields
+  if (formatting.pdf) {
+    const userPdf = config.pdf || {};
+    const defaults = DEFAULT_CONFIG.pdf;
+    merged.pdf = { ...config.pdf };
+    for (const [key, value] of Object.entries(formatting.pdf)) {
+      const k = key as keyof PdfConfig;
+      // Apply journal value only if user config matches the default (i.e., wasn't explicitly set)
+      if (value !== undefined && JSON.stringify(userPdf[k]) === JSON.stringify(defaults[k])) {
+        (merged.pdf as Record<string, unknown>)[k] = value;
+      }
+    }
+  }
+
+  // DOCX settings: merge only unset fields
+  if (formatting.docx) {
+    const userDocx = config.docx || {};
+    const defaults = DEFAULT_CONFIG.docx;
+    merged.docx = { ...config.docx };
+    for (const [key, value] of Object.entries(formatting.docx)) {
+      const k = key as keyof DocxConfig;
+      if (value !== undefined && JSON.stringify(userDocx[k]) === JSON.stringify(defaults[k])) {
+        (merged.docx as Record<string, unknown>)[k] = value;
+      }
+    }
+  }
+
+  // Crossref settings: merge only unset fields
+  if (formatting.crossref) {
+    const userCrossref = config.crossref || {};
+    const defaults = DEFAULT_CONFIG.crossref;
+    merged.crossref = { ...config.crossref };
+    for (const [key, value] of Object.entries(formatting.crossref)) {
+      const k = key as keyof CrossrefConfig;
+      if (value !== undefined && JSON.stringify(userCrossref[k]) === JSON.stringify(defaults[k])) {
+        (merged.crossref as Record<string, unknown>)[k] = value;
+      }
+    }
+  }
+
+  return merged;
+}
+
+/**
  * Load rev.yaml config from directory
  * @param directory - Project directory path
  * @returns Merged config with defaults
@@ -273,7 +338,7 @@ export function loadConfig(directory: string): BuildConfig {
     const userConfig = YAML.parse(content) || {};
 
     // Deep merge with defaults
-    const config: BuildConfig = {
+    let config: BuildConfig = {
       ...DEFAULT_CONFIG,
       ...userConfig,
       crossref: { ...DEFAULT_CONFIG.crossref, ...userConfig.crossref },
@@ -286,6 +351,14 @@ export function loadConfig(directory: string): BuildConfig {
       postprocess: { ...DEFAULT_CONFIG.postprocess, ...userConfig.postprocess },
       _configPath: configPath,
     };
+
+    // Apply journal formatting defaults (between DEFAULT_CONFIG and user settings)
+    if (userConfig.journal) {
+      const profile = getJournalProfile(userConfig.journal);
+      if (profile?.formatting) {
+        config = mergeJournalFormatting(config, profile.formatting, directory);
+      }
+    }
 
     return config;
   } catch (err) {

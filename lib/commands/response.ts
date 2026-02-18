@@ -33,6 +33,8 @@ interface ProfilesOptions {
   new?: string;
   project?: boolean;
   dirs?: boolean;
+  fetchCsl?: string;
+  listCsl?: boolean;
 }
 
 interface AnonymizeOptions {
@@ -126,7 +128,9 @@ export function register(program: Command): void {
         const custom = journals.filter(j => j.custom);
 
         for (const j of builtIn) {
-          console.log(`  ${chalk.bold(j.id)} - ${j.name}`);
+          const profile = getJournalProfile(j.id);
+          const fmtTag = profile?.formatting ? chalk.green(' [formatting]') : '';
+          console.log(`  ${chalk.bold(j.id)} - ${j.name}${fmtTag}`);
           if (j.url) console.log(chalk.dim(`    ${j.url}`));
         }
 
@@ -134,13 +138,16 @@ export function register(program: Command): void {
           console.log();
           console.log(chalk.cyan('  Custom Profiles:'));
           for (const j of custom) {
-            console.log(`  ${chalk.bold(j.id)} - ${j.name} ${chalk.cyan('[custom]')}`);
+            const profile = getJournalProfile(j.id);
+            const fmtTag = profile?.formatting ? chalk.green(' [formatting]') : '';
+            console.log(`  ${chalk.bold(j.id)} - ${j.name} ${chalk.cyan('[custom]')}${fmtTag}`);
             if (j.url) console.log(chalk.dim(`    ${j.url}`));
           }
         }
 
         console.log();
         console.log(chalk.dim('Usage: rev validate --journal <name>'));
+        console.log(chalk.dim('Profiles with [formatting] can also be used with: rev build -j <name>'));
         console.log(chalk.dim('Manage custom profiles: rev profiles'));
         return;
       }
@@ -224,6 +231,8 @@ export function register(program: Command): void {
     .option('--new <name>', 'Create a new profile template')
     .option('--project', 'Create profile in project directory (with --new)')
     .option('--dirs', 'Show profile directory locations')
+    .option('--fetch-csl <name>', 'Download a CSL citation style to cache')
+    .option('--list-csl', 'List cached CSL citation styles')
     .action(async (options: ProfilesOptions) => {
       const {
         listCustomProfiles,
@@ -231,6 +240,50 @@ export function register(program: Command): void {
         getPluginDirs,
       } = await import('../plugins.js');
       const { listJournals } = await import('../journals.js');
+
+      if (options.listCsl) {
+        const { listCachedCSL, getCSLCacheDir } = await import('../csl.js');
+        const cached = listCachedCSL();
+        console.log(fmt.header('Cached CSL Styles'));
+        console.log(chalk.dim(`  ${getCSLCacheDir()}`));
+        console.log();
+        if (cached.length === 0) {
+          console.log(chalk.dim('  No cached styles. Download with: rev profiles --fetch-csl <name>'));
+        } else {
+          for (const c of cached) {
+            console.log(`  ${chalk.bold(c.name)}`);
+          }
+          console.log();
+          console.log(chalk.dim(`  ${cached.length} cached style(s)`));
+        }
+        return;
+      }
+
+      if (options.fetchCsl) {
+        const { fetchCSL, resolveCSL, getCSLAliases } = await import('../csl.js');
+
+        // Check if already cached
+        const existing = resolveCSL(options.fetchCsl);
+        if (existing) {
+          console.log(fmt.status('info', `Already cached: ${existing}`));
+          return;
+        }
+
+        const spin = fmt.spinner(`Downloading CSL style "${options.fetchCsl}"...`).start();
+        const result = await fetchCSL(options.fetchCsl);
+        spin.stop();
+
+        if (result) {
+          console.log(fmt.status('success', `Downloaded: ${result}`));
+        } else {
+          console.error(fmt.status('error', `Could not download CSL style "${options.fetchCsl}"`));
+          const aliases = getCSLAliases();
+          const names = Object.keys(aliases).sort().join(', ');
+          console.error(chalk.dim(`  Known short names: ${names}`));
+          process.exit(1);
+        }
+        return;
+      }
 
       if (options.dirs) {
         const dirs = getPluginDirs();
