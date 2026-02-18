@@ -328,6 +328,13 @@ export function register(program: Command): void {
 
       console.log(chalk.cyan(`Comparing ${path.basename(docx)} against ${path.basename(original)}...`));
 
+      // Warn if pandoc is missing
+      const { hasPandoc: hasPandocImport, getInstallInstructions: getInstallImport } = await import('../dependencies.js');
+      if (!hasPandocImport()) {
+        console.log(chalk.yellow(`\n  Warning: Pandoc not installed. Track changes extracted from XML (formatting may differ).`));
+        console.log(chalk.dim(`  Install for best results: ${getInstallImport('pandoc')}\n`));
+      }
+
       try {
         const { importFromWord } = await import('../import.js');
         const { annotated, stats } = await importFromWord(docx, original, {
@@ -564,6 +571,14 @@ export function register(program: Command): void {
         process.exit(1);
       }
 
+      // Check pandoc availability upfront and warn
+      const { hasPandoc, getInstallInstructions } = await import('../dependencies.js');
+      if (!hasPandoc()) {
+        console.log(fmt.status('warning', `Pandoc not installed. Track changes will be extracted from XML (formatting may differ).`));
+        console.log(chalk.dim(`  Install for best results: ${getInstallInstructions('pandoc')}`));
+        console.log();
+      }
+
       const spin = fmt.spinner(`Importing ${path.basename(docx)}...`).start();
 
       try {
@@ -579,11 +594,19 @@ export function register(program: Command): void {
         const comments = await extractWordComments(docx);
         const { anchors, fullDocText: xmlDocText } = await extractCommentAnchors(docx);
 
-        // Use pandoc for extraction to preserve markdown formatting (bold, tables, etc.)
-        // Mammoth only extracts plain text which loses all formatting
+        // Extract Word text (uses pandoc if available, falls back to XML extraction)
         const wordExtraction = await extractFromWord(docx, { mediaDir: options.dir });
         let wordText = wordExtraction.text;
         const wordTables = wordExtraction.tables || [];
+
+        // Log extraction messages (warnings about pandoc, track change stats, etc.)
+        for (const msg of wordExtraction.messages || []) {
+          if (msg.type === 'warning') {
+            spin.stop();
+            console.log(fmt.status('warning', msg.message));
+            spin.start();
+          }
+        }
 
         // Restore crossref on FULL text BEFORE splitting into sections
         // This ensures duplicate labels from track changes are handled correctly

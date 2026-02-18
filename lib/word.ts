@@ -350,6 +350,134 @@ export async function extractTrackChanges(docxPath: string): Promise<TrackChange
   };
 }
 
+/**
+ * Extract plain text from Word XML with track changes preserved as CriticMarkup.
+ * This is a pandoc-free fallback that reads document.xml directly.
+ *
+ * Converts:
+ *   <w:ins> content </w:ins>  →  {++text++}
+ *   <w:del> content </w:del>  →  {--text--}
+ *
+ * Also detects headings (w:pStyle Heading1-6) and outputs markdown # syntax.
+ *
+ * @param docxPath - Path to Word document
+ * @returns Plain text with CriticMarkup and stats
+ */
+export async function extractPlainTextWithTrackChanges(docxPath: string): Promise<{
+  text: string;
+  hasTrackChanges: boolean;
+  stats: { insertions: number; deletions: number };
+}> {
+  if (!fs.existsSync(docxPath)) {
+    throw new Error(`File not found: ${docxPath}`);
+  }
+
+  const zip = new AdmZip(docxPath);
+  const docEntry = zip.getEntry('word/document.xml');
+
+  if (!docEntry) {
+    throw new Error('Invalid docx: no document.xml');
+  }
+
+  let xml = docEntry.getData().toString('utf8');
+  let insertions = 0;
+  let deletions = 0;
+
+  // Use unique markers (null bytes) that won't appear in normal text
+  const INS_S = '\x00IS\x00';
+  const INS_E = '\x00IE\x00';
+  const DEL_S = '\x00DS\x00';
+  const DEL_E = '\x00DE\x00';
+
+  // Step 1: Replace <w:ins> with marker-wrapped text injected as <w:t>
+  xml = xml.replace(/<w:ins\b[^>]*>([\s\S]*?)<\/w:ins>/g, (_match, content: string) => {
+    const texts: string[] = [];
+    const tPat = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+    let m: RegExpExecArray | null;
+    while ((m = tPat.exec(content)) !== null) {
+      texts.push(m[1] || '');
+    }
+    const text = texts.join('');
+    if (text.trim()) {
+      insertions++;
+      return `<w:r><w:t>${INS_S}${text}${INS_E}</w:t></w:r>`;
+    }
+    return '';
+  });
+
+  // Step 2: Replace <w:del> similarly (uses w:delText inside)
+  xml = xml.replace(/<w:del\b[^>]*>([\s\S]*?)<\/w:del>/g, (_match, content: string) => {
+    const texts: string[] = [];
+    // Try w:delText first, then w:t as fallback
+    const tPat = /<w:delText[^>]*>([^<]*)<\/w:delText>|<w:t[^>]*>([^<]*)<\/w:t>/g;
+    let m: RegExpExecArray | null;
+    while ((m = tPat.exec(content)) !== null) {
+      texts.push(m[1] || m[2] || '');
+    }
+    const text = texts.join('');
+    if (text.trim()) {
+      deletions++;
+      return `<w:r><w:t>${DEL_S}${text}${DEL_E}</w:t></w:r>`;
+    }
+    return '';
+  });
+
+  // Step 3: Extract text paragraph by paragraph
+  const paragraphs: string[] = [];
+  const paraPattern = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
+  let pm: RegExpExecArray | null;
+
+  while ((pm = paraPattern.exec(xml)) !== null) {
+    const paraXml = pm[1];
+
+    // Detect heading level from paragraph style
+    let headingLevel = 0;
+    const styleMatch = paraXml.match(/<w:pStyle\s+w:val="Heading(\d)"/i);
+    if (styleMatch && styleMatch[1]) {
+      headingLevel = parseInt(styleMatch[1], 10);
+    }
+
+    // Extract all <w:t> text in order
+    const texts: string[] = [];
+    const tPat = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+    let tm: RegExpExecArray | null;
+    while ((tm = tPat.exec(paraXml)) !== null) {
+      texts.push(tm[1] || '');
+    }
+
+    let paraText = texts.join('');
+
+    // Decode XML entities
+    paraText = paraText
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'");
+
+    // Convert markers to CriticMarkup
+    paraText = paraText
+      .split(INS_S).join('{++')
+      .split(INS_E).join('++}')
+      .split(DEL_S).join('{--')
+      .split(DEL_E).join('--}');
+
+    if (paraText.trim()) {
+      if (headingLevel > 0 && headingLevel <= 6) {
+        paragraphs.push('#'.repeat(headingLevel) + ' ' + paraText.trim());
+      } else {
+        paragraphs.push(paraText);
+      }
+    }
+  }
+
+  return {
+    text: paragraphs.join('\n\n'),
+    hasTrackChanges: insertions > 0 || deletions > 0,
+    stats: { insertions, deletions },
+  };
+}
+
 interface ExtractWithTrackChangesOptions {
   mediaDir?: string;
 }

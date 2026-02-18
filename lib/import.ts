@@ -743,13 +743,27 @@ export async function extractFromWord(
       }
     }
   } catch (pandocErr: any) {
-    // Fall back to mammoth if pandoc fails
-    messages.push({ type: 'warning', message: 'Pandoc failed, using mammoth (equations and images may not be preserved)' });
-    const mammoth = await import('mammoth');
-    const textResult = await mammoth.extractRawText({ path: docxPath });
-    const htmlResult = await mammoth.convertToHtml({ path: docxPath });
-    text = textResult.value;
-    messages = [...textResult.messages, ...htmlResult.messages].map(m => ({ type: 'warning' as const, message: String(m) }));
+    // Pandoc not available — use XML-based extraction with track change support
+    const { extractPlainTextWithTrackChanges } = await import('./word.js');
+    const { getInstallInstructions } = await import('./dependencies.js');
+    const installCmd = getInstallInstructions('pandoc');
+
+    const xmlResult = await extractPlainTextWithTrackChanges(docxPath);
+    text = xmlResult.text;
+    hasTrackChanges = xmlResult.hasTrackChanges;
+    trackChangeStats = xmlResult.stats;
+
+    if (hasTrackChanges) {
+      messages.push({
+        type: 'warning',
+        message: `Pandoc not installed. Using built-in XML extractor (${trackChangeStats.insertions} insertions, ${trackChangeStats.deletions} deletions preserved). Formatting may differ. Install pandoc for best results: ${installCmd}`
+      });
+    } else {
+      messages.push({
+        type: 'warning',
+        message: `Pandoc not installed. Using built-in XML extractor (no track changes found). Install pandoc for better formatting: ${installCmd}`
+      });
+    }
   }
 
   // Extract comments directly from docx XML
