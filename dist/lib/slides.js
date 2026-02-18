@@ -60,10 +60,10 @@ function parseBulletList(content) {
     for (const line of lines) {
         // Match bullet lines: "- text" or "  - text" etc.
         const match = line.match(/^(\s*)[-*]\s+(.+)$/);
-        if (!match || !match[1] || !match[2])
+        if (!match)
             continue;
-        const indent = match[1].length;
-        const text = match[2].trim();
+        const indent = (match[1] || '').length;
+        const text = (match[2] || '').trim();
         const item = { text, indent, children: [] };
         // Find parent based on indentation
         while (stack.length > 1) {

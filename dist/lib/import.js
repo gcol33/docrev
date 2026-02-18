@@ -480,13 +480,26 @@ export async function extractFromWord(docxPath, options = {}) {
         }
     }
     catch (pandocErr) {
-        // Fall back to mammoth if pandoc fails
-        messages.push({ type: 'warning', message: 'Pandoc failed, using mammoth (equations and images may not be preserved)' });
-        const mammoth = await import('mammoth');
-        const textResult = await mammoth.extractRawText({ path: docxPath });
-        const htmlResult = await mammoth.convertToHtml({ path: docxPath });
-        text = textResult.value;
-        messages = [...textResult.messages, ...htmlResult.messages].map(m => ({ type: 'warning', message: String(m) }));
+        // Pandoc not available — use XML-based extraction with track change support
+        const { extractPlainTextWithTrackChanges } = await import('./word.js');
+        const { getInstallInstructions } = await import('./dependencies.js');
+        const installCmd = getInstallInstructions('pandoc');
+        const xmlResult = await extractPlainTextWithTrackChanges(docxPath);
+        text = xmlResult.text;
+        hasTrackChanges = xmlResult.hasTrackChanges;
+        trackChangeStats = xmlResult.stats;
+        if (hasTrackChanges) {
+            messages.push({
+                type: 'warning',
+                message: `Pandoc not installed. Using built-in XML extractor (${trackChangeStats.insertions} insertions, ${trackChangeStats.deletions} deletions preserved). Formatting may differ. Install pandoc for best results: ${installCmd}`
+            });
+        }
+        else {
+            messages.push({
+                type: 'warning',
+                message: `Pandoc not installed. Using built-in XML extractor (no track changes found). Install pandoc for better formatting: ${installCmd}`
+            });
+        }
     }
     // Extract comments directly from docx XML
     const comments = await extractWordComments(docxPath);
@@ -1091,15 +1104,6 @@ export function generateSmartDiff(originalMd, wordText, author = 'Reviewer', opt
  * Clean up redundant adjacent annotations
  */
 export function cleanupAnnotations(text) {
-    // Convert adjacent delete+insert to substitution
-    text = text.replace(/\{--(.+?)--\}\s*\{\+\+(.+?)\+\+\}/g, '{~~$1~>$2~~}');
-    // Also handle insert+delete
-    text = text.replace(/\{\+\+(.+?)\+\+\}\s*\{--(.+?)--\}/g, '{~~$2~>$1~~}');
-    // Fix malformed patterns
-    text = text.replace(/\{--([^}]+?)~>([^}]+?)~~\}/g, '{~~$1~>$2~~}');
-    // Fix malformed substitutions that got split
-    text = text.replace(/\{~~([^~]+)\s*--\}/g, '{--$1--}');
-    text = text.replace(/\{\+\+([^+]+)~~\}/g, '{++$1++}');
     // Clean up empty annotations
     text = text.replace(/\{--\s*--\}/g, '');
     text = text.replace(/\{\+\+\s*\+\+\}/g, '');

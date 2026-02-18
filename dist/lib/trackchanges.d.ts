@@ -14,6 +14,11 @@ interface PrepareResult {
 interface ApplyResult {
     success: boolean;
     message: string;
+    stats?: {
+        insertions: number;
+        deletions: number;
+        substitutions: number;
+    };
 }
 /**
  * Prepare text with CriticMarkup annotations for track changes

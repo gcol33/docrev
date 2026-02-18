@@ -8,7 +8,7 @@ import * as path from 'path';
 import AdmZip from 'adm-zip';
 import { parseString } from 'xml2js';
 import { promisify } from 'util';
-import type { WordComment, CommentAnchor, WordContent, WordMetadata, TrackChangesResult } from './types.js';
+import type { WordComment, CommentAnchor, WordMetadata, TrackChangesResult } from './types.js';
 
 const parseXml = promisify(parseString);
 
@@ -166,9 +166,9 @@ export async function extractCommentAnchors(docxPath: string): Promise<Map<strin
 }
 
 /**
- * Extract plain text from Word document using mammoth
+ * Extract plain text from Word document (strips track change markup)
  * @param docxPath - Path to .docx file
- * @returns Extracted plain text
+ * @returns Extracted plain text (accepted changes applied)
  * @throws {TypeError} If docxPath is not a string
  * @throws {Error} If file not found
  */
@@ -176,41 +176,13 @@ export async function extractTextFromWord(docxPath: string): Promise<string> {
   if (typeof docxPath !== 'string') {
     throw new TypeError(`docxPath must be a string, got ${typeof docxPath}`);
   }
-  if (!fs.existsSync(docxPath)) {
-    throw new Error(`File not found: ${docxPath}`);
-  }
-
-  const mammoth = await import('mammoth');
-  const result = await mammoth.extractRawText({ path: docxPath });
-  return result.value;
-}
-
-/**
- * Extract rich content from Word with basic formatting
- * @param docxPath - Path to .docx file
- * @returns Text and HTML content
- * @throws {TypeError} If docxPath is not a string
- * @throws {Error} If file not found
- */
-export async function extractFromWord(docxPath: string): Promise<WordContent> {
-  if (typeof docxPath !== 'string') {
-    throw new TypeError(`docxPath must be a string, got ${typeof docxPath}`);
-  }
-  if (!fs.existsSync(docxPath)) {
-    throw new Error(`File not found: ${docxPath}`);
-  }
-
-  const mammoth = await import('mammoth');
-
-  const [textResult, htmlResult] = await Promise.all([
-    mammoth.extractRawText({ path: docxPath }),
-    mammoth.convertToHtml({ path: docxPath }),
-  ]);
-
-  return {
-    text: textResult.value,
-    html: htmlResult.value,
-  };
+  const result = await extractPlainTextWithTrackChanges(docxPath);
+  // Strip CriticMarkup: accept insertions, remove deletions, apply substitutions
+  let text = result.text;
+  text = text.replace(/\{~~[^~]*~>([^~]*)~~\}/g, '$1');  // substitutions → new
+  text = text.replace(/\{\+\+([^+]*)\+\+\}/g, '$1');      // insertions → keep
+  text = text.replace(/\{--[^}]*--\}/g, '');               // deletions → remove
+  return text;
 }
 
 /**
@@ -351,6 +323,105 @@ export async function extractTrackChanges(docxPath: string): Promise<TrackChange
 }
 
 /**
+ * Extract a single marker's content starting at position i.
+ * Returns { content, end } where end is the position after the closing marker,
+ * or null if no valid closing marker found.
+ */
+function extractMarker(text: string, i: number, open: string, close: string): { content: string; end: number } | null {
+  if (!text.startsWith(open, i)) return null;
+  const start = i + open.length;
+  const closeIdx = text.indexOf(close, start);
+  if (closeIdx === -1) return null;
+  return { content: text.slice(start, closeIdx), end: closeIdx + close.length };
+}
+
+/**
+ * Greedily collect consecutive markers of the same type.
+ * E.g. {++a++}{++b++}{++c++} → "abc", advancing past all three.
+ */
+function collectConsecutive(text: string, i: number, open: string, close: string): { content: string; end: number } | null {
+  const first = extractMarker(text, i, open, close);
+  if (!first) return null;
+
+  let content = first.content;
+  let end = first.end;
+
+  while (end < text.length) {
+    const next = extractMarker(text, end, open, close);
+    if (!next) break;
+    content += next.content;
+    end = next.end;
+  }
+
+  return { content, end };
+}
+
+/**
+ * Scan text for adjacent CriticMarkup markers and:
+ * 1. Merge consecutive same-type markers: {++a++}{++b++} → {++ab++}
+ * 2. Merge adjacent del+ins or ins+del into substitutions: {--old--}{++new++} → {~~old~>new~~}
+ *
+ * Uses a linear scanner — no regex backtracking, no ambiguity.
+ */
+function mergeAdjacentMarkers(text: string): string {
+  let result = '';
+  let i = 0;
+
+  while (i < text.length) {
+    // --- Deletion block ---
+    if (text.startsWith('{--', i)) {
+      const del = collectConsecutive(text, i, '{--', '--}');
+      if (!del) { result += text[i]; i++; continue; }
+
+      // Skip spaces, then check for adjacent insertion
+      let j = del.end;
+      while (j < text.length && text[j] === ' ') j++;
+
+      const ins = collectConsecutive(text, j, '{++', '++}');
+      if (ins) {
+        // Merge into substitution
+        const trailing = del.content.endsWith(' ') || ins.content.endsWith(' ');
+        result += `{~~${del.content.trimEnd()}~>${ins.content.trimEnd()}~~}${trailing ? ' ' : ''}`;
+        i = ins.end;
+      } else {
+        // Emit merged deletion
+        result += `{--${del.content}--}`;
+        i = del.end;
+      }
+      continue;
+    }
+
+    // --- Insertion block ---
+    if (text.startsWith('{++', i)) {
+      const ins = collectConsecutive(text, i, '{++', '++}');
+      if (!ins) { result += text[i]; i++; continue; }
+
+      // Skip spaces, then check for adjacent deletion
+      let j = ins.end;
+      while (j < text.length && text[j] === ' ') j++;
+
+      const del = collectConsecutive(text, j, '{--', '--}');
+      if (del) {
+        // Merge into substitution (del → ins order in output)
+        const trailing = del.content.endsWith(' ') || ins.content.endsWith(' ');
+        result += `{~~${del.content.trimEnd()}~>${ins.content.trimEnd()}~~}${trailing ? ' ' : ''}`;
+        i = del.end;
+      } else {
+        // Emit merged insertion
+        result += `{++${ins.content}++}`;
+        i = ins.end;
+      }
+      continue;
+    }
+
+    result += text[i];
+    i++;
+  }
+
+  return result;
+}
+
+/**
  * Extract plain text from Word XML with track changes preserved as CriticMarkup.
  * This is a pandoc-free fallback that reads document.xml directly.
  *
@@ -390,6 +461,7 @@ export async function extractPlainTextWithTrackChanges(docxPath: string): Promis
   const DEL_E = '\x00DE\x00';
 
   // Step 1: Replace <w:ins> with marker-wrapped text injected as <w:t>
+  // Whitespace-only insertions are kept as plain text (not markers) to preserve spacing.
   xml = xml.replace(/<w:ins\b[^>]*>([\s\S]*?)<\/w:ins>/g, (_match, content: string) => {
     const texts: string[] = [];
     const tPat = /<w:t[^>]*>([^<]*)<\/w:t>/g;
@@ -402,13 +474,17 @@ export async function extractPlainTextWithTrackChanges(docxPath: string): Promis
       insertions++;
       return `<w:r><w:t>${INS_S}${text}${INS_E}</w:t></w:r>`;
     }
+    // Whitespace-only: preserve as plain text for spacing
+    if (text.length > 0) {
+      return `<w:r><w:t>${text}</w:t></w:r>`;
+    }
     return '';
   });
 
   // Step 2: Replace <w:del> similarly (uses w:delText inside)
+  // Whitespace-only deletions are kept as plain text to preserve spacing.
   xml = xml.replace(/<w:del\b[^>]*>([\s\S]*?)<\/w:del>/g, (_match, content: string) => {
     const texts: string[] = [];
-    // Try w:delText first, then w:t as fallback
     const tPat = /<w:delText[^>]*>([^<]*)<\/w:delText>|<w:t[^>]*>([^<]*)<\/w:t>/g;
     let m: RegExpExecArray | null;
     while ((m = tPat.exec(content)) !== null) {
@@ -418,6 +494,10 @@ export async function extractPlainTextWithTrackChanges(docxPath: string): Promis
     if (text.trim()) {
       deletions++;
       return `<w:r><w:t>${DEL_S}${text}${DEL_E}</w:t></w:r>`;
+    }
+    // Whitespace-only: preserve as plain text for spacing
+    if (text.length > 0) {
+      return `<w:r><w:t>${text}</w:t></w:r>`;
     }
     return '';
   });
@@ -461,6 +541,13 @@ export async function extractPlainTextWithTrackChanges(docxPath: string): Promis
       .split(INS_E).join('++}')
       .split(DEL_S).join('{--')
       .split(DEL_E).join('--}');
+
+    // Merge adjacent del+ins (or ins+del) into substitutions.
+    // Uses a scanner instead of regex to avoid backtracking across marker boundaries.
+    paraText = mergeAdjacentMarkers(paraText);
+
+    // Collapse runs of multiple spaces into single space
+    paraText = paraText.replace(/ {2,}/g, ' ');
 
     if (paraText.trim()) {
       if (headingLevel > 0 && headingLevel <= 6) {

@@ -207,6 +207,7 @@ export function spinner(message) {
     let frameIndex = 0;
     let interval = null;
     const spin = {
+        text: message,
         start() {
             process.stdout.write('\x1B[?25l'); // Hide cursor
             interval = setInterval(() => {
@@ -214,7 +215,7 @@ export function spinner(message) {
                 const frameChr = starFrames[frameIndex];
                 if (colorFn && frameChr) {
                     const frame = colorFn(frameChr);
-                    process.stdout.write(`\r${frame} ${message}`);
+                    process.stdout.write(`\r${frame} ${spin.text}`);
                 }
                 frameIndex = (frameIndex + 1) % starFrames.length;
             }, 120);

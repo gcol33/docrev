@@ -34,6 +34,7 @@ interface HeaderOptions {
     width?: number;
 }
 interface Spinner {
+    text: string;
     start: () => Spinner;
     stop: (finalMessage?: string | null) => Spinner;
     success: (msg?: string) => Spinner;

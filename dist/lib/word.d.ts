@@ -2,7 +2,7 @@
  * Word document extraction utilities
  * Handle reading text, comments, and anchors from .docx files
  */
-import type { WordComment, CommentAnchor, WordContent, WordMetadata, TrackChangesResult } from './types.js';
+import type { WordComment, CommentAnchor, WordMetadata, TrackChangesResult } from './types.js';
 /**
  * Extract comments from Word document's comments.xml
  * @param docxPath - Path to .docx file
@@ -21,21 +21,13 @@ export declare function extractWordComments(docxPath: string): Promise<WordComme
  */
 export declare function extractCommentAnchors(docxPath: string): Promise<Map<string, CommentAnchor>>;
 /**
- * Extract plain text from Word document using mammoth
+ * Extract plain text from Word document (strips track change markup)
  * @param docxPath - Path to .docx file
- * @returns Extracted plain text
+ * @returns Extracted plain text (accepted changes applied)
  * @throws {TypeError} If docxPath is not a string
  * @throws {Error} If file not found
  */
 export declare function extractTextFromWord(docxPath: string): Promise<string>;
-/**
- * Extract rich content from Word with basic formatting
- * @param docxPath - Path to .docx file
- * @returns Text and HTML content
- * @throws {TypeError} If docxPath is not a string
- * @throws {Error} If file not found
- */
-export declare function extractFromWord(docxPath: string): Promise<WordContent>;
 /**
  * Get document metadata from Word file
  * @param docxPath - Path to .docx file
@@ -57,6 +49,27 @@ export declare function isWordDocument(filePath: string): boolean;
  * @returns Track changes result with content and stats
  */
 export declare function extractTrackChanges(docxPath: string): Promise<TrackChangesResult>;
+/**
+ * Extract plain text from Word XML with track changes preserved as CriticMarkup.
+ * This is a pandoc-free fallback that reads document.xml directly.
+ *
+ * Converts:
+ *   <w:ins> content </w:ins>  →  {++text++}
+ *   <w:del> content </w:del>  →  {--text--}
+ *
+ * Also detects headings (w:pStyle Heading1-6) and outputs markdown # syntax.
+ *
+ * @param docxPath - Path to Word document
+ * @returns Plain text with CriticMarkup and stats
+ */
+export declare function extractPlainTextWithTrackChanges(docxPath: string): Promise<{
+    text: string;
+    hasTrackChanges: boolean;
+    stats: {
+        insertions: number;
+        deletions: number;
+    };
+}>;
 interface ExtractWithTrackChangesOptions {
     mediaDir?: string;
 }
