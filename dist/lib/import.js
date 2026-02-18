@@ -1104,6 +1104,15 @@ export function generateSmartDiff(originalMd, wordText, author = 'Reviewer', opt
  * Clean up redundant adjacent annotations
  */
 export function cleanupAnnotations(text) {
+    // Convert adjacent delete+insert to substitution
+    text = text.replace(/\{--(.+?)--\}\s*\{\+\+(.+?)\+\+\}/g, '{~~$1~>$2~~}');
+    // Also handle insert+delete
+    text = text.replace(/\{\+\+(.+?)\+\+\}\s*\{--(.+?)--\}/g, '{~~$2~>$1~~}');
+    // Fix malformed patterns
+    text = text.replace(/\{--([^}]+?)~>([^}]+?)~~\}/g, '{~~$1~>$2~~}');
+    // Fix malformed substitutions that got split
+    text = text.replace(/\{~~([^~]+)\s*--\}/g, '{--$1--}');
+    text = text.replace(/\{\+\+([^+]+)~~\}/g, '{++$1++}');
     // Clean up empty annotations
     text = text.replace(/\{--\s*--\}/g, '');
     text = text.replace(/\{\+\+\s*\+\+\}/g, '');

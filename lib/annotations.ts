@@ -327,9 +327,6 @@ export function stripAnnotations(text: string, options: StripOptions = {}): stri
   // the next [ or end of line.
   text = text.replace(/\[(?![^\[\]]*\])/g, '');
 
-  // Collapse double spaces left behind by stripped annotations
-  text = text.replace(/ {2,}/g, ' ');
-
   return text;
 }
 

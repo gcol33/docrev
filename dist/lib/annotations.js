@@ -283,8 +283,6 @@ export function stripAnnotations(text, options = {}) {
     // was inside a comment. A [ is orphan if no matching ] follows before
     // the next [ or end of line.
     text = text.replace(/\[(?![^\[\]]*\])/g, '');
-    // Collapse double spaces left behind by stripped annotations
-    text = text.replace(/ {2,}/g, ' ');
     return text;
 }
 /**
