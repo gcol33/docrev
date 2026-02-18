@@ -246,6 +246,8 @@ export function stripAnnotations(text, options = {}) {
         if (!keepComments) {
             text = text.replace(PATTERNS.comment, '');
         }
+        // Strip pandoc highlight spans: [text]{.mark} → text
+        text = text.replace(/\[([^\]]*)\]\{\.mark\}/g, '$1');
         // Clean up partial/orphaned markers within the loop
         // This handles cases where nested annotations leave behind fragments
         // Empty annotations (from nested stripping)
@@ -277,6 +279,12 @@ export function stripAnnotations(text, options = {}) {
     text = text.replace(/\{\+\+/g, '');
     text = text.replace(/\{~~/g, '');
     text = text.replace(/~>/g, '');
+    // Remove orphan [ from stripped {.mark} spans where the closing ]{.mark}
+    // was inside a comment. A [ is orphan if no matching ] follows before
+    // the next [ or end of line.
+    text = text.replace(/\[(?![^\[\]]*\])/g, '');
+    // Collapse double spaces left behind by stripped annotations
+    text = text.replace(/ {2,}/g, ' ');
     return text;
 }
 /**

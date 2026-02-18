@@ -190,13 +190,6 @@ export function register(program, pkg) {
         catch {
             console.log(chalk.yellow('  ✗ pandoc-crossref not found'));
         }
-        try {
-            await import('mammoth');
-            console.log(chalk.green('  ✓ mammoth (Word parsing)'));
-        }
-        catch {
-            console.log(chalk.red('  ✗ mammoth not found - run: npm install'));
-        }
         console.log('');
         if (hasPandocInstalled && hasCrossref) {
             console.log(chalk.green('All dependencies installed!'));

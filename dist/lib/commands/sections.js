@@ -123,10 +123,9 @@ async function bootstrapFromWord(docx, options) {
     const outputDir = path.resolve(options.output);
     console.log(chalk.cyan(`Bootstrapping project from ${path.basename(docx)}...\n`));
     try {
-        const mammoth = await import('mammoth');
+        const { extractTextFromWord } = await import('../word.js');
         const { default: YAML } = await import('yaml');
-        const result = await mammoth.extractRawText({ path: docx });
-        const text = result.value;
+        const text = await extractTextFromWord(docx);
         const sections = detectSectionsFromWord(text);
         if (sections.length === 0) {
             console.error(chalk.yellow('No sections detected. Creating single content.md file.'));
@@ -230,6 +229,12 @@ export function register(program) {
             process.exit(1);
         }
         console.log(chalk.cyan(`Comparing ${path.basename(docx)} against ${path.basename(original)}...`));
+        // Warn if pandoc is missing
+        const { hasPandoc: hasPandocImport, getInstallInstructions: getInstallImport } = await import('../dependencies.js');
+        if (!hasPandocImport()) {
+            console.log(chalk.yellow(`\n  Warning: Pandoc not installed. Track changes extracted from XML (formatting may differ).`));
+            console.log(chalk.dim(`  Install for best results: ${getInstallImport('pandoc')}\n`));
+        }
         try {
             const { importFromWord } = await import('../import.js');
             const { annotated, stats } = await importFromWord(docx, original, {
@@ -286,14 +291,14 @@ export function register(program) {
             process.exit(1);
         }
         try {
-            const mammoth = await import('mammoth');
-            const result = await mammoth.extractRawText({ path: docx });
+            const { extractTextFromWord } = await import('../word.js');
+            const text = await extractTextFromWord(docx);
             if (options.output) {
-                fs.writeFileSync(options.output, result.value, 'utf-8');
+                fs.writeFileSync(options.output, text, 'utf-8');
                 console.error(chalk.green(`Extracted to ${options.output}`));
             }
             else {
-                process.stdout.write(result.value);
+                process.stdout.write(text);
             }
         }
         catch (err) {
@@ -423,7 +428,7 @@ export function register(program) {
                 if (fs.existsSync(configPath) && !options.dryRun) {
                     const config = loadConfig(configPath);
                     const mainSection = config.sections?.[0];
-                    if (mainSection) {
+                    if (mainSection && typeof mainSection === 'string') {
                         const mainPath = path.join(options.dir, mainSection);
                         if (fs.existsSync(mainPath)) {
                             console.log(chalk.dim(`Use 'rev pdf-comments ${docx} --append ${mainSection}' to add comments to markdown.`));
@@ -447,6 +452,13 @@ export function register(program) {
             console.error(chalk.dim('  Run "rev init" first to generate sections.yaml'));
             process.exit(1);
         }
+        // Check pandoc availability upfront and warn
+        const { hasPandoc, getInstallInstructions } = await import('../dependencies.js');
+        if (!hasPandoc()) {
+            console.log(fmt.status('warning', `Pandoc not installed. Track changes will be extracted from XML (formatting may differ).`));
+            console.log(chalk.dim(`  Install for best results: ${getInstallInstructions('pandoc')}`));
+            console.log();
+        }
         const spin = fmt.spinner(`Importing ${path.basename(docx)}...`).start();
         try {
             const config = loadConfig(configPath);
@@ -458,11 +470,18 @@ export function register(program) {
             }
             const comments = await extractWordComments(docx);
             const { anchors, fullDocText: xmlDocText } = await extractCommentAnchors(docx);
-            // Use pandoc for extraction to preserve markdown formatting (bold, tables, etc.)
-            // Mammoth only extracts plain text which loses all formatting
+            // Extract Word text (uses pandoc if available, falls back to XML extraction)
             const wordExtraction = await extractFromWord(docx, { mediaDir: options.dir });
             let wordText = wordExtraction.text;
             const wordTables = wordExtraction.tables || [];
+            // Log extraction messages (warnings about pandoc, track change stats, etc.)
+            for (const msg of wordExtraction.messages || []) {
+                if (msg.type === 'warning') {
+                    spin.stop();
+                    console.log(fmt.status('warning', msg.message));
+                    spin.start();
+                }
+            }
             // Restore crossref on FULL text BEFORE splitting into sections
             // This ensures duplicate labels from track changes are handled correctly
             // (the same figure may appear multiple times in old/new versions)
@@ -792,7 +811,7 @@ export function register(program) {
         if (!basePath) {
             // Try to use .rev/base.docx
             const projectDir = process.cwd();
-            basePath = getBaseDocument(projectDir);
+            basePath = getBaseDocument(projectDir) ?? undefined;
             if (basePath) {
                 baseSource = 'auto (.rev/base.docx)';
             }

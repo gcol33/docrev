@@ -204,11 +204,10 @@ async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promi
   console.log(chalk.cyan(`Bootstrapping project from ${path.basename(docx)}...\n`));
 
   try {
-    const mammoth = await import('mammoth');
+    const { extractTextFromWord } = await import('../word.js');
     const { default: YAML } = await import('yaml');
 
-    const result = await mammoth.extractRawText({ path: docx });
-    const text = result.value;
+    const text = await extractTextFromWord(docx);
 
     const sections = detectSectionsFromWord(text);
 
@@ -393,14 +392,14 @@ export function register(program: Command): void {
       }
 
       try {
-        const mammoth = await import('mammoth');
-        const result = await mammoth.extractRawText({ path: docx });
+        const { extractTextFromWord } = await import('../word.js');
+        const text = await extractTextFromWord(docx);
 
         if (options.output) {
-          fs.writeFileSync(options.output, result.value, 'utf-8');
+          fs.writeFileSync(options.output, text, 'utf-8');
           console.error(chalk.green(`Extracted to ${options.output}`));
         } else {
-          process.stdout.write(result.value);
+          process.stdout.write(text);
         }
       } catch (err) {
         const error = err as Error;

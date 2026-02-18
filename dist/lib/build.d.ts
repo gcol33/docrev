@@ -95,6 +95,7 @@ interface BuildOptions {
     verbose?: boolean;
     config?: BuildConfig;
     outputPath?: string;
+    crossref?: boolean;
     _refsAutoInjected?: boolean;
     _forwardRefsResolved?: number;
 }

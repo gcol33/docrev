@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 /**
  * rev - Revision workflow for Word ↔ Markdown round-trips
  *
@@ -15,7 +15,7 @@ let quietMode = false;
 let jsonMode = false;
 // Levenshtein distance for command suggestions
 function levenshtein(a, b) {
-    const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+    const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(0));
     for (let i = 0; i <= a.length; i++)
         matrix[0][i] = i;
     for (let j = 0; j <= b.length; j++)
