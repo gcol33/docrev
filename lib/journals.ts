@@ -257,6 +257,20 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
       sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
     },
   },
+
+  'methods-ecology-evolution': {
+    name: 'Methods in Ecology and Evolution',
+    url: 'https://besjournals.onlinelibrary.wiley.com/hub/journal/2041210x/author-guidelines',
+    requirements: {
+      wordLimit: { main: 7000, abstract: 350 },
+      references: { doiRequired: true },
+      sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+    },
+    formatting: {
+      csl: 'methods-in-ecology-and-evolution',
+      pdf: { fontsize: '12pt', geometry: 'margin=2.5cm', linestretch: 2 },
+    },
+  },
 };
 
 /**

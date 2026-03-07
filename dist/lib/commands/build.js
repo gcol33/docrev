@@ -393,6 +393,7 @@ export function register(program, pkg) {
         .description('Build PDF/DOCX/TEX/PPTX/Beamer from sections')
         .argument('[formats...]', 'Output formats: pdf, docx, tex, beamer, pptx, all', ['pdf', 'docx'])
         .option('-d, --dir <directory>', 'Project directory', '.')
+        .option('-j, --journal <name>', 'Use journal profile for build formatting defaults')
         .option('--no-crossref', 'Skip pandoc-crossref filter')
         .option('--toc', 'Include table of contents')
         .option('--show-changes', 'Export DOCX with visible track changes (audit mode)')
@@ -419,10 +420,35 @@ export function register(program, pkg) {
             console.error(chalk.dim('Run "rev new" to create a project, or "rev init" for existing files.'));
             process.exit(1);
         }
+        // Apply journal formatting from CLI flag (overrides rev.yaml journal field)
+        let journalName;
+        if (options.journal) {
+            const { getJournalProfile } = await import('../journals.js');
+            const { mergeJournalFormatting } = await import('../build.js');
+            const profile = getJournalProfile(options.journal);
+            if (!profile) {
+                console.error(fmt.status('error', `Unknown journal: ${options.journal}`));
+                console.error(chalk.dim('Use "rev validate --list" to see available profiles'));
+                process.exit(1);
+            }
+            journalName = profile.name;
+            if (profile.formatting) {
+                Object.assign(config, mergeJournalFormatting(config, profile.formatting, dir));
+            }
+        }
+        else if (config.journal) {
+            // Journal set in rev.yaml — already applied by loadConfig, just get name for display
+            const { getJournalProfile } = await import('../journals.js');
+            const profile = getJournalProfile(config.journal);
+            if (profile)
+                journalName = profile.name;
+        }
         console.log(fmt.header(`Building ${config.title || 'document'}`));
         console.log();
         const targetFormats = formats.length > 0 ? formats : ['pdf', 'docx'];
         const tocEnabled = options.toc || config.pdf?.toc || config.docx?.toc;
+        if (journalName)
+            console.log(chalk.dim(`  Journal: ${journalName}`));
         console.log(chalk.dim(`  Formats: ${targetFormats.join(', ')}`));
         console.log(chalk.dim(`  Crossref: ${hasPandocCrossref() && options.crossref !== false ? 'enabled' : 'disabled'}`));
         if (tocEnabled)

@@ -7,7 +7,7 @@
  * - Strips annotations appropriately per output format
  * - Runs pandoc with crossref filter
  */
-import type { Author } from './types.js';
+import type { Author, JournalFormatting } from './types.js';
 export interface CrossrefConfig {
     figureTitle?: string;
     tableTitle?: string;
@@ -18,6 +18,7 @@ export interface CrossrefConfig {
 }
 export interface PdfConfig {
     template?: string | null;
+    headerIncludes?: string | null;
     documentclass?: string;
     fontsize?: string;
     geometry?: string;
@@ -118,6 +119,11 @@ interface FullBuildResult {
  * Default rev.yaml configuration
  */
 export declare const DEFAULT_CONFIG: BuildConfig;
+/**
+ * Merge journal formatting defaults into a config.
+ * Priority: DEFAULT_CONFIG < journal formatting < rev.yaml explicit settings
+ */
+export declare function mergeJournalFormatting(config: BuildConfig, formatting: JournalFormatting, directory: string): BuildConfig;
 /**
  * Load rev.yaml config from directory
  * @param directory - Project directory path

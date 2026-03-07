@@ -13,7 +13,7 @@ import * as path from 'path';
 import { execSync, spawn, ChildProcess } from 'child_process';
 import YAML from 'yaml';
 import { stripAnnotations } from './annotations.js';
-import { buildRegistry, labelToDisplay, detectDynamicRefs, resolveForwardRefs } from './crossref.js';
+import { buildRegistry, labelToDisplay, detectDynamicRefs, resolveForwardRefs, resolveSupplementaryRefs } from './crossref.js';
 import { processVariables, hasVariables } from './variables.js';
 import { processSlideMarkdown, hasSlideSyntax } from './slides.js';
 import { generatePptxTemplate, templateNeedsRegeneration, injectMediaIntoPptx, injectSlideNumbers, applyThemeFonts, applyCentering, applyBuildupColors } from './pptx-template.js';
@@ -50,6 +50,7 @@ export interface CrossrefConfig {
 
 export interface PdfConfig {
   template?: string | null;
+  headerIncludes?: string | null;
   documentclass?: string;
   fontsize?: string;
   geometry?: string;
@@ -507,6 +508,15 @@ export function combineSections(directory: string, config: BuildConfig, options:
       // Store resolved count for optional reporting
       options._forwardRefsResolved = resolved.length;
     }
+
+    // Resolve supplementary references and strip their anchors.
+    // pandoc-crossref cannot produce "Figure S1" numbering — it numbers all
+    // figures sequentially. We resolve supplementary refs to plain text and
+    // remove the {#fig:...} attributes so crossref ignores them.
+    const supp = resolveSupplementaryRefs(paperContent, registry);
+    if (supp.resolved.length > 0) {
+      paperContent = supp.text;
+    }
   }
 
   const paperPath = path.join(directory, 'paper.md');
@@ -759,6 +769,9 @@ export function buildPandocArgs(format: string, config: BuildConfig, outputPath:
     args.push('-V', `documentclass=${config.pdf.documentclass}`);
     args.push('-V', `fontsize=${config.pdf.fontsize}`);
     args.push('-V', `geometry:${config.pdf.geometry}`);
+    if (config.pdf.headerIncludes) {
+      args.push('-H', config.pdf.headerIncludes);
+    }
     if (config.pdf.linestretch !== 1) {
       args.push('-V', `linestretch=${config.pdf.linestretch}`);
     }

@@ -37,6 +37,10 @@ export const revYamlSchema = {
                 ],
             },
         },
+        journal: {
+            type: 'string',
+            description: 'Journal profile name for formatting defaults and validation',
+        },
         sections: {
             type: 'array',
             description: 'Ordered list of section files to include',
