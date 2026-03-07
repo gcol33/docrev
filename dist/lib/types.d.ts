@@ -36,6 +36,8 @@ export interface CommentFilterOptions {
 export interface Author {
     name: string;
     affiliation?: string;
+    affiliations?: string[];
+    corresponding?: boolean;
     email?: string;
     orcid?: string;
 }

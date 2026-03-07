@@ -73,6 +73,7 @@ export interface PostprocessConfig {
 export interface BuildConfig {
     title: string;
     authors: (string | Author)[];
+    affiliations: Record<string, string>;
     sections: string[];
     bibliography: string | null;
     csl: string | null;
