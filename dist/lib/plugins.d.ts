@@ -22,6 +22,16 @@ interface ProfileRequirements {
     [key: string]: unknown;
 }
 /**
+ * Journal formatting defaults
+ */
+interface ProfileFormatting {
+    csl?: string;
+    pdf?: Record<string, unknown>;
+    docx?: Record<string, unknown>;
+    crossref?: Record<string, unknown>;
+    [key: string]: unknown;
+}
+/**
  * Normalized profile
  */
 interface NormalizedProfile {
@@ -29,6 +39,7 @@ interface NormalizedProfile {
     url: string | null;
     custom: boolean;
     requirements: ProfileRequirements;
+    formatting?: ProfileFormatting;
 }
 /**
  * Profile list entry

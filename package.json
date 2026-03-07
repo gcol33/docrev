@@ -3,75 +3,75 @@
   "version": "0.9.3",
   "description": "Academic paper revision workflow: Word ↔ Markdown round-trips, DOI validation, reviewer comments",
   "type": "module",
-  "types": "types/index.d.ts",
+  "types": "dist/lib/types.d.ts",
   "exports": {
     ".": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/annotations.js"
+      "types": "./dist/lib/annotations.d.ts",
+      "import": "./dist/lib/annotations.js"
     },
     "./annotations": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/annotations.js"
+      "types": "./dist/lib/annotations.d.ts",
+      "import": "./dist/lib/annotations.js"
     },
     "./build": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/build.js"
+      "types": "./dist/lib/build.d.ts",
+      "import": "./dist/lib/build.js"
     },
     "./citations": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/citations.js"
+      "types": "./dist/lib/citations.d.ts",
+      "import": "./dist/lib/citations.js"
     },
     "./crossref": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/crossref.js"
+      "types": "./dist/lib/crossref.d.ts",
+      "import": "./dist/lib/crossref.js"
     },
     "./doi": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/doi.js"
+      "types": "./dist/lib/doi.d.ts",
+      "import": "./dist/lib/doi.js"
     },
     "./equations": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/equations.js"
+      "types": "./dist/lib/equations.d.ts",
+      "import": "./dist/lib/equations.js"
     },
     "./git": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/git.js"
+      "types": "./dist/lib/git.d.ts",
+      "import": "./dist/lib/git.js"
     },
     "./journals": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/journals.js"
+      "types": "./dist/lib/journals.d.ts",
+      "import": "./dist/lib/journals.js"
     },
     "./merge": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/merge.js"
+      "types": "./dist/lib/merge.d.ts",
+      "import": "./dist/lib/merge.js"
     },
     "./sections": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/sections.js"
+      "types": "./dist/lib/sections.d.ts",
+      "import": "./dist/lib/sections.js"
     },
     "./word": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/word.js"
+      "types": "./dist/lib/word.d.ts",
+      "import": "./dist/lib/word.js"
     },
     "./variables": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/variables.js"
+      "types": "./dist/lib/variables.d.ts",
+      "import": "./dist/lib/variables.js"
     },
     "./grammar": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/grammar.js"
+      "types": "./dist/lib/grammar.d.ts",
+      "import": "./dist/lib/grammar.js"
     },
     "./trackchanges": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/trackchanges.js"
+      "types": "./dist/lib/trackchanges.d.ts",
+      "import": "./dist/lib/trackchanges.js"
     },
     "./spelling": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/spelling.js"
+      "types": "./dist/lib/spelling.d.ts",
+      "import": "./dist/lib/spelling.js"
     },
     "./wordcomments": {
-      "types": "./types/index.d.ts",
-      "import": "./lib/wordcomments.js"
+      "types": "./dist/lib/wordcomments.d.ts",
+      "import": "./dist/lib/wordcomments.js"
     }
   },
   "engines": {
@@ -81,7 +81,7 @@
     "rev": "bin/rev.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/postbuild.js",
     "build:watch": "tsc --watch",
     "dev": "tsx bin/rev.ts",
     "test": "tsx --test test/*.test.js",

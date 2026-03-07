@@ -103,7 +103,7 @@ const EXCLUSION_PATTERNS = [
 /**
  * Pattern for extracting anchors from markdown: {#fig:label}, {#tbl:label}
  */
-const ANCHOR_PATTERN = /\{#(fig|tbl|eq):([^}]+)\}/gi;
+const ANCHOR_PATTERN = /\{#(fig|tbl|eq):([a-zA-Z0-9_-]+)/gi;
 /**
  * Pattern for @-style references: @fig:label, @tbl:label
  */
@@ -559,6 +559,59 @@ export function resolveForwardRefs(text, registry) {
         }
     }
     return { text: result, resolved, unresolved };
+}
+/**
+ * Resolve ALL supplementary references and strip supplementary anchor labels.
+ *
+ * pandoc-crossref cannot produce "Figure S1" numbering — it numbers all figures
+ * sequentially. This function resolves every @fig:label / @tbl:label that points
+ * to a supplementary item to plain text ("Figure S1", "Table S1") and removes
+ * the {#fig:label} / {#tbl:label} attributes so pandoc-crossref ignores them.
+ */
+export function resolveSupplementaryRefs(text, registry) {
+    const resolved = [];
+    let result = text;
+    // Collect supplementary labels
+    const suppLabels = new Set();
+    for (const [label, info] of registry.figures) {
+        if (info.isSupp)
+            suppLabels.add(`fig:${label}`);
+    }
+    for (const [label, info] of registry.tables) {
+        if (info.isSupp)
+            suppLabels.add(`tbl:${label}`);
+    }
+    if (suppLabels.size === 0)
+        return { text: result, resolved };
+    // 1. Replace all @fig:label / @tbl:label references to supplementary items
+    const refs = detectDynamicRefs(result);
+    // Process in reverse to preserve positions
+    for (let i = refs.length - 1; i >= 0; i--) {
+        const ref = refs[i];
+        if (!ref)
+            continue;
+        const key = `${ref.type}:${ref.label}`;
+        if (!suppLabels.has(key))
+            continue;
+        const display = labelToDisplay(ref.type, ref.label, registry);
+        if (display) {
+            result =
+                result.slice(0, ref.position) + display + result.slice(ref.position + ref.match.length);
+            resolved.push({ from: ref.match, to: display });
+        }
+    }
+    // 2. Strip {#fig:label} and {#tbl:label} attributes from supplementary anchors
+    //    so pandoc-crossref does not re-number them
+    for (const key of suppLabels) {
+        // Match {#fig:label ...} or just {#fig:label}
+        const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const pattern = new RegExp(`\\{#${escaped}(?:\\s[^}]*)?\\}`, 'g');
+        result = result.replace(pattern, (match) => {
+            resolved.push({ from: match, to: '(stripped)' });
+            return '';
+        });
+    }
+    return { text: result, resolved };
 }
 /**
  * Format registry for display

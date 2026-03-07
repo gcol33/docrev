@@ -101,6 +101,21 @@ export declare function resolveForwardRefs(text: string, registry: Registry): {
     }>;
 };
 /**
+ * Resolve ALL supplementary references and strip supplementary anchor labels.
+ *
+ * pandoc-crossref cannot produce "Figure S1" numbering — it numbers all figures
+ * sequentially. This function resolves every @fig:label / @tbl:label that points
+ * to a supplementary item to plain text ("Figure S1", "Table S1") and removes
+ * the {#fig:label} / {#tbl:label} attributes so pandoc-crossref ignores them.
+ */
+export declare function resolveSupplementaryRefs(text: string, registry: Registry): {
+    text: string;
+    resolved: Array<{
+        from: string;
+        to: string;
+    }>;
+};
+/**
  * Format registry for display
  */
 export declare function formatRegistry(registry: Registry): string;

@@ -12,7 +12,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import YAML from 'yaml';
 import { stripAnnotations } from './annotations.js';
-import { buildRegistry, labelToDisplay, detectDynamicRefs, resolveForwardRefs } from './crossref.js';
+import { buildRegistry, labelToDisplay, detectDynamicRefs, resolveForwardRefs, resolveSupplementaryRefs } from './crossref.js';
 import { processVariables, hasVariables } from './variables.js';
 import { processSlideMarkdown, hasSlideSyntax } from './slides.js';
 import { injectMediaIntoPptx, injectSlideNumbers, applyBuildupColors } from './pptx-template.js';
@@ -20,6 +20,8 @@ import { getThemePath } from './pptx-themes.js';
 import { runPostprocess } from './postprocess.js';
 import { hasPandoc, hasPandocCrossref, hasLatex } from './dependencies.js';
 import { buildImageRegistry, writeImageRegistry } from './image-registry.js';
+import { getJournalProfile } from './journals.js';
+import { resolveCSL } from './csl.js';
 // =============================================================================
 // Constants
 // =============================================================================
@@ -95,6 +97,63 @@ export const DEFAULT_CONFIG = {
 // Public API
 // =============================================================================
 /**
+ * Merge journal formatting defaults into a config.
+ * Priority: DEFAULT_CONFIG < journal formatting < rev.yaml explicit settings
+ */
+export function mergeJournalFormatting(config, formatting, directory) {
+    const merged = { ...config };
+    // CSL: only apply if user hasn't set one
+    if (formatting.csl && !config.csl) {
+        const resolved = resolveCSL(formatting.csl, directory);
+        if (resolved) {
+            merged.csl = resolved;
+        }
+        // If not resolved locally, store the name — pandoc --citeproc
+        // can sometimes resolve it, and the user can fetch with rev profiles --fetch-csl
+        if (!resolved) {
+            merged.csl = formatting.csl;
+        }
+    }
+    // PDF settings: merge only unset fields
+    if (formatting.pdf) {
+        const userPdf = config.pdf || {};
+        const defaults = DEFAULT_CONFIG.pdf;
+        merged.pdf = { ...config.pdf };
+        for (const [key, value] of Object.entries(formatting.pdf)) {
+            const k = key;
+            // Apply journal value only if user config matches the default (i.e., wasn't explicitly set)
+            if (value !== undefined && JSON.stringify(userPdf[k]) === JSON.stringify(defaults[k])) {
+                merged.pdf[k] = value;
+            }
+        }
+    }
+    // DOCX settings: merge only unset fields
+    if (formatting.docx) {
+        const userDocx = config.docx || {};
+        const defaults = DEFAULT_CONFIG.docx;
+        merged.docx = { ...config.docx };
+        for (const [key, value] of Object.entries(formatting.docx)) {
+            const k = key;
+            if (value !== undefined && JSON.stringify(userDocx[k]) === JSON.stringify(defaults[k])) {
+                merged.docx[k] = value;
+            }
+        }
+    }
+    // Crossref settings: merge only unset fields
+    if (formatting.crossref) {
+        const userCrossref = config.crossref || {};
+        const defaults = DEFAULT_CONFIG.crossref;
+        merged.crossref = { ...config.crossref };
+        for (const [key, value] of Object.entries(formatting.crossref)) {
+            const k = key;
+            if (value !== undefined && JSON.stringify(userCrossref[k]) === JSON.stringify(defaults[k])) {
+                merged.crossref[k] = value;
+            }
+        }
+    }
+    return merged;
+}
+/**
  * Load rev.yaml config from directory
  * @param directory - Project directory path
  * @returns Merged config with defaults
@@ -113,7 +172,7 @@ export function loadConfig(directory) {
         const content = fs.readFileSync(configPath, 'utf-8');
         const userConfig = YAML.parse(content) || {};
         // Deep merge with defaults
-        const config = {
+        let config = {
             ...DEFAULT_CONFIG,
             ...userConfig,
             crossref: { ...DEFAULT_CONFIG.crossref, ...userConfig.crossref },
@@ -126,6 +185,13 @@ export function loadConfig(directory) {
             postprocess: { ...DEFAULT_CONFIG.postprocess, ...userConfig.postprocess },
             _configPath: configPath,
         };
+        // Apply journal formatting defaults (between DEFAULT_CONFIG and user settings)
+        if (userConfig.journal) {
+            const profile = getJournalProfile(userConfig.journal);
+            if (profile?.formatting) {
+                config = mergeJournalFormatting(config, profile.formatting, directory);
+            }
+        }
         return config;
     }
     catch (err) {
@@ -254,6 +320,14 @@ export function combineSections(directory, config, options = {}) {
             paperContent = text;
             // Store resolved count for optional reporting
             options._forwardRefsResolved = resolved.length;
+        }
+        // Resolve supplementary references and strip their anchors.
+        // pandoc-crossref cannot produce "Figure S1" numbering — it numbers all
+        // figures sequentially. We resolve supplementary refs to plain text and
+        // remove the {#fig:...} attributes so crossref ignores them.
+        const supp = resolveSupplementaryRefs(paperContent, registry);
+        if (supp.resolved.length > 0) {
+            paperContent = supp.text;
         }
     }
     const paperPath = path.join(directory, 'paper.md');
@@ -462,6 +536,9 @@ export function buildPandocArgs(format, config, outputPath) {
         args.push('-V', `documentclass=${config.pdf.documentclass}`);
         args.push('-V', `fontsize=${config.pdf.fontsize}`);
         args.push('-V', `geometry:${config.pdf.geometry}`);
+        if (config.pdf.headerIncludes) {
+            args.push('-H', config.pdf.headerIncludes);
+        }
         if (config.pdf.linestretch !== 1) {
             args.push('-V', `linestretch=${config.pdf.linestretch}`);
         }

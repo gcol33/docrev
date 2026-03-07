@@ -19,6 +19,10 @@ export const JOURNAL_PROFILES = {
             figures: { max: 6 },
             sections: ['Abstract', 'Introduction', 'Results', 'Discussion', 'Methods'],
         },
+        formatting: {
+            csl: 'nature',
+            pdf: { fontsize: '11pt', geometry: 'margin=2.5cm', linestretch: 2 },
+        },
     },
     science: {
         name: 'Science',
@@ -29,6 +33,10 @@ export const JOURNAL_PROFILES = {
             figures: { max: 4 },
             sections: ['Abstract', 'Introduction', 'Results', 'Discussion'],
         },
+        formatting: {
+            csl: 'science',
+            pdf: { fontsize: '12pt', geometry: 'margin=1in', linestretch: 2 },
+        },
     },
     'plos-one': {
         name: 'PLOS ONE',
@@ -37,6 +45,10 @@ export const JOURNAL_PROFILES = {
             wordLimit: { abstract: 300 },
             references: { doiRequired: false },
             sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+        },
+        formatting: {
+            csl: 'plos',
+            pdf: { fontsize: '12pt', geometry: 'margin=1in', linestretch: 2 },
         },
     },
     'pnas': {
@@ -47,6 +59,10 @@ export const JOURNAL_PROFILES = {
             references: { max: 50, doiRequired: true },
             figures: { max: 6 },
             sections: ['Abstract', 'Introduction', 'Results', 'Discussion'],
+        },
+        formatting: {
+            csl: 'pnas',
+            pdf: { documentclass: 'article', fontsize: '9pt', geometry: 'margin=2cm', linestretch: 1.2, numbersections: false },
         },
     },
     'ecology-letters': {
@@ -86,6 +102,10 @@ export const JOURNAL_PROFILES = {
             references: { doiRequired: true },
             sections: ['Abstract', 'Introduction', 'Results', 'Discussion', 'Methods'],
         },
+        formatting: {
+            csl: 'elife',
+            pdf: { fontsize: '11pt', geometry: 'margin=2.5cm', linestretch: 1.5 },
+        },
     },
     'cell': {
         name: 'Cell',
@@ -95,6 +115,10 @@ export const JOURNAL_PROFILES = {
             references: { max: 100, doiRequired: true },
             figures: { max: 7 },
             sections: ['Abstract', 'Introduction', 'Results', 'Discussion'],
+        },
+        formatting: {
+            csl: 'cell',
+            pdf: { fontsize: '12pt', geometry: 'margin=2.5cm', linestretch: 2 },
         },
     },
     'current-biology': {
@@ -207,6 +231,19 @@ export const JOURNAL_PROFILES = {
             wordLimit: { abstract: 500 },
             references: { doiRequired: false },
             sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+        },
+    },
+    'methods-ecology-evolution': {
+        name: 'Methods in Ecology and Evolution',
+        url: 'https://besjournals.onlinelibrary.wiley.com/hub/journal/2041210x/author-guidelines',
+        requirements: {
+            wordLimit: { main: 7000, abstract: 350 },
+            references: { doiRequired: true },
+            sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+        },
+        formatting: {
+            csl: 'methods-in-ecology-and-evolution',
+            pdf: { fontsize: '12pt', geometry: 'margin=2.5cm', linestretch: 2 },
         },
     },
 };

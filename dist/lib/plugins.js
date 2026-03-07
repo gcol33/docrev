@@ -80,7 +80,7 @@ function validateProfile(profile) {
  * Normalize profile to standard structure
  */
 function normalizeProfile(profile) {
-    return {
+    const normalized = {
         name: profile.name,
         url: profile.url || null,
         custom: true,
@@ -95,6 +95,12 @@ function normalizeProfile(profile) {
             ...profile.requirements,
         },
     };
+    // Pass through formatting if present
+    const formatting = profile.formatting;
+    if (formatting && typeof formatting === 'object') {
+        normalized.formatting = formatting;
+    }
+    return normalized;
 }
 /**
  * Initialize plugin directories
@@ -165,6 +171,20 @@ keywords:
 dataAvailability: true
 highlights: false
 graphicalAbstract: false
+
+# Build formatting defaults (applied via rev build -j ${id})
+# formatting:
+#   csl: "${id}"            # CSL style name or path
+#   pdf:
+#     fontsize: 12pt
+#     geometry: margin=1in
+#     linestretch: 1.5
+#     numbersections: false
+#   docx:
+#     reference: null       # Path to reference .docx template
+#   crossref:
+#     figPrefix: [Fig., Figs.]
+#     tblPrefix: [Table, Tables]
 `;
 }
 /**
