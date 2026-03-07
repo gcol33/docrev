@@ -112,6 +112,7 @@ export interface PostprocessConfig {
 export interface BuildConfig {
   title: string;
   authors: (string | Author)[];
+  affiliations: Record<string, string>;
   sections: string[];
   bibliography: string | null;
   csl: string | null;
@@ -190,6 +191,7 @@ interface Registry {
 export const DEFAULT_CONFIG: BuildConfig = {
   title: 'Untitled Document',
   authors: [],
+  affiliations: {},
   sections: [],
   bibliography: null,
   csl: null,
@@ -534,7 +536,9 @@ function buildFrontmatter(config: BuildConfig): Record<string, unknown> {
 
   if (config.title) fm.title = config.title;
 
-  if (config.authors && config.authors.length > 0) {
+  // Skip author in frontmatter when using numbered affiliations —
+  // the author block is injected separately per format
+  if (config.authors && config.authors.length > 0 && !hasNumberedAffiliations(config)) {
     fm.author = config.authors;
   }
 
@@ -558,6 +562,114 @@ function stripFrontmatter(content: string): string {
     return content.slice(match[0].length);
   }
   return content;
+}
+
+/**
+ * Check if config uses numbered affiliation mode
+ * (authors have `affiliations` arrays and an affiliations map is defined)
+ */
+function hasNumberedAffiliations(config: BuildConfig): boolean {
+  if (!config.affiliations || Object.keys(config.affiliations).length === 0) return false;
+  return config.authors.some(a => typeof a !== 'string' && a.affiliations && a.affiliations.length > 0);
+}
+
+/**
+ * Generate LaTeX author block using authblk package for numbered superscript affiliations.
+ * Returns LaTeX code to be injected via header-includes.
+ */
+function generateLatexAuthorBlock(config: BuildConfig): string {
+  const lines: string[] = [];
+  lines.push('\\usepackage{authblk}');
+  lines.push('\\renewcommand\\Authfont{\\normalsize}');
+  lines.push('\\renewcommand\\Affilfont{\\small}');
+  lines.push('');
+
+  // Map affiliation keys to numbers
+  const affiliationKeys = Object.keys(config.affiliations);
+  const keyToNum = new Map<string, number>();
+  affiliationKeys.forEach((key, i) => keyToNum.set(key, i + 1));
+
+  // Authors
+  for (const author of config.authors) {
+    if (typeof author === 'string') {
+      lines.push(`\\author{${author}}`);
+      continue;
+    }
+    const marks = (author.affiliations || [])
+      .map(k => keyToNum.get(k))
+      .filter((n): n is number => n !== undefined);
+
+    const markStr = marks.length > 0 ? `[${marks.join(',')}]` : '';
+    let nameStr = author.name;
+    if (author.corresponding && author.email) {
+      nameStr += `\\thanks{Corresponding author: ${author.email}}`;
+    } else if (author.corresponding) {
+      nameStr += '\\thanks{Corresponding author}';
+    }
+    lines.push(`\\author${markStr}{${nameStr}}`);
+  }
+
+  // Affiliations
+  for (const [key, text] of Object.entries(config.affiliations)) {
+    const num = keyToNum.get(key);
+    if (num !== undefined) {
+      lines.push(`\\affil[${num}]{${text}}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Generate markdown author block for DOCX output with superscript affiliations.
+ * Returns markdown text to insert after the YAML frontmatter.
+ */
+function generateMarkdownAuthorBlock(config: BuildConfig): string {
+  const lines: string[] = [];
+
+  // Map affiliation keys to numbers
+  const affiliationKeys = Object.keys(config.affiliations);
+  const keyToNum = new Map<string, number>();
+  affiliationKeys.forEach((key, i) => keyToNum.set(key, i + 1));
+
+  // Author line: Name^1,2^, Name^3^, ...
+  const authorParts: string[] = [];
+  for (const author of config.authors) {
+    if (typeof author === 'string') {
+      authorParts.push(author);
+      continue;
+    }
+    const marks = (author.affiliations || [])
+      .map(k => keyToNum.get(k))
+      .filter((n): n is number => n !== undefined);
+    let entry = author.name;
+    const superParts = marks.map(String);
+    if (author.corresponding) superParts.push('\\*');
+    if (superParts.length > 0) {
+      entry += `^${superParts.join(',')}^`;
+    }
+    authorParts.push(entry);
+  }
+  lines.push(authorParts.join(', '));
+  lines.push('');
+
+  // Affiliation lines: ^1^ Department of ...
+  for (const [key, text] of Object.entries(config.affiliations)) {
+    const num = keyToNum.get(key);
+    if (num !== undefined) {
+      lines.push(`^${num}^ ${text}`);
+    }
+  }
+
+  // Corresponding author footnote
+  const corresponding = config.authors.find(a => typeof a !== 'string' && a.corresponding) as Author | undefined;
+  if (corresponding?.email) {
+    lines.push('');
+    lines.push(`^\\*^ Corresponding author: ${corresponding.email}`);
+  }
+
+  lines.push('');
+  return lines.join('\n');
 }
 
 /**
@@ -682,12 +794,28 @@ export function prepareForFormat(
 
     // Process tables for nowrap columns (convert Normal() → $\mathcal{N}()$ etc.)
     content = processTablesForFormat(content, config.tables, format);
+
+    // Inject LaTeX author block with numbered affiliations
+    if (hasNumberedAffiliations(config)) {
+      const latexBlock = generateLatexAuthorBlock(config);
+      // Inject as header-includes in the YAML frontmatter
+      content = content.replace(/^(---\r?\n[\s\S]*?)(---\r?\n)/, (match, yamlContent, closing) => {
+        return `${yamlContent}header-includes: |\n${latexBlock.split('\n').map(l => '  ' + l).join('\n')}\n${closing}`;
+      });
+    }
   } else if (format === 'docx') {
     // Strip track changes, optionally keep comments
     content = stripAnnotations(content, { keepComments: config.docx.keepComments });
 
     // Convert @fig:label to "Figure 1" for Word readers
     content = convertDynamicRefsToDisplay(content, registry);
+
+    // Inject markdown author block with superscript affiliations
+    if (hasNumberedAffiliations(config)) {
+      const mdBlock = generateMarkdownAuthorBlock(config);
+      // Insert after YAML frontmatter, before body content
+      content = content.replace(/^(---\r?\n[\s\S]*?---\r?\n)/, `$1\n${mdBlock}\n`);
+    }
   } else if (format === 'beamer' || format === 'pptx') {
     // Strip annotations for slide output
     content = stripAnnotations(content);

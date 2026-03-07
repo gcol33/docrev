@@ -185,7 +185,7 @@ Built-in scientific vocabulary reduces false positives. Possible author names ar
 Check against journal requirements.
 ```bash
 rev validate --journal nature
-rev validate --list          # List 21 available journals
+rev validate --list          # List 22 available journals
 ```
 
 ### rev citations

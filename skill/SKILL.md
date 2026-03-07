@@ -151,7 +151,7 @@ rev doi add 10.1234/example          # Add citation from DOI
 
 ```bash
 rev validate --journal nature        # Check journal requirements
-rev validate --list                  # List 21 available journal profiles
+rev validate --list                  # List 22 available journal profiles
 rev lint                             # Check broken refs, missing citations
 ```
 

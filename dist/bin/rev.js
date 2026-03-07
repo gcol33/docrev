@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 /**
  * rev - Revision workflow for Word ↔ Markdown round-trips
  *
@@ -39,7 +39,7 @@ function suggestCommand(input, commands) {
     return suggestions;
 }
 // Read version from package.json
-const pkgPath = new URL('../../package.json', import.meta.url);
+const pkgPath = new URL('../package.json', import.meta.url);
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 program
     .name('rev')
