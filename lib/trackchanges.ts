@@ -9,6 +9,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import AdmZip from 'adm-zip';
 import type { TrackChangeMarker } from './types.js';
+import { escapeXml } from './utils.js';
 
 interface PrepareOptions {
   author?: string;
@@ -27,18 +28,6 @@ interface ApplyResult {
     deletions: number;
     substitutions: number;
   };
-}
-
-/**
- * Escape XML special characters
- */
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 /**

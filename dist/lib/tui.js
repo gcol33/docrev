@@ -4,6 +4,39 @@
  */
 import chalk from 'chalk';
 import * as readline from 'readline';
+// =============================================================================
+// Utility Functions
+// =============================================================================
+/**
+ * Strip ANSI codes for length calculation
+ */
+export function stripAnsi(str) {
+    return str.replace(/\x1b\[[0-9;]*m/g, '');
+}
+/**
+ * Word wrap text to fit within width
+ */
+function wordWrap(text, width) {
+    const words = text.split(/\s+/);
+    const lines = [];
+    let currentLine = '';
+    for (const word of words) {
+        if (currentLine.length + word.length + 1 <= width) {
+            currentLine += (currentLine ? ' ' : '') + word;
+        }
+        else {
+            if (currentLine)
+                lines.push(currentLine);
+            currentLine = word;
+        }
+    }
+    if (currentLine)
+        lines.push(currentLine);
+    return lines;
+}
+// =============================================================================
+// Screen Functions
+// =============================================================================
 /**
  * Clear the terminal screen
  */
@@ -12,15 +45,12 @@ export function clearScreen() {
 }
 /**
  * Move cursor to position
- * @param {number} row
- * @param {number} col
  */
 export function moveCursor(row, col) {
     process.stdout.write(`\x1B[${row};${col}H`);
 }
 /**
  * Get terminal dimensions
- * @returns {{rows: number, cols: number}}
  */
 export function getTerminalSize() {
     return {
@@ -28,20 +58,18 @@ export function getTerminalSize() {
         cols: process.stdout.columns || 80,
     };
 }
+// =============================================================================
+// Drawing Functions
+// =============================================================================
 /**
  * Draw a box with content
- * @param {object} options
- * @param {string} options.title
- * @param {string[]} options.content
- * @param {number} options.width
- * @param {string} options.borderColor
- * @returns {string[]}
  */
-export function drawBox({ title = '', content = [], width = 60, borderColor = 'dim' }) {
+export function drawBox({ title = '', content = [], width = 60, borderColor = 'dim' } = {}) {
     const border = {
-        tl: '╭', tr: '╮', bl: '╰', br: '╯',
-        h: '─', v: '│',
+        tl: '\u256D', tr: '\u256E', bl: '\u2570', br: '\u256F',
+        h: '\u2500', v: '\u2502',
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const colorFn = chalk[borderColor] || chalk.dim;
     const lines = [];
     // Top border with title
@@ -67,9 +95,6 @@ export function drawBox({ title = '', content = [], width = 60, borderColor = 'd
 }
 /**
  * Draw a status bar at the bottom of the screen
- * @param {string} left - Left-aligned text
- * @param {string} right - Right-aligned text
- * @returns {string}
  */
 export function statusBar(left, right = '') {
     const { cols } = getTerminalSize();
@@ -80,28 +105,19 @@ export function statusBar(left, right = '') {
 }
 /**
  * Draw a progress indicator
- * @param {number} current
- * @param {number} total
- * @param {number} width
- * @returns {string}
  */
 export function progressIndicator(current, total, width = 20) {
     const ratio = current / total;
     const filled = Math.round(ratio * width);
     const empty = width - filled;
-    const bar = chalk.cyan('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
+    const bar = chalk.cyan('\u2588'.repeat(filled)) + chalk.dim('\u2591'.repeat(empty));
     return `${bar} ${current}/${total}`;
 }
 /**
  * Format a comment for TUI display
- * @param {object} comment
- * @param {number} index
- * @param {number} total
- * @param {number} width
- * @returns {string[]}
  */
 export function formatCommentCard(comment, index, total, width = 70) {
-    const statusIcon = comment.resolved ? chalk.green('✓') : chalk.yellow('○');
+    const statusIcon = comment.resolved ? chalk.green('\u2713') : chalk.yellow('\u25CB');
     const author = comment.author || 'Anonymous';
     const content = [];
     // Author and status line
@@ -130,54 +146,68 @@ export function formatCommentCard(comment, index, total, width = 70) {
 }
 /**
  * Draw the action menu
- * @param {string[]} options - Array of [key, description] tuples
- * @returns {string}
  */
 export function actionMenu(options) {
     return options
         .map(([key, desc]) => chalk.bold(`[${key}]`) + chalk.dim(desc))
         .join('  ');
 }
+// =============================================================================
+// Interactive TUI Review
+// =============================================================================
 /**
- * Word wrap text to fit within width
- * @param {string} text
- * @param {number} width
- * @returns {string[]}
+ * Prompt for a single keypress
  */
-function wordWrap(text, width) {
-    const words = text.split(/\s+/);
-    const lines = [];
-    let currentLine = '';
-    for (const word of words) {
-        if (currentLine.length + word.length + 1 <= width) {
-            currentLine += (currentLine ? ' ' : '') + word;
+function promptKey(validKeys) {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+        if (process.stdin.isTTY) {
+            process.stdin.setRawMode(true);
         }
-        else {
-            if (currentLine)
-                lines.push(currentLine);
-            currentLine = word;
-        }
-    }
-    if (currentLine)
-        lines.push(currentLine);
-    return lines;
+        process.stdin.resume();
+        process.stdin.once('data', (key) => {
+            const char = key.toString();
+            if (process.stdin.isTTY) {
+                process.stdin.setRawMode(false);
+            }
+            rl.close();
+            if (char === '\u0003') {
+                // Ctrl+C
+                clearScreen();
+                process.exit(0);
+            }
+            if (validKeys.includes(char.toLowerCase()) || validKeys.includes(char)) {
+                resolve(char);
+            }
+            else {
+                resolve(promptKey(validKeys));
+            }
+        });
+    });
 }
 /**
- * Strip ANSI codes for length calculation
- * @param {string} str
- * @returns {string}
+ * Prompt for text input
  */
-function stripAnsi(str) {
-    return str.replace(/\x1b\[[0-9;]*m/g, '');
+function promptText(prompt) {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+        });
+        rl.question(prompt, (answer) => {
+            rl.close();
+            resolve(answer);
+        });
+    });
 }
 /**
  * Run TUI comment review session
- * @param {string} text
- * @param {object} options
- * @returns {Promise<{text: string, resolved: number, replied: number, skipped: number}>}
  */
 export async function tuiCommentReview(text, options = {}) {
-    const { getComments, setCommentStatus } = await import('./annotations.js');
+    const { getComments } = await import('./annotations.js');
     const { createDocumentSession } = await import('./undo.js');
     const { author = 'Author', addReply, setStatus } = options;
     const comments = getComments(text, { pendingOnly: true });
@@ -191,8 +221,7 @@ export async function tuiCommentReview(text, options = {}) {
     let resolved = 0;
     let replied = 0;
     let skipped = 0;
-    let message = ''; // Status message to display
-    // Helper to render current state
+    let message = '';
     const render = () => {
         clearScreen();
         const { cols } = getTerminalSize();
@@ -233,50 +262,6 @@ export async function tuiCommentReview(text, options = {}) {
         console.log('  ' + actionMenu(menuItems));
         console.log();
     };
-    // Prompt for keypress
-    const promptKey = (validKeys) => {
-        return new Promise((resolve) => {
-            const rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout,
-            });
-            if (process.stdin.isTTY) {
-                process.stdin.setRawMode(true);
-            }
-            process.stdin.resume();
-            process.stdin.once('data', (key) => {
-                const char = key.toString();
-                if (process.stdin.isTTY) {
-                    process.stdin.setRawMode(false);
-                }
-                rl.close();
-                if (char === '\u0003') {
-                    // Ctrl+C
-                    clearScreen();
-                    process.exit(0);
-                }
-                if (validKeys.includes(char.toLowerCase()) || validKeys.includes(char)) {
-                    resolve(char);
-                }
-                else {
-                    resolve(promptKey(validKeys));
-                }
-            });
-        });
-    };
-    // Prompt for text input
-    const promptText = (prompt) => {
-        return new Promise((resolve) => {
-            const rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout,
-            });
-            rl.question(prompt, (answer) => {
-                rl.close();
-                resolve(answer);
-            });
-        });
-    };
     // Main loop
     while (currentIndex < comments.length) {
         render();
@@ -291,12 +276,10 @@ export async function tuiCommentReview(text, options = {}) {
                 console.log(chalk.yellow('Aborted.'));
                 return { text: session.getText(), resolved, replied, skipped: comments.length - currentIndex };
             case 'u':
-                // Undo last change
                 if (session.canUndo()) {
                     const undone = session.undo();
                     if (undone) {
                         message = chalk.yellow(`Undone: ${undone.description}`);
-                        // Adjust counters (approximate)
                         if (undone.description.includes('Resolved'))
                             resolved = Math.max(0, resolved - 1);
                         if (undone.description.includes('Reply'))
@@ -306,8 +289,7 @@ export async function tuiCommentReview(text, options = {}) {
                     }
                 }
                 break;
-            case 'A':
-                // Resolve all remaining
+            case 'A': {
                 let newText = session.getText();
                 for (let j = currentIndex; j < comments.length; j++) {
                     if (setStatus) {
@@ -318,6 +300,7 @@ export async function tuiCommentReview(text, options = {}) {
                 resolved += comments.length - currentIndex;
                 currentIndex = comments.length;
                 break;
+            }
             case 'm':
                 if (setStatus) {
                     const newText = setStatus(session.getText(), comment, true);
@@ -326,7 +309,7 @@ export async function tuiCommentReview(text, options = {}) {
                 resolved++;
                 currentIndex++;
                 break;
-            case 'r':
+            case 'r': {
                 console.log();
                 const replyText = await promptText(chalk.cyan('  Reply: '));
                 if (replyText.trim() && addReply) {
@@ -336,6 +319,7 @@ export async function tuiCommentReview(text, options = {}) {
                 }
                 currentIndex++;
                 break;
+            }
             case 's':
                 skipped++;
                 currentIndex++;

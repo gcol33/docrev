@@ -39,3 +39,31 @@ export function normalizeWhitespace(text: string): string {
     .replace(/ +/g, ' ')
     .trim();
 }
+
+/**
+ * Escape XML special characters
+ * @param str - Input string
+ * @returns XML-safe string
+ */
+export function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Escape LaTeX special characters
+ * @param text - Text to escape
+ * @returns Escaped text
+ */
+export function escapeLatex(text: string): string {
+  return text
+    .replace(/\\/g, '\\textbackslash{}')
+    .replace(/([#$%&_{}])/g, '\\$1')
+    .replace(/\^/g, '\\textasciicircum{}')
+    .replace(/~/g, '\\textasciitilde{}')
+    .replace(/\n/g, ' ');
+}

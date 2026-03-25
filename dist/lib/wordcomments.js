@@ -11,17 +11,10 @@
  */
 import * as fs from 'fs';
 import AdmZip from 'adm-zip';
+import { escapeXml } from './utils.js';
 const MARKER_START_PREFIX = '⟦CMS:';
 const MARKER_END_PREFIX = '⟦CME:';
 const MARKER_SUFFIX = '⟧';
-function escapeXml(str) {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
 function generateParaId(commentIdx, paraNum) {
     // Generate 8-character uppercase hex ID matching Word format
     // Word uses IDs like "3F25BC58", "0331C187"

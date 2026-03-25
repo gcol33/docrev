@@ -873,6 +873,19 @@ export function register(program: Command): void {
           });
 
           if (!options.dryRun) {
+            // Preserve any preamble content (YAML frontmatter, author blocks, metadata)
+            // that exists before the first heading in the original file.
+            // This content is never included in the Word build output, so it won't
+            // appear in the Word doc and would otherwise be lost during sync.
+            const originalContent = fs.readFileSync(sectionPath, 'utf-8');
+            const firstHeadingMatch = originalContent.match(/^(#\s)/m);
+            if (firstHeadingMatch && firstHeadingMatch.index !== undefined && firstHeadingMatch.index > 0) {
+              const preamble = originalContent.slice(0, firstHeadingMatch.index);
+              // Only prepend if preamble has non-whitespace content
+              if (preamble.trim().length > 0) {
+                annotated = preamble + annotated;
+              }
+            }
             fs.writeFileSync(sectionPath, annotated, 'utf-8');
           }
         }

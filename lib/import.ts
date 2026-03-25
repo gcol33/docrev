@@ -28,6 +28,7 @@ import {
   protectTables,
   restoreTables,
 } from './protect-restore.js';
+import { normalizeWhitespace } from './utils.js';
 
 const execAsync = promisify(exec);
 
@@ -1136,17 +1137,6 @@ export function insertCommentsIntoMarkdown(
   }
 
   return result;
-}
-
-/**
- * Normalize text for comparison (handle whitespace differences)
- */
-function normalizeWhitespace(text: string): string {
-  return text
-    .replace(/\r\n/g, '\n') // Normalize line endings
-    .replace(/\t/g, '    ') // Tabs to spaces
-    .replace(/ +/g, ' ') // Collapse multiple spaces
-    .trim();
 }
 
 /**

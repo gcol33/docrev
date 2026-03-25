@@ -126,13 +126,6 @@ function parseMdParagraphs(markdown) {
     return paragraphs;
 }
 /**
- * Strip existing comments from a specific author
- */
-function stripAuthorComments(text, author) {
-    const pattern = new RegExp(`\\s*\\{>>${author}:[^<]*<<\\}`, 'g');
-    return text.replace(pattern, '');
-}
-/**
  * Normalize text for matching (remove citations, extra whitespace)
  */
 function normalizeForMatching(text) {

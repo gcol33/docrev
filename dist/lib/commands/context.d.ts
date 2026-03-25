@@ -32,4 +32,5 @@ export { clearDoiCache, getDoiCacheStats, } from '../doi-cache.js';
 export { formatError, getFileNotFoundSuggestions, getDependencySuggestions, getAnnotationSuggestions, getBuildSuggestions, exitWithError, requireFile, } from '../errors.js';
 export { listJournals, getJournalProfile, validateManuscript, validateProject, } from '../journals.js';
 export { listCustomProfiles, saveProfileTemplate, getPluginDirs, } from '../plugins.js';
+export { tuiCommentReview } from '../tui.js';
 //# sourceMappingURL=context.d.ts.map

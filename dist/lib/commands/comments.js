@@ -3,9 +3,7 @@
  *
  * Commands for viewing, navigating, and managing reviewer comments and track changes.
  */
-import { chalk, fs, path, fmt, findFiles, getComments, setCommentStatus, getTrackChanges, applyDecision, cleanupOrphanedMarkers, interactiveCommentReview, 
-// tuiCommentReview, // TUI module not yet migrated
-getUserName, exitWithError, getAnnotationSuggestions, requireFile, } from './context.js';
+import { chalk, fs, path, fmt, findFiles, getComments, setCommentStatus, getTrackChanges, applyDecision, cleanupOrphanedMarkers, interactiveCommentReview, tuiCommentReview, getUserName, exitWithError, getAnnotationSuggestions, requireFile, } from './context.js';
 /**
  * Add a reply after a comment
  * @param text - Full document text
@@ -98,30 +96,24 @@ export function register(program) {
         const text = fs.readFileSync(file, 'utf-8');
         // TUI review mode
         if (options.tui) {
-            console.error(chalk.yellow('TUI mode is temporarily unavailable (module migration in progress)'));
-            console.error(chalk.dim('Use --interactive mode instead: rev comments --interactive ' + file));
-            process.exit(1);
-            // TODO: Re-enable when tui.ts is migrated
-            // let author = options.author || getUserName();
-            // if (!author) {
-            //   exitWithError('No user name set for replies', getAnnotationSuggestions('no_author'));
-            // }
-            //
-            // const result = await tuiCommentReview(text, {
-            //   author,
-            //   addReply: (txt: string, comment: Comment, auth: string, msg: string) => {
-            //     const replyAnnotation = `{>>${auth}: ${msg}<<}`;
-            //     const insertPos = comment.position + comment.match.length;
-            //     return txt.slice(0, insertPos) + ' ' + replyAnnotation + txt.slice(insertPos);
-            //   },
-            //   setStatus: setCommentStatus,
-            // });
-            //
-            // if (result.resolved > 0 || result.replied > 0) {
-            //   fs.writeFileSync(file, result.text, 'utf-8');
-            //   console.log(fmt.status('success', `Changes saved to ${file}`));
-            // }
-            // return;
+            let author = options.author || getUserName();
+            if (!author) {
+                exitWithError('No user name set for replies', getAnnotationSuggestions('no_author'));
+            }
+            const result = await tuiCommentReview(text, {
+                author,
+                addReply: (txt, comment, auth, msg) => {
+                    const replyAnnotation = `{>>${auth}: ${msg}<<}`;
+                    const insertPos = comment.position + comment.match.length;
+                    return txt.slice(0, insertPos) + ' ' + replyAnnotation + txt.slice(insertPos);
+                },
+                setStatus: setCommentStatus,
+            });
+            if (result.resolved > 0 || result.replied > 0) {
+                fs.writeFileSync(file, result.text, 'utf-8');
+                console.log(fmt.status('success', `Changes saved to ${file}`));
+            }
+            return;
         }
         // Interactive review mode
         if (options.interactive) {

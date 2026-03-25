@@ -26,6 +26,34 @@ import {
 // Use the actual BuildConfig from build.ts which allows string|Author[]
 type BuildConfig = ReturnType<typeof loadBuildConfig>;
 
+interface ZipLike {
+  addLocalFile(localPath: string, zipPath?: string): void;
+}
+
+/**
+ * Recursively add directory contents to a zip archive, filtering by predicate
+ */
+function addDirToZip(
+  zip: ZipLike,
+  dir: string,
+  shouldInclude: (name: string) => boolean,
+  zipPath = '',
+): void {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    const entryZipPath = path.join(zipPath, entry.name);
+
+    if (!shouldInclude(entry.name)) continue;
+
+    if (entry.isDirectory()) {
+      addDirToZip(zip, fullPath, shouldInclude, entryZipPath);
+    } else {
+      zip.addLocalFile(fullPath, zipPath || undefined);
+    }
+  }
+}
+
 // Type definitions for package.json
 interface PackageJson {
   version?: string;
@@ -523,33 +551,7 @@ export function register(program: Command, pkg?: PackageJson): void {
         return true;
       };
 
-      const addDir = (dir: string, zipPath = ''): void => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          const entryZipPath = path.join(zipPath, entry.name);
-
-          if (!shouldInclude(entry.name)) continue;
-
-          if (entry.isDirectory()) {
-            addDir(fullPath, entryZipPath);
-          } else {
-            zip.addLocalFile(fullPath, zipPath || undefined);
-          }
-        }
-      };
-
-      // Add current directory
-      const entries = fs.readdirSync('.', { withFileTypes: true });
-      for (const entry of entries) {
-        if (!shouldInclude(entry.name)) continue;
-
-        if (entry.isDirectory()) {
-          addDir(entry.name, entry.name);
-        } else if (entry.isFile()) {
-          zip.addLocalFile(entry.name);
-        }
-      }
+      addDirToZip(zip, '.', shouldInclude);
 
       zip.writeZip(outputPath);
       console.log(fmt.status('success', `Backup created: ${outputPath}`));
@@ -741,32 +743,7 @@ export function register(program: Command, pkg?: PackageJson): void {
         return true;
       };
 
-      const addDir = (dir: string, zipPath = ''): void => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          const entryZipPath = path.join(zipPath, entry.name);
-
-          if (!shouldInclude(entry.name)) continue;
-
-          if (entry.isDirectory()) {
-            addDir(fullPath, entryZipPath);
-          } else {
-            zip.addLocalFile(fullPath, zipPath || undefined);
-          }
-        }
-      };
-
-      const entries = fs.readdirSync('.', { withFileTypes: true });
-      for (const entry of entries) {
-        if (!shouldInclude(entry.name)) continue;
-
-        if (entry.isDirectory()) {
-          addDir(entry.name, entry.name);
-        } else if (entry.isFile()) {
-          zip.addLocalFile(entry.name);
-        }
-      }
+      addDirToZip(zip, '.', shouldInclude);
 
       zip.writeZip(outputPath);
       console.log(fmt.status('success', `Exported: ${outputPath}`));

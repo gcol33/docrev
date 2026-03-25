@@ -12,6 +12,7 @@
 
 import * as fs from 'fs';
 import AdmZip from 'adm-zip';
+import { escapeXml } from './utils.js';
 
 const MARKER_START_PREFIX = '⟦CMS:';
 const MARKER_END_PREFIX = '⟦CME:';
@@ -53,15 +54,6 @@ interface InjectionResult {
   replyCount?: number;
   skippedComments: number;
   error?: string;
-}
-
-function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 function generateParaId(commentIdx: number, paraNum: number): string {

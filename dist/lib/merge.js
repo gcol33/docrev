@@ -122,16 +122,12 @@ export async function checkBaseMatch(basePath, reviewerPath) {
     }
 }
 /**
- * Extract changes from a Word document compared to original
- * Uses sentence-level diffing for better conflict detection
- * @param originalText - Original text (from base document)
- * @param wordText - Text extracted from reviewer's Word doc
+ * Extract changes from diffs between original and modified text
+ * @param diffs - Array of diff changes
  * @param reviewer - Reviewer identifier
  */
-export function extractChanges(originalText, wordText, reviewer) {
+function extractChangesFromDiffs(diffs, reviewer) {
     const changes = [];
-    // Use sentence-level diff for better granularity
-    const diffs = diffSentences(originalText, wordText);
     let originalPos = 0;
     let i = 0;
     while (i < diffs.length) {
@@ -139,12 +135,10 @@ export function extractChanges(originalText, wordText, reviewer) {
         if (!part)
             break;
         if (!part.added && !part.removed) {
-            // Unchanged
             originalPos += part.value.length;
             i++;
         }
         else if (part.removed && diffs[i + 1]?.added) {
-            // Replacement: removed followed by added
             const nextPart = diffs[i + 1];
             if (!nextPart)
                 break;
@@ -160,7 +154,6 @@ export function extractChanges(originalText, wordText, reviewer) {
             i += 2;
         }
         else if (part.removed) {
-            // Pure deletion
             changes.push({
                 reviewer,
                 type: 'delete',
@@ -173,7 +166,6 @@ export function extractChanges(originalText, wordText, reviewer) {
             i++;
         }
         else if (part.added) {
-            // Pure insertion
             changes.push({
                 reviewer,
                 type: 'insert',
@@ -188,61 +180,20 @@ export function extractChanges(originalText, wordText, reviewer) {
     return changes;
 }
 /**
+ * Extract changes from a Word document compared to original
+ * Uses sentence-level diffing for better conflict detection
+ * @param originalText - Original text (from base document)
+ * @param wordText - Text extracted from reviewer's Word doc
+ * @param reviewer - Reviewer identifier
+ */
+export function extractChanges(originalText, wordText, reviewer) {
+    return extractChangesFromDiffs(diffSentences(originalText, wordText), reviewer);
+}
+/**
  * Extract changes using word-level diff (more fine-grained)
  */
 export function extractChangesWordLevel(originalText, wordText, reviewer) {
-    const changes = [];
-    const diffs = diffWords(originalText, wordText);
-    let originalPos = 0;
-    let i = 0;
-    while (i < diffs.length) {
-        const part = diffs[i];
-        if (!part)
-            break;
-        if (!part.added && !part.removed) {
-            originalPos += part.value.length;
-            i++;
-        }
-        else if (part.removed && diffs[i + 1]?.added) {
-            const nextPart = diffs[i + 1];
-            if (!nextPart)
-                break;
-            changes.push({
-                reviewer,
-                type: 'replace',
-                start: originalPos,
-                end: originalPos + part.value.length,
-                oldText: part.value,
-                newText: nextPart.value,
-            });
-            originalPos += part.value.length;
-            i += 2;
-        }
-        else if (part.removed) {
-            changes.push({
-                reviewer,
-                type: 'delete',
-                start: originalPos,
-                end: originalPos + part.value.length,
-                oldText: part.value,
-                newText: '',
-            });
-            originalPos += part.value.length;
-            i++;
-        }
-        else if (part.added) {
-            changes.push({
-                reviewer,
-                type: 'insert',
-                start: originalPos,
-                end: originalPos,
-                oldText: '',
-                newText: part.value,
-            });
-            i++;
-        }
-    }
-    return changes;
+    return extractChangesFromDiffs(diffWords(originalText, wordText), reviewer);
 }
 /**
  * Check if two changes overlap
@@ -474,16 +425,10 @@ export function clearConflicts(projectDir) {
     }
 }
 /**
- * Merge multiple Word documents using three-way merge
+ * Core merge logic: extract changes from reviewer docs, detect conflicts, apply annotations
  */
-export async function mergeThreeWay(basePath, reviewerDocs, options = {}) {
+async function mergeReviewerDocsCore(baseText, reviewerDocs, options = {}) {
     const { diffLevel = 'sentence' } = options;
-    if (!fs.existsSync(basePath)) {
-        throw new Error(`Base document not found: ${basePath}`);
-    }
-    // Extract text from base document
-    const { text: baseText } = await extractFromWord(basePath);
-    // Extract changes from each reviewer relative to base
     const allChanges = [];
     const allComments = [];
     for (const doc of reviewerDocs) {
@@ -491,12 +436,10 @@ export async function mergeThreeWay(basePath, reviewerDocs, options = {}) {
             throw new Error(`Reviewer file not found: ${doc.path}`);
         }
         const { text: wordText } = await extractFromWord(doc.path);
-        // Choose diff level
         const changes = diffLevel === 'word'
             ? extractChangesWordLevel(baseText, wordText, doc.name)
             : extractChanges(baseText, wordText, doc.name);
         allChanges.push(changes);
-        // Also extract comments
         try {
             const comments = await extractWordComments(doc.path);
             allComments.push(...comments.map(c => ({ ...c, reviewer: doc.name })));
@@ -508,11 +451,8 @@ export async function mergeThreeWay(basePath, reviewerDocs, options = {}) {
             }
         }
     }
-    // Detect conflicts
     const { conflicts, nonConflicting } = detectConflicts(allChanges);
-    // Apply non-conflicting changes as annotations
     let merged = applyChangesAsAnnotations(baseText, nonConflicting);
-    // Add comments with reviewer attribution
     for (const comment of allComments) {
         merged += `\n{>>${comment.reviewer}: ${comment.text}<<}`;
     }
@@ -523,57 +463,29 @@ export async function mergeThreeWay(basePath, reviewerDocs, options = {}) {
         conflicts: conflicts.length,
         comments: allComments.length,
     };
-    return { merged, conflicts, stats, baseText, originalText: baseText };
+    return { merged, conflicts, stats, originalText: baseText };
+}
+/**
+ * Merge multiple Word documents using three-way merge
+ */
+export async function mergeThreeWay(basePath, reviewerDocs, options = {}) {
+    if (!fs.existsSync(basePath)) {
+        throw new Error(`Base document not found: ${basePath}`);
+    }
+    const { text: baseText } = await extractFromWord(basePath);
+    const result = await mergeReviewerDocsCore(baseText, reviewerDocs, options);
+    return { ...result, baseText };
 }
 /**
  * Merge multiple Word documents against an original markdown file
  * Legacy function - use mergeThreeWay for proper three-way merge
  */
 export async function mergeReviewerDocs(originalPath, reviewerDocs, options = {}) {
-    const { autoResolve = false } = options;
     if (!fs.existsSync(originalPath)) {
         throw new Error(`Original file not found: ${originalPath}`);
     }
     const originalText = fs.readFileSync(originalPath, 'utf-8');
-    // Extract changes from each reviewer
-    const allChanges = [];
-    const allComments = [];
-    for (const doc of reviewerDocs) {
-        if (!fs.existsSync(doc.path)) {
-            throw new Error(`Reviewer file not found: ${doc.path}`);
-        }
-        const { text: wordText } = await extractFromWord(doc.path);
-        const changes = extractChanges(originalText, wordText, doc.name);
-        allChanges.push(changes);
-        // Also extract comments
-        try {
-            const comments = await extractWordComments(doc.path);
-            allComments.push(...comments.map(c => ({ ...c, reviewer: doc.name })));
-        }
-        catch (e) {
-            if (process.env.DEBUG) {
-                const error = e;
-                console.warn(`merge: Failed to extract comments:`, error.message);
-            }
-        }
-    }
-    // Detect conflicts
-    const { conflicts, nonConflicting } = detectConflicts(allChanges);
-    // Apply non-conflicting changes as annotations
-    let merged = applyChangesAsAnnotations(originalText, nonConflicting);
-    // Add comments
-    for (const comment of allComments) {
-        // Append comments at the end for now (position tracking is complex)
-        merged += `\n{>>${comment.reviewer}: ${comment.text}<<}`;
-    }
-    const stats = {
-        reviewers: reviewerDocs.length,
-        totalChanges: allChanges.flat().length,
-        nonConflicting: nonConflicting.length,
-        conflicts: conflicts.length,
-        comments: allComments.length,
-    };
-    return { merged, conflicts, stats, originalText };
+    return mergeReviewerDocsCore(originalText, reviewerDocs, options);
 }
 /**
  * Resolve a conflict by choosing one option

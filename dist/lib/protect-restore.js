@@ -5,6 +5,36 @@
  * images, tables) by replacing them with placeholders before diffing, then restore them after.
  */
 // =============================================================================
+// Shared Helpers
+// =============================================================================
+/**
+ * Replace regex matches with indexed placeholders and collect originals
+ */
+function collectAndReplace(text, pattern, prefix, suffix) {
+    const items = [];
+    const result = text.replace(pattern, (match) => {
+        const idx = items.length;
+        const placeholder = `${prefix}${idx}${suffix}`;
+        items.push({ original: match, placeholder });
+        return placeholder;
+    });
+    return { text: result, items };
+}
+/**
+ * Restore protected items from placeholders, handling annotation wrappers
+ * (deletion {--...--} and insertion {++...++} wrappers are unwrapped)
+ */
+function restoreProtectedItems(text, items) {
+    for (const item of items) {
+        const deletionPattern = new RegExp(`\\{--[^}]*?${item.placeholder}[^}]*?--\\}`, 'g');
+        text = text.replace(deletionPattern, item.original);
+        const insertionPattern = new RegExp(`\\{\\+\\+[^}]*?${item.placeholder}[^}]*?\\+\\+\\}`, 'g');
+        text = text.replace(insertionPattern, item.original);
+        text = text.split(item.placeholder).join(item.original);
+    }
+    return text;
+}
+// =============================================================================
 // Public Functions
 // =============================================================================
 /**
@@ -33,15 +63,9 @@ export function extractMarkdownPrefix(line) {
  * Anchors like {#fig:heatmap} and {#tbl:results} should never be deleted
  */
 export function protectAnchors(md) {
-    const anchors = [];
     // Match {#fig:label}, {#tbl:label}, {#eq:label}, {#sec:label} etc.
     // Also match with additional attributes like {#fig:label width=50%}
-    const text = md.replace(/\{#(fig|tbl|eq|sec|lst):[^}]+\}/g, (match) => {
-        const idx = anchors.length;
-        const placeholder = `ANCHORBLOCK${idx}ENDANCHOR`;
-        anchors.push({ original: match, placeholder });
-        return placeholder;
-    });
+    const { text, items: anchors } = collectAndReplace(md, /\{#(fig|tbl|eq|sec|lst):[^}]+\}/g, 'ANCHORBLOCK', 'ENDANCHOR');
     return { text, anchors };
 }
 /**
@@ -91,15 +115,9 @@ export function restoreAnchors(text, anchors) {
  * References like @fig:label, @tbl:label should be preserved
  */
 export function protectCrossrefs(md) {
-    const crossrefs = [];
     // Match @fig:label, @tbl:label, @eq:label, @sec:label
     // Can appear as @fig:label or (@fig:label) or [@fig:label]
-    const text = md.replace(/@(fig|tbl|eq|sec|lst):[a-zA-Z0-9_-]+/g, (match) => {
-        const idx = crossrefs.length;
-        const placeholder = `XREFBLOCK${idx}ENDXREF`;
-        crossrefs.push({ original: match, placeholder });
-        return placeholder;
-    });
+    const { text, items: crossrefs } = collectAndReplace(md, /@(fig|tbl|eq|sec|lst):[a-zA-Z0-9_-]+/g, 'XREFBLOCK', 'ENDXREF');
     return { text, crossrefs };
 }
 /**
@@ -288,17 +306,7 @@ export function protectImages(md, registry = null) {
  * Restore images from placeholders
  */
 export function restoreImages(text, images) {
-    for (const img of images) {
-        // Handle cases where placeholder might be inside annotations
-        // {--IMAGEBLOCK0ENDIMAGE--} should restore the original image
-        const deletionPattern = new RegExp(`\\{--[^}]*?${img.placeholder}[^}]*?--\\}`, 'g');
-        text = text.replace(deletionPattern, img.original);
-        const insertionPattern = new RegExp(`\\{\\+\\+[^}]*?${img.placeholder}[^}]*?\\+\\+\\}`, 'g');
-        text = text.replace(insertionPattern, img.original);
-        // Normal replacement
-        text = text.split(img.placeholder).join(img.original);
-    }
-    return text;
+    return restoreProtectedItems(text, images);
 }
 /**
  * Match Word-extracted images to original images using registry
@@ -379,16 +387,6 @@ export function protectTables(md) {
  * Restore tables from placeholders
  */
 export function restoreTables(text, tables) {
-    for (const table of tables) {
-        // Handle cases where placeholder might be inside annotations
-        // For tables, we want to preserve the original if it wasn't changed
-        const deletionPattern = new RegExp(`\\{--[^}]*?${table.placeholder}[^}]*?--\\}`, 'g');
-        text = text.replace(deletionPattern, table.original);
-        const insertionPattern = new RegExp(`\\{\\+\\+[^}]*?${table.placeholder}[^}]*?\\+\\+\\}`, 'g');
-        text = text.replace(insertionPattern, table.original);
-        // Normal replacement
-        text = text.split(table.placeholder).join(table.original);
-    }
-    return text;
+    return restoreProtectedItems(text, tables);
 }
 //# sourceMappingURL=protect-restore.js.map

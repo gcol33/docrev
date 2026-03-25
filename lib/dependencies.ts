@@ -5,44 +5,36 @@
 import { execSync } from 'child_process';
 
 /**
- * Check if pandoc-crossref is available
+ * Check if a command is available by running it silently
  */
-export function hasPandocCrossref(): boolean {
+function commandExists(cmd: string): boolean {
   try {
-    execSync('pandoc-crossref --version', { stdio: 'ignore' });
+    execSync(cmd, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if pandoc-crossref is available
+ */
+export function hasPandocCrossref(): boolean {
+  return commandExists('pandoc-crossref --version');
 }
 
 /**
  * Check if pandoc is available
  */
 export function hasPandoc(): boolean {
-  try {
-    execSync('pandoc --version', { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
+  return commandExists('pandoc --version');
 }
 
 /**
  * Check if LaTeX is available (for PDF generation)
  */
 export function hasLatex(): boolean {
-  try {
-    execSync('pdflatex --version', { stdio: 'ignore' });
-    return true;
-  } catch {
-    try {
-      execSync('xelatex --version', { stdio: 'ignore' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  return commandExists('pdflatex --version') || commandExists('xelatex --version');
 }
 
 /**

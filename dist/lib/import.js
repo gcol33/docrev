@@ -9,6 +9,7 @@ import { readImageRegistry } from './image-registry.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { extractMarkdownPrefix, protectAnchors, restoreAnchors, protectCrossrefs, restoreCrossrefs, protectMath, restoreMath, replaceRenderedMath, protectCitations, restoreCitations, replaceRenderedCitations, protectImages, restoreImages, matchWordImagesToOriginal, protectTables, restoreTables, } from './protect-restore.js';
+import { normalizeWhitespace } from './utils.js';
 const execAsync = promisify(exec);
 // ============================================
 // Functions
@@ -827,16 +828,6 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
         }
     }
     return result;
-}
-/**
- * Normalize text for comparison (handle whitespace differences)
- */
-function normalizeWhitespace(text) {
-    return text
-        .replace(/\r\n/g, '\n') // Normalize line endings
-        .replace(/\t/g, '    ') // Tabs to spaces
-        .replace(/ +/g, ' ') // Collapse multiple spaces
-        .trim();
 }
 /**
  * Fix citation and math annotations by preserving original markdown syntax

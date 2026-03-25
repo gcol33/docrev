@@ -7,6 +7,24 @@
  */
 import { chalk, fs, path, fmt, findFiles, loadBuildConfig, getComments, setCommentStatus, countAnnotations, stripAnnotations, parseAnnotations, getUserName, countWords, } from './context.js';
 /**
+ * Recursively add directory contents to a zip archive, filtering by predicate
+ */
+function addDirToZip(zip, dir, shouldInclude, zipPath = '') {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const entryZipPath = path.join(zipPath, entry.name);
+        if (!shouldInclude(entry.name))
+            continue;
+        if (entry.isDirectory()) {
+            addDirToZip(zip, fullPath, shouldInclude, entryZipPath);
+        }
+        else {
+            zip.addLocalFile(fullPath, zipPath || undefined);
+        }
+    }
+}
+/**
  * Register utility commands with the program
  */
 export function register(program, pkg) {
@@ -281,33 +299,7 @@ export function register(program, pkg) {
             }
             return true;
         };
-        const addDir = (dir, zipPath = '') => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                const entryZipPath = path.join(zipPath, entry.name);
-                if (!shouldInclude(entry.name))
-                    continue;
-                if (entry.isDirectory()) {
-                    addDir(fullPath, entryZipPath);
-                }
-                else {
-                    zip.addLocalFile(fullPath, zipPath || undefined);
-                }
-            }
-        };
-        // Add current directory
-        const entries = fs.readdirSync('.', { withFileTypes: true });
-        for (const entry of entries) {
-            if (!shouldInclude(entry.name))
-                continue;
-            if (entry.isDirectory()) {
-                addDir(entry.name, entry.name);
-            }
-            else if (entry.isFile()) {
-                zip.addLocalFile(entry.name);
-            }
-        }
+        addDirToZip(zip, '.', shouldInclude);
         zip.writeZip(outputPath);
         console.log(fmt.status('success', `Backup created: ${outputPath}`));
     });
@@ -485,32 +477,7 @@ export function register(program, pkg) {
             }
             return true;
         };
-        const addDir = (dir, zipPath = '') => {
-            const entries = fs.readdirSync(dir, { withFileTypes: true });
-            for (const entry of entries) {
-                const fullPath = path.join(dir, entry.name);
-                const entryZipPath = path.join(zipPath, entry.name);
-                if (!shouldInclude(entry.name))
-                    continue;
-                if (entry.isDirectory()) {
-                    addDir(fullPath, entryZipPath);
-                }
-                else {
-                    zip.addLocalFile(fullPath, zipPath || undefined);
-                }
-            }
-        };
-        const entries = fs.readdirSync('.', { withFileTypes: true });
-        for (const entry of entries) {
-            if (!shouldInclude(entry.name))
-                continue;
-            if (entry.isDirectory()) {
-                addDir(entry.name, entry.name);
-            }
-            else if (entry.isFile()) {
-                zip.addLocalFile(entry.name);
-            }
-        }
+        addDirToZip(zip, '.', shouldInclude);
         zip.writeZip(outputPath);
         console.log(fmt.status('success', `Exported: ${outputPath}`));
     });

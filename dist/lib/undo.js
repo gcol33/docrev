@@ -95,13 +95,6 @@ export function createUndoStack(maxSize = 50) {
             }));
         },
         /**
-         * Clear the stack
-         */
-        clear() {
-            stack.length = 0;
-            position = -1;
-        },
-        /**
          * Get the full stack (for debugging)
          */
         getStack() {
