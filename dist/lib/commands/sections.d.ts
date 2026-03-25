@@ -1,7 +1,8 @@
 /**
- * Section commands: import, extract, split, sync, merge
+ * Section commands: import, extract, split
  *
- * Commands for importing Word documents, splitting/syncing section files.
+ * Commands for importing Word documents and splitting section files.
+ * Sync and merge commands are in sync.ts and merge-resolve.ts respectively.
  */
 import type { Command } from 'commander';
 /**

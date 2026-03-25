@@ -1,9 +1,7 @@
 /**
- * Utility commands: help, completions, word-count, stats, search, backup, archive,
- * export, preview, watch, lint, grammar, annotate, apply, comment, clean, check,
- * open, spelling, upgrade, batch, install-cli-skill, uninstall-cli-skill
+ * Utility commands: help, completions, open, upgrade, install-cli-skill, uninstall-cli-skill
  *
- * Miscellaneous utility commands for project management.
+ * Core utility commands that don't fit into a specific domain.
  */
 import type { Command } from 'commander';
 interface PackageJson {
