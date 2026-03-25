@@ -5,51 +5,109 @@
 
 import chalk from 'chalk';
 import * as readline from 'readline';
+import type { Annotation } from './types.js';
+import type { DocumentSession } from './undo.js';
+
+// =============================================================================
+// Interfaces
+// =============================================================================
+
+interface BoxOptions {
+  title?: string;
+  content?: string[];
+  width?: number;
+  borderColor?: string;
+}
+
+interface TuiReviewOptions {
+  author?: string;
+  addReply?: (text: string, comment: Annotation, author: string, reply: string) => string;
+  setStatus?: (text: string, comment: Annotation, resolved: boolean) => string;
+}
+
+interface TuiReviewResult {
+  text: string;
+  resolved: number;
+  replied: number;
+  skipped: number;
+}
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
+
+/**
+ * Strip ANSI codes for length calculation
+ */
+export function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+/**
+ * Word wrap text to fit within width
+ */
+function wordWrap(text: string, width: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    if (currentLine.length + word.length + 1 <= width) {
+      currentLine += (currentLine ? ' ' : '') + word;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
+// =============================================================================
+// Screen Functions
+// =============================================================================
 
 /**
  * Clear the terminal screen
  */
-export function clearScreen() {
+export function clearScreen(): void {
   process.stdout.write('\x1B[2J\x1B[H');
 }
 
 /**
  * Move cursor to position
- * @param {number} row
- * @param {number} col
  */
-export function moveCursor(row, col) {
+export function moveCursor(row: number, col: number): void {
   process.stdout.write(`\x1B[${row};${col}H`);
 }
 
 /**
  * Get terminal dimensions
- * @returns {{rows: number, cols: number}}
  */
-export function getTerminalSize() {
+export function getTerminalSize(): { rows: number; cols: number } {
   return {
     rows: process.stdout.rows || 24,
     cols: process.stdout.columns || 80,
   };
 }
 
+// =============================================================================
+// Drawing Functions
+// =============================================================================
+
 /**
  * Draw a box with content
- * @param {object} options
- * @param {string} options.title
- * @param {string[]} options.content
- * @param {number} options.width
- * @param {string} options.borderColor
- * @returns {string[]}
  */
-export function drawBox({ title = '', content = [], width = 60, borderColor = 'dim' }) {
+export function drawBox({ title = '', content = [], width = 60, borderColor = 'dim' }: BoxOptions = {}): string[] {
   const border = {
-    tl: '╭', tr: '╮', bl: '╰', br: '╯',
-    h: '─', v: '│',
+    tl: '\u256D', tr: '\u256E', bl: '\u2570', br: '\u256F',
+    h: '\u2500', v: '\u2502',
   };
 
-  const colorFn = chalk[borderColor] || chalk.dim;
-  const lines = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const colorFn = ((chalk as any)[borderColor] as ((str: string) => string)) || chalk.dim;
+  const lines: string[] = [];
 
   // Top border with title
   if (title) {
@@ -81,11 +139,8 @@ export function drawBox({ title = '', content = [], width = 60, borderColor = 'd
 
 /**
  * Draw a status bar at the bottom of the screen
- * @param {string} left - Left-aligned text
- * @param {string} right - Right-aligned text
- * @returns {string}
  */
-export function statusBar(left, right = '') {
+export function statusBar(left: string, right: string = ''): string {
   const { cols } = getTerminalSize();
   const leftLen = stripAnsi(left).length;
   const rightLen = stripAnsi(right).length;
@@ -96,33 +151,24 @@ export function statusBar(left, right = '') {
 
 /**
  * Draw a progress indicator
- * @param {number} current
- * @param {number} total
- * @param {number} width
- * @returns {string}
  */
-export function progressIndicator(current, total, width = 20) {
+export function progressIndicator(current: number, total: number, width: number = 20): string {
   const ratio = current / total;
   const filled = Math.round(ratio * width);
   const empty = width - filled;
 
-  const bar = chalk.cyan('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
+  const bar = chalk.cyan('\u2588'.repeat(filled)) + chalk.dim('\u2591'.repeat(empty));
   return `${bar} ${current}/${total}`;
 }
 
 /**
  * Format a comment for TUI display
- * @param {object} comment
- * @param {number} index
- * @param {number} total
- * @param {number} width
- * @returns {string[]}
  */
-export function formatCommentCard(comment, index, total, width = 70) {
-  const statusIcon = comment.resolved ? chalk.green('✓') : chalk.yellow('○');
+export function formatCommentCard(comment: Annotation, index: number, total: number, width: number = 70): string[] {
+  const statusIcon = comment.resolved ? chalk.green('\u2713') : chalk.yellow('\u25CB');
   const author = comment.author || 'Anonymous';
 
-  const content = [];
+  const content: string[] = [];
 
   // Author and status line
   content.push(chalk.blue(author) + ' ' + statusIcon);
@@ -155,56 +201,76 @@ export function formatCommentCard(comment, index, total, width = 70) {
 
 /**
  * Draw the action menu
- * @param {string[]} options - Array of [key, description] tuples
- * @returns {string}
  */
-export function actionMenu(options) {
+export function actionMenu(options: [string, string][]): string {
   return options
     .map(([key, desc]) => chalk.bold(`[${key}]`) + chalk.dim(desc))
     .join('  ');
 }
 
+// =============================================================================
+// Interactive TUI Review
+// =============================================================================
+
 /**
- * Word wrap text to fit within width
- * @param {string} text
- * @param {number} width
- * @returns {string[]}
+ * Prompt for a single keypress
  */
-function wordWrap(text, width) {
-  const words = text.split(/\s+/);
-  const lines = [];
-  let currentLine = '';
+function promptKey(validKeys: string[]): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
 
-  for (const word of words) {
-    if (currentLine.length + word.length + 1 <= width) {
-      currentLine += (currentLine ? ' ' : '') + word;
-    } else {
-      if (currentLine) lines.push(currentLine);
-      currentLine = word;
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
     }
-  }
+    process.stdin.resume();
 
-  if (currentLine) lines.push(currentLine);
-  return lines;
+    process.stdin.once('data', (key: Buffer) => {
+      const char = key.toString();
+
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+      }
+      rl.close();
+
+      if (char === '\u0003') {
+        // Ctrl+C
+        clearScreen();
+        process.exit(0);
+      }
+
+      if (validKeys.includes(char.toLowerCase()) || validKeys.includes(char)) {
+        resolve(char);
+      } else {
+        resolve(promptKey(validKeys));
+      }
+    });
+  });
 }
 
 /**
- * Strip ANSI codes for length calculation
- * @param {string} str
- * @returns {string}
+ * Prompt for text input
  */
-function stripAnsi(str) {
-  return str.replace(/\x1b\[[0-9;]*m/g, '');
+function promptText(prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    rl.question(prompt, (answer: string) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
 }
 
 /**
  * Run TUI comment review session
- * @param {string} text
- * @param {object} options
- * @returns {Promise<{text: string, resolved: number, replied: number, skipped: number}>}
  */
-export async function tuiCommentReview(text, options = {}) {
-  const { getComments, setCommentStatus } = await import('./annotations.js');
+export async function tuiCommentReview(text: string, options: TuiReviewOptions = {}): Promise<TuiReviewResult> {
+  const { getComments } = await import('./annotations.js');
   const { createDocumentSession } = await import('./undo.js');
   const { author = 'Author', addReply, setStatus } = options;
 
@@ -216,16 +282,15 @@ export async function tuiCommentReview(text, options = {}) {
   }
 
   // Create session with undo support
-  const session = createDocumentSession(text);
+  const session: DocumentSession = createDocumentSession(text);
 
   let currentIndex = 0;
   let resolved = 0;
   let replied = 0;
   let skipped = 0;
-  let message = ''; // Status message to display
+  let message = '';
 
-  // Helper to render current state
-  const render = () => {
+  const render = (): void => {
     clearScreen();
 
     const { cols } = getTerminalSize();
@@ -257,7 +322,7 @@ export async function tuiCommentReview(text, options = {}) {
     }
 
     // Action menu with undo
-    const menuItems = [
+    const menuItems: [string, string][] = [
       ['r', 'eply'],
       ['m', 'ark resolved'],
       ['s', 'kip'],
@@ -272,58 +337,7 @@ export async function tuiCommentReview(text, options = {}) {
     menuItems.push(['A', 'll resolve'], ['q', 'uit']);
 
     console.log('  ' + actionMenu(menuItems));
-
     console.log();
-  };
-
-  // Prompt for keypress
-  const promptKey = (validKeys) => {
-    return new Promise((resolve) => {
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(true);
-      }
-      process.stdin.resume();
-
-      process.stdin.once('data', (key) => {
-        const char = key.toString();
-
-        if (process.stdin.isTTY) {
-          process.stdin.setRawMode(false);
-        }
-        rl.close();
-
-        if (char === '\u0003') {
-          // Ctrl+C
-          clearScreen();
-          process.exit(0);
-        }
-
-        if (validKeys.includes(char.toLowerCase()) || validKeys.includes(char)) {
-          resolve(char);
-        } else {
-          resolve(promptKey(validKeys));
-        }
-      });
-    });
-  };
-
-  // Prompt for text input
-  const promptText = (prompt) => {
-    return new Promise((resolve) => {
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-      rl.question(prompt, (answer) => {
-        rl.close();
-        resolve(answer);
-      });
-    });
   };
 
   // Main loop
@@ -344,12 +358,10 @@ export async function tuiCommentReview(text, options = {}) {
         return { text: session.getText(), resolved, replied, skipped: comments.length - currentIndex };
 
       case 'u':
-        // Undo last change
         if (session.canUndo()) {
           const undone = session.undo();
           if (undone) {
             message = chalk.yellow(`Undone: ${undone.description}`);
-            // Adjust counters (approximate)
             if (undone.description.includes('Resolved')) resolved = Math.max(0, resolved - 1);
             if (undone.description.includes('Reply')) replied = Math.max(0, replied - 1);
             if (currentIndex > 0) currentIndex--;
@@ -357,8 +369,7 @@ export async function tuiCommentReview(text, options = {}) {
         }
         break;
 
-      case 'A':
-        // Resolve all remaining
+      case 'A': {
         let newText = session.getText();
         for (let j = currentIndex; j < comments.length; j++) {
           if (setStatus) {
@@ -369,6 +380,7 @@ export async function tuiCommentReview(text, options = {}) {
         resolved += comments.length - currentIndex;
         currentIndex = comments.length;
         break;
+      }
 
       case 'm':
         if (setStatus) {
@@ -379,7 +391,7 @@ export async function tuiCommentReview(text, options = {}) {
         currentIndex++;
         break;
 
-      case 'r':
+      case 'r': {
         console.log();
         const replyText = await promptText(chalk.cyan('  Reply: '));
         if (replyText.trim() && addReply) {
@@ -389,6 +401,7 @@ export async function tuiCommentReview(text, options = {}) {
         }
         currentIndex++;
         break;
+      }
 
       case 's':
         skipped++;

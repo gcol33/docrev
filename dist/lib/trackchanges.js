@@ -7,17 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import AdmZip from 'adm-zip';
-/**
- * Escape XML special characters
- */
-function escapeXml(str) {
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-}
+import { escapeXml } from './utils.js';
 /**
  * Prepare text with CriticMarkup annotations for track changes
  * Replaces annotations with markers that can be processed in DOCX

@@ -171,5 +171,4 @@ export {
   getPluginDirs,
 } from '../plugins.js';
 
-// TUI module not yet migrated to TypeScript
-// export { tuiCommentReview } from '../tui.js';
+export { tuiCommentReview } from '../tui.js';

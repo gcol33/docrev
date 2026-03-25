@@ -16,7 +16,7 @@ interface HistoryEntry {
   index: number;
 }
 
-interface StackInfo {
+export interface StackInfo {
   position: number;
   size: number;
   undoSteps: number;
@@ -32,16 +32,15 @@ interface UndoStack {
   canRedo(): boolean;
   info(): StackInfo;
   history(limit?: number): HistoryEntry[];
-  clear(): void;
   getStack(): StackEntry[];
 }
 
-interface DocumentChange {
+export interface DocumentChange {
   text: string;
   description: string;
 }
 
-interface DocumentSession {
+export interface DocumentSession {
   getText(): string;
   applyChange(newText: string, description: string): void;
   undo(): DocumentChange | null;
@@ -156,14 +155,6 @@ export function createUndoStack(maxSize: number = 50): UndoStack {
         current: start + i === position,
         index: start + i,
       }));
-    },
-
-    /**
-     * Clear the stack
-     */
-    clear(): void {
-      stack.length = 0;
-      position = -1;
     },
 
     /**

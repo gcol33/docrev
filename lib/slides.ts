@@ -91,16 +91,6 @@ const BEAMER_BACKGROUNDS: Record<string, string> = {
 };
 
 /**
- * Special slide types mapped to Beamer frame options
- */
-const BEAMER_FRAME_OPTIONS: Record<string, string> = {
-  cover: 'plain,noframenumbering,c',
-  thanks: 'plain,noframenumbering,c',
-  section: 'plain,noframenumbering,c',
-  plain: 'plain',
-};
-
-/**
  * Parse a bullet list into a tree structure
  */
 function parseBulletList(content: string): BulletItem[] {
@@ -471,33 +461,6 @@ export function parseSlides(markdown: string): Slide[] {
   }
 
   return slides;
-}
-
-/**
- * Build Beamer frame options string
- */
-function buildBeamerFrameOptions(style: SlideStyle | null): string {
-  if (!style) return '';
-
-  const options: string[] = [];
-
-  // Special slide type options
-  if (style.type && BEAMER_FRAME_OPTIONS[style.type]) {
-    const opts = BEAMER_FRAME_OPTIONS[style.type];
-    if (opts) options.push(...opts.split(','));
-  } else {
-    // Individual options
-    if (style.nonumber) {
-      options.push('noframenumbering');
-    }
-    if (style.center) {
-      options.push('c');
-    }
-  }
-
-  // Deduplicate
-  const unique = [...new Set(options)];
-  return unique.length > 0 ? `[${unique.join(',')}]` : '';
 }
 
 /**

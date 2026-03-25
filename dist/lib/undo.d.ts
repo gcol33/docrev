@@ -13,7 +13,7 @@ interface HistoryEntry {
     current: boolean;
     index: number;
 }
-interface StackInfo {
+export interface StackInfo {
     position: number;
     size: number;
     undoSteps: number;
@@ -28,14 +28,13 @@ interface UndoStack {
     canRedo(): boolean;
     info(): StackInfo;
     history(limit?: number): HistoryEntry[];
-    clear(): void;
     getStack(): StackEntry[];
 }
-interface DocumentChange {
+export interface DocumentChange {
     text: string;
     description: string;
 }
-interface DocumentSession {
+export interface DocumentSession {
     getText(): string;
     applyChange(newText: string, description: string): void;
     undo(): DocumentChange | null;

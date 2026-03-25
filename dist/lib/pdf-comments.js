@@ -3,6 +3,7 @@
  *
  * Converts CriticMarkup comments to LaTeX margin notes for PDF output
  */
+import { escapeLatex } from './utils.js';
 /**
  * LaTeX preamble for margin comments
  * Uses todonotes package with custom styling
@@ -85,19 +86,6 @@ export function convertCommentsToMarginNotes(markdown, options = {}) {
         commentCount,
         preamble,
     };
-}
-/**
- * Escape LaTeX special characters
- * @param text - Text to escape
- * @returns Escaped text
- */
-function escapeLatex(text) {
-    return text
-        .replace(/\\/g, '\\textbackslash{}')
-        .replace(/([#$%&_{}])/g, '\\$1')
-        .replace(/\^/g, '\\textasciicircum{}')
-        .replace(/~/g, '\\textasciitilde{}')
-        .replace(/\n/g, ' '); // Replace newlines with spaces
 }
 /**
  * Convert track changes to visible LaTeX formatting

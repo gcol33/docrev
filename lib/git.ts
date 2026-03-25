@@ -103,14 +103,18 @@ export function getChangedFiles(fromRef: string, toRef: string = 'HEAD'): Change
 }
 
 /**
- * Get commit history for a file
- * @param filePath - Path to file
- * @param limit - Maximum number of commits to return
+ * Run git log with a given format and optional file path, parse pipe-delimited output
  */
-export function getFileHistory(filePath: string, limit: number = 10): CommitInfo[] {
+function runGitLog(
+  format: string,
+  limit: number,
+  fields: (keyof CommitInfo)[],
+  filePath?: string,
+): CommitInfo[] {
   try {
+    const fileArg = filePath ? ` -- "${filePath}"` : '';
     const output = execSync(
-      `git log --format="%h|%ci|%s" -n ${limit} -- "${filePath}"`,
+      `git log --format="${format}" -n ${limit}${fileArg}`,
       { stdio: 'pipe' }
     ).toString().trim();
 
@@ -118,16 +122,24 @@ export function getFileHistory(filePath: string, limit: number = 10): CommitInfo
 
     return output.split('\n').map(line => {
       const parts = line.split('|');
-      return {
-        hash: parts[0] ?? '',
-        date: parts[1] ?? '',
-        message: parts[2] ?? '',
-        author: ''
-      };
+      const entry: CommitInfo = { hash: '', date: '', author: '', message: '' };
+      for (let i = 0; i < fields.length; i++) {
+        entry[fields[i]] = parts[i] ?? '';
+      }
+      return entry;
     });
   } catch {
     return [];
   }
+}
+
+/**
+ * Get commit history for a file
+ * @param filePath - Path to file
+ * @param limit - Maximum number of commits to return
+ */
+export function getFileHistory(filePath: string, limit: number = 10): CommitInfo[] {
+  return runGitLog('%h|%ci|%s', limit, ['hash', 'date', 'message'], filePath);
 }
 
 /**
@@ -194,26 +206,7 @@ export function getWordCountDiff(
  * @param limit - Maximum number of commits to return
  */
 export function getRecentCommits(limit: number = 10): CommitInfo[] {
-  try {
-    const output = execSync(
-      `git log --format="%h|%ci|%an|%s" -n ${limit}`,
-      { stdio: 'pipe' }
-    ).toString().trim();
-
-    if (!output) return [];
-
-    return output.split('\n').map(line => {
-      const parts = line.split('|');
-      return {
-        hash: parts[0] ?? '',
-        date: parts[1] ?? '',
-        author: parts[2] ?? '',
-        message: parts[3] ?? ''
-      };
-    });
-  } catch {
-    return [];
-  }
+  return runGitLog('%h|%ci|%an|%s', limit, ['hash', 'date', 'author', 'message']);
 }
 
 /**
