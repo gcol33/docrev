@@ -5,6 +5,26 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7] - 2026-04-29
+
+### Added
+- `rev sync --comments-only` — import only Word comments at fuzzy-matched anchors, leaving prose byte-identical. Use when the markdown was revised between sending the docx out for review and receiving it back; applying track changes from a stale draft would clobber newer edits.
+- `rev verify-anchors <docx>` — drift report classifying every comment as `clean` / `drift` / `context-only` / `ambiguous` / `unmatched` against the current section markdown. Pair with `--comments-only` to plan placement before sync. Supports `--json` for scripting.
+- `extractHeadings()` in `word-extraction.ts` — read heading paragraphs directly from `<w:pStyle>` styles, returning text + level + position in the same coordinate system as comment anchors.
+- Shared `lib/commands/section-boundaries.ts` — single source of truth that maps `sections.yaml` to docx text positions, used by both sync and verify-anchors.
+- Shared `lib/anchor-match.ts` — pure anchor-matching primitives (`findAnchorInText`, `stripCriticMarkup`, `classifyStrategy`) so sync (insertion) and verify-anchors (drift reporting) use the same fallback strategies.
+- New tests: `test/anchor-match.test.js` (11 cases covering each fallback strategy and the quality classifier).
+
+### Fixed
+- **Section detection mistook prose for headings.** The old keyword finder scanned the concatenated body text and would match "results across countries" as the Results heading or skip the real Methods heading because the structured-abstract label `Methods:` lost its colon during text-run concatenation. Replaced with paragraph-style-based heading extraction, so boundaries now reflect actual heading paragraphs. Affects the new commands; the existing sync flow already used pandoc-derived headings and was unaffected.
+- `stripCriticMarkup` regex used `[^<]*` and silently failed on comments containing `<` characters (e.g. `pre-industrial trade (<1825)`). Switched to non-greedy `[\s\S]*?`.
+- `insertCommentsIntoMarkdown` always prepended a leading space when there was no anchor, accumulating multiple spaces when several comments shared a position 0 anchor. Removed the heuristic; comments insert at exact position so prose stays byte-identical except for the inserted blocks.
+- `verify-anchors` crashed with a stack trace when given a non-docx file (e.g. an `.md` path). Now reports a friendly error.
+
+### Changed
+- New flag is `--comments-only` (positive form). The originally proposed `--no-overwrite` was dropped because Commander assigns `--no-X` to `options.x === false` rather than `options.noX === true`, which made the flag silently ignored.
+- `insertCommentsIntoMarkdown` now accepts `wrapAnchor?: boolean` (default `true`). When `false`, comment blocks are inserted next to the anchor without `[anchor]{.mark}` wrapping. `--comments-only` uses this so multiple comments sharing an anchor (e.g. 6 reviewers commenting on the same word) no longer produce nested broken CriticMarkup.
+
 ## [0.7.1] - 2025-01-02
 
 ### Added

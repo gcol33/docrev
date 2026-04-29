@@ -36,12 +36,14 @@ import {
   parseVisibleComments,
   convertVisibleComments,
 } from './restore-references.js';
+import { findAnchorInText } from './anchor-match.js';
 
 // Re-export everything so existing imports from './import.js' still work
 export {
   extractFromWord,
   extractWordComments,
   extractCommentAnchors,
+  extractHeadings,
   extractWordTables,
 } from './word-extraction.js';
 export type {
@@ -49,6 +51,7 @@ export type {
   TextNode,
   CommentAnchorData,
   CommentAnchorsResult,
+  DocxHeading,
   WordTable,
   ParsedRow,
   ExtractFromWordOptions,
@@ -86,6 +89,17 @@ const execAsync = promisify(exec);
 export interface InsertCommentsOptions {
   quiet?: boolean;
   sectionBoundary?: { start: number; end: number } | null;
+  /**
+   * When true (default), comments wrap their anchor text in `[anchor]{.mark}`
+   * so the rebuilt docx restores the original Word comment range. When false,
+   * comments are inserted as standalone `{>>...<<}` blocks adjacent to the
+   * anchor — the prose stays byte-identical except for the inserted blocks.
+   *
+   * Set to false from `sync --comments-only` so a draft revised after the
+   * docx was sent for review keeps its prose intact, and so multiple
+   * comments sharing one anchor don't produce nested broken markup.
+   */
+  wrapAnchor?: boolean;
 }
 
 export interface CommentWithPos {
@@ -100,12 +114,7 @@ export interface CommentWithPos {
   strategy?: string;
 }
 
-export interface AnchorSearchResult {
-  occurrences: number[];
-  matchedAnchor: string | null;
-  strategy: string;
-  stripped?: boolean;
-}
+export type { AnchorSearchResult } from './anchor-match.js';
 
 export interface MarkdownPrefixResult {
   prefix: string;
@@ -175,165 +184,14 @@ export function insertCommentsIntoMarkdown(
   anchors: Map<string, CommentAnchorData | string>,
   options: InsertCommentsOptions = {}
 ): string {
-  const { quiet = false, sectionBoundary = null } = options;
+  const { quiet = false, sectionBoundary = null, wrapAnchor = true } = options;
   let result = markdown;
   let unmatchedCount = 0;
   const duplicateWarnings: string[] = [];
   const usedPositions = new Set<number>(); // For tie-breaking: track used positions
 
-  // Helper: Strip CriticMarkup from text to get "clean" version for matching
-  function stripCriticMarkup(text: string): string {
-    return text
-      .replace(/\{\+\+([^+]*)\+\+\}/g, '$1')  // insertions: keep inserted text
-      .replace(/\{--([^-]*)--\}/g, '')         // deletions: remove deleted text
-      .replace(/\{~~([^~]*)~>([^~]*)~~\}/g, '$2')  // substitutions: keep new text
-      .replace(/\{>>[^<]*<<\}/g, '')           // comments: remove
-      .replace(/\[([^\]]*)\]\{\.mark\}/g, '$1'); // marked text: keep text
-  }
-
-  // Helper: Find anchor in text with multiple fallback strategies
-  function findAnchorInText(anchor: string, text: string, before: string = '', after: string = ''): AnchorSearchResult {
-    // If anchor is empty, skip directly to context-based matching
-    if (!anchor || anchor.trim().length === 0) {
-      // Jump to context-based strategies (Strategy 5)
-      if (before || after) {
-        const beforeLower = (before || '').toLowerCase();
-        const afterLower = (after || '').toLowerCase();
-        const textLower = text.toLowerCase();
-
-        if (before && after) {
-          const beforeIdx = textLower.indexOf(beforeLower.slice(-50));
-          if (beforeIdx !== -1) {
-            const searchStart = beforeIdx + beforeLower.slice(-50).length;
-            const afterIdx = textLower.indexOf(afterLower.slice(0, 50), searchStart);
-            if (afterIdx !== -1 && afterIdx - searchStart < 500) {
-              return { occurrences: [searchStart], matchedAnchor: null, strategy: 'context-both' };
-            }
-          }
-        }
-
-        if (before) {
-          const beforeIdx = textLower.lastIndexOf(beforeLower.slice(-30));
-          if (beforeIdx !== -1) {
-            return { occurrences: [beforeIdx + beforeLower.slice(-30).length], matchedAnchor: null, strategy: 'context-before' };
-          }
-        }
-
-        if (after) {
-          const afterIdx = textLower.indexOf(afterLower.slice(0, 30));
-          if (afterIdx !== -1) {
-            return { occurrences: [afterIdx], matchedAnchor: null, strategy: 'context-after' };
-          }
-        }
-      }
-      return { occurrences: [], matchedAnchor: null, strategy: 'empty-anchor' };
-    }
-
-    const anchorLower = anchor.toLowerCase();
-    const textLower = text.toLowerCase();
-
-    // Strategy 1: Direct match
-    let occurrences = findAllOccurrences(textLower, anchorLower);
-    if (occurrences.length > 0) {
-      return { occurrences, matchedAnchor: anchor, strategy: 'direct' };
-    }
-
-    // Strategy 2: Normalized whitespace
-    const normalizedAnchor = anchor.replace(/\s+/g, ' ').toLowerCase();
-    const normalizedText = text.replace(/\s+/g, ' ').toLowerCase();
-    let idx = normalizedText.indexOf(normalizedAnchor);
-    if (idx !== -1) {
-      return { occurrences: [idx], matchedAnchor: anchor, strategy: 'normalized' };
-    }
-
-    // Strategy 3: Try matching in stripped CriticMarkup version
-    const strippedText = stripCriticMarkup(text);
-    const strippedLower = strippedText.toLowerCase();
-    occurrences = findAllOccurrences(strippedLower, anchorLower);
-    if (occurrences.length > 0) {
-      return { occurrences, matchedAnchor: anchor, strategy: 'stripped', stripped: true };
-    }
-
-    // Strategy 4: First N words of anchor (for long anchors)
-    const words = anchor.split(/\s+/);
-    if (words.length > 3) {
-      for (let n = Math.min(6, words.length); n >= 3; n--) {
-        const partialAnchor = words.slice(0, n).join(' ').toLowerCase();
-        if (partialAnchor.length >= 15) {
-          occurrences = findAllOccurrences(textLower, partialAnchor);
-          if (occurrences.length > 0) {
-            return { occurrences, matchedAnchor: words.slice(0, n).join(' '), strategy: 'partial-start' };
-          }
-          occurrences = findAllOccurrences(strippedLower, partialAnchor);
-          if (occurrences.length > 0) {
-            return { occurrences, matchedAnchor: words.slice(0, n).join(' '), strategy: 'partial-start-stripped', stripped: true };
-          }
-        }
-      }
-    }
-
-    // Strategy 5: Use context (before/after) to find approximate position
-    if (before || after) {
-      const beforeLower = before.toLowerCase();
-      const afterLower = after.toLowerCase();
-
-      if (before && after) {
-        const beforeIdx = textLower.indexOf(beforeLower.slice(-50));
-        if (beforeIdx !== -1) {
-          const searchStart = beforeIdx + beforeLower.slice(-50).length;
-          const afterIdx = textLower.indexOf(afterLower.slice(0, 50), searchStart);
-          if (afterIdx !== -1 && afterIdx - searchStart < 500) {
-            return { occurrences: [searchStart], matchedAnchor: null, strategy: 'context-both' };
-          }
-        }
-      }
-
-      if (before) {
-        const beforeIdx = textLower.lastIndexOf(beforeLower.slice(-30));
-        if (beforeIdx !== -1) {
-          return { occurrences: [beforeIdx + beforeLower.slice(-30).length], matchedAnchor: null, strategy: 'context-before' };
-        }
-      }
-
-      if (after) {
-        const afterIdx = textLower.indexOf(afterLower.slice(0, 30));
-        if (afterIdx !== -1) {
-          return { occurrences: [afterIdx], matchedAnchor: null, strategy: 'context-after' };
-        }
-      }
-    }
-
-    // Strategy 6: Try splitting anchor on common transition words
-    const splitPatterns = [' ', ', ', '. ', ' - ', ' – '];
-    for (const sep of splitPatterns) {
-      if (anchor.includes(sep)) {
-        const parts = anchor.split(sep).filter(p => p.length >= 4);
-        for (const part of parts) {
-          const partLower = part.toLowerCase();
-          occurrences = findAllOccurrences(textLower, partLower);
-          if (occurrences.length > 0 && occurrences.length < 5) {
-            return { occurrences, matchedAnchor: part, strategy: 'split-match' };
-          }
-        }
-      }
-    }
-
-    return { occurrences: [], matchedAnchor: null, strategy: 'failed' };
-  }
-
-  // Helper: Find all occurrences of needle in haystack
-  function findAllOccurrences(haystack: string, needle: string): number[] {
-    if (!needle || needle.length === 0) {
-      return [];
-    }
-    const occurrences: number[] = [];
-    let idx = 0;
-    while ((idx = haystack.indexOf(needle, idx)) !== -1) {
-      occurrences.push(idx);
-      idx += 1;
-    }
-    return occurrences;
-  }
+  // Anchor matching primitives live in lib/anchor-match.ts so that
+  // `rev verify-anchors` can use the same strategies for drift reporting.
 
   // Get all positions in order (for sequential tie-breaking)
   const commentsWithPositions = comments.map((c): CommentWithPos => {
@@ -489,18 +347,24 @@ export function insertCommentsIntoMarkdown(
   // Sort by position descending (insert from end to avoid offset issues)
   matched.sort((a, b) => b.pos - a.pos);
 
-  // Insert each comment with anchor marking
+  // Insert each comment. With `wrapAnchor` (the default), the anchor text
+  // gets wrapped in `[anchor]{.mark}` so the rebuilt docx restores the
+  // original Word comment range. Without it, the comment block is inserted
+  // adjacent to the anchor and prose stays untouched — required for
+  // comments-only sync where multiple comments may share one anchor.
   for (const c of matched) {
     const comment = `{>>${c.author}: ${c.text}<<}`;
-    if (c.anchorText && c.anchorEnd) {
-      // Replace anchor text with: {>>comment<<}[anchor]{.mark}
+    if (wrapAnchor && c.anchorText && c.anchorEnd) {
       const before = result.slice(0, c.pos);
       const anchor = result.slice(c.pos, c.anchorEnd);
       const after = result.slice(c.anchorEnd);
       result = before + comment + `[${anchor}]{.mark}` + after;
     } else {
-      // No anchor - just insert comment at position
-      result = result.slice(0, c.pos) + ` ${comment}` + result.slice(c.pos);
+      // Insert comment at the anchor position with no surrounding whitespace
+      // tweaks; CriticMarkup blocks are invisible to readers, and adding a
+      // leading space would shift prose byte-for-byte (relevant when callers
+      // verify that --comments-only didn't touch the original).
+      result = result.slice(0, c.pos) + comment + result.slice(c.pos);
     }
   }
 

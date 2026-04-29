@@ -44,9 +44,17 @@ Send to reviewers. They add comments and track changes in Word.
 ### 3. Import feedback
 
 ```bash
-rev sync reviewed.docx       # Updates markdown with annotations
-rev sync                     # Auto-detect most recent .docx
+rev sync reviewed.docx              # Updates markdown with annotations
+rev sync                            # Auto-detect most recent .docx
+rev sync reviewed.docx --comments-only  # Insert comments only; never modify prose
+rev verify-anchors reviewed.docx    # Report which anchors still match current prose
 ```
+
+Use `--comments-only` when the markdown has been revised between sending the
+docx out and receiving it back. Without the flag, track changes from a stale
+draft would clobber newer edits. With it, only comments are imported, placed
+at fuzzy-matched anchors against the current prose. Run `rev verify-anchors`
+first to see which comments will land cleanly and which need manual placement.
 
 ### 4. View and address comments
 
@@ -111,6 +119,8 @@ rev response                 # Generate point-by-point response letter
 | Create LaTeX project | `rev new my-project --template latex` |
 | Import Word doc | `rev import manuscript.docx` |
 | Sync Word feedback | `rev sync reviewed.docx` |
+| Sync comments only (prose unchanged) | `rev sync reviewed.docx --comments-only` |
+| Verify anchors against current prose | `rev verify-anchors reviewed.docx` |
 | Sync PDF comments | `rev sync annotated.pdf` |
 | Extract PDF comments | `rev pdf-comments annotated.pdf` |
 | Extract with highlighted text | `rev pdf-comments file.pdf --with-text` |
