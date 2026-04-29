@@ -22,6 +22,16 @@ export declare function stripCriticMarkup(text: string): string;
  * Empty needles return no occurrences (empty matches are not useful
  * for anchor placement).
  */
+/**
+ * Score how well the docx-side `before` / `after` context matches the
+ * surroundings of a candidate position in the target text. Used by
+ * `verify-anchors` to tell apart "multiple hits but context picks one
+ * cleanly" (sync will place it correctly) from "multiple hits, context
+ * doesn't help" (truly ambiguous, needs human placement).
+ *
+ * Returns 0 if no context was provided.
+ */
+export declare function scoreContextAt(pos: number, text: string, before: string, after: string, anchorLen: number): number;
 export declare function findAllOccurrences(haystack: string, needle: string): number[];
 /**
  * Find candidate positions for `anchor` in `text`, falling back through

@@ -23,7 +23,7 @@ import {
   jsonOutput,
 } from './context.js';
 import type { Command } from 'commander';
-import { findAnchorInText, classifyStrategy, type AnchorMatchQuality } from '../anchor-match.js';
+import { findAnchorInText, classifyStrategy, scoreContextAt, type AnchorMatchQuality } from '../anchor-match.js';
 import type { CommentAnchorData } from '../word-extraction.js';
 import { computeSectionBoundaries } from './section-boundaries.js';
 
@@ -165,7 +165,16 @@ export function register(program: Command): void {
         const search = findAnchorInText(anchor.anchor, md, anchor.before, anchor.after);
         let quality: AnchorMatchQuality | 'ambiguous' = classifyStrategy(search.strategy, search.occurrences.length);
         if (quality === 'clean' && search.occurrences.length > 1) {
-          quality = 'ambiguous';
+          // Multiple direct hits — only flag as ambiguous when before/after
+          // context can't pick a clear winner. If one candidate scores
+          // strictly higher than the others, sync will place it correctly.
+          const anchorLen = anchor.anchor.length;
+          const scores = search.occurrences.map(p => scoreContextAt(p, md, anchor.before, anchor.after, anchorLen));
+          const max = Math.max(...scores);
+          const winners = scores.filter(s => s === max).length;
+          if (max === 0 || winners > 1) {
+            quality = 'ambiguous';
+          }
         }
 
         reports.push({
@@ -239,7 +248,7 @@ function printReport(docxPath: string, reports: CommentReport[]): void {
   if (totals.unmatched > 0 || totals.ambiguous > 0) {
     console.log();
     console.log(chalk.dim('Comments flagged "unmatched" or "ambiguous" need manual placement.'));
-    console.log(chalk.dim('Run "rev sync --no-overwrite" to import the matched ones without touching prose.'));
+    console.log(chalk.dim('Run "rev sync --comments-only" to import the matched ones without touching prose.'));
   }
 }
 

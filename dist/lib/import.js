@@ -13,7 +13,58 @@ import { promisify } from 'util';
 import { extractFromWord, } from './word-extraction.js';
 import { generateSmartDiff, cleanupAnnotations, fixCitationAnnotations, } from './diff-engine.js';
 import { restoreCrossrefFromWord, restoreImagesFromRegistry, convertVisibleComments, } from './restore-references.js';
-import { findAnchorInText } from './anchor-match.js';
+import { findAnchorInText, findAllOccurrences } from './anchor-match.js';
+/**
+ * Pick the best position from candidate `occurrences` given the
+ * surrounding `before` / `after` context from the docx, while
+ * respecting `usedPositions` to avoid stacking distinct comments at
+ * the same anchor instance.
+ *
+ * Returns the chosen position, or -1 if every candidate is already used.
+ */
+function pickBestOccurrence(occurrences, result, before, after, anchorLen, usedPositions) {
+    if (occurrences.length === 0)
+        return -1;
+    if (occurrences.length === 1) {
+        return usedPositions.has(occurrences[0]) ? -1 : occurrences[0];
+    }
+    let bestIdx = occurrences.find(p => !usedPositions.has(p)) ?? -1;
+    if (bestIdx < 0)
+        return -1;
+    let bestScore = -1;
+    for (const pos of occurrences) {
+        if (usedPositions.has(pos))
+            continue;
+        let score = 0;
+        if (before) {
+            const contextBefore = result.slice(Math.max(0, pos - before.length - 20), pos).toLowerCase();
+            const beforeLower = before.toLowerCase();
+            const beforeWords = beforeLower.split(/\s+/).filter(w => w.length > 3);
+            for (const word of beforeWords) {
+                if (contextBefore.includes(word))
+                    score += 2;
+            }
+            if (contextBefore.includes(beforeLower.slice(-30)))
+                score += 5;
+        }
+        if (after) {
+            const contextAfter = result.slice(pos + anchorLen, pos + anchorLen + after.length + 20).toLowerCase();
+            const afterLower = after.toLowerCase();
+            const afterWords = afterLower.split(/\s+/).filter(w => w.length > 3);
+            for (const word of afterWords) {
+                if (contextAfter.includes(word))
+                    score += 2;
+            }
+            if (contextAfter.includes(afterLower.slice(0, 30)))
+                score += 5;
+        }
+        if (score > bestScore || (score === bestScore && pos < bestIdx)) {
+            bestScore = score;
+            bestIdx = pos;
+        }
+    }
+    return bestIdx;
+}
 // Re-export everything so existing imports from './import.js' still work
 export { extractFromWord, extractWordComments, extractCommentAnchors, extractHeadings, extractWordTables, } from './word-extraction.js';
 export { generateSmartDiff, generateAnnotatedDiff, cleanupAnnotations, fixCitationAnnotations, } from './diff-engine.js';
@@ -108,43 +159,39 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
                     insertPos = Math.max(0, markdownPos - 25) + spaceIdx;
                 }
                 // If we have anchor text, try to find it near this position.
-                // When the anchor appears multiple times in the search window
-                // (repeated phrasing, formulaic prose), pick the occurrence
-                // CLOSEST to `insertPos` rather than the first one — the docx
-                // position is the only signal we have for which copy was meant.
+                // Collect ALL occurrences in the local window, then disambiguate
+                // via before/after context + usedPositions — otherwise two
+                // comments sharing the same anchor word would both collide at
+                // the leftmost match. The context-scoring helper handles the
+                // "repeated formulaic prose" case using docx-side context, which
+                // is a stronger signal than raw distance to the proportional
+                // insertPos (insertPos is itself an approximation).
                 if (anchor && !isEmpty) {
                     const searchStart = Math.max(0, insertPos - 200);
                     const searchEnd = Math.min(result.length, insertPos + 200);
                     const localSearch = result.slice(searchStart, searchEnd).toLowerCase();
                     const anchorLower = anchor.toLowerCase();
-                    const pickClosest = (needle) => {
-                        let bestAbs = -1;
-                        let bestDist = Infinity;
-                        let from = 0;
-                        while (true) {
-                            const i = localSearch.indexOf(needle, from);
-                            if (i === -1)
-                                break;
-                            const abs = searchStart + i;
-                            const dist = Math.abs(abs - insertPos);
-                            if (dist < bestDist) {
-                                bestDist = dist;
-                                bestAbs = abs;
+                    const localHits = findAllOccurrences(localSearch, anchorLower).map(i => searchStart + i);
+                    if (localHits.length > 0) {
+                        const chosen = pickBestOccurrence(localHits, result, before, after, anchor.length, usedPositions);
+                        if (chosen >= 0) {
+                            if (localHits.length > 1) {
+                                duplicateWarnings.push(`"${anchor.slice(0, 40)}${anchor.length > 40 ? '...' : ''}" appears ${localHits.length} times in section window`);
                             }
-                            from = i + 1;
+                            usedPositions.add(chosen);
+                            return { ...c, pos: chosen, anchorText: anchor, anchorEnd: chosen + anchor.length, strategy: 'position+text' };
                         }
-                        return bestAbs;
-                    };
-                    const localAbs = pickClosest(anchorLower);
-                    if (localAbs !== -1) {
-                        return { ...c, pos: localAbs, anchorText: anchor, anchorEnd: localAbs + anchor.length, strategy: 'position+text' };
                     }
                     // Try first few words
                     const words = anchor.split(/\s+/).slice(0, 4).join(' ').toLowerCase();
                     if (words.length >= 10) {
-                        const partialAbs = pickClosest(words);
-                        if (partialAbs !== -1) {
-                            return { ...c, pos: partialAbs, anchorText: words, anchorEnd: partialAbs + words.length, strategy: 'position+partial' };
+                        const partialHits = findAllOccurrences(localSearch, words).map(i => searchStart + i);
+                        if (partialHits.length > 0) {
+                            const chosen = pickBestOccurrence(partialHits, result, before, after, words.length, usedPositions);
+                            if (chosen >= 0) {
+                                usedPositions.add(chosen);
+                                return { ...c, pos: chosen, anchorText: words, anchorEnd: chosen + words.length, strategy: 'position+partial' };
+                            }
                         }
                     }
                 }
@@ -186,45 +233,14 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
         if (matchedAnchor) {
             duplicateWarnings.push(`"${matchedAnchor.slice(0, 40)}${matchedAnchor.length > 40 ? '...' : ''}" appears ${occurrences.length} times`);
         }
-        let bestIdx = occurrences.find(p => !usedPositions.has(p)) ?? occurrences[0];
-        let bestScore = -1;
-        for (const pos of occurrences) {
-            if (usedPositions.has(pos))
-                continue;
-            let score = 0;
-            if (before) {
-                const contextBefore = result.slice(Math.max(0, pos - before.length - 20), pos).toLowerCase();
-                const beforeLower = before.toLowerCase();
-                const beforeWords = beforeLower.split(/\s+/).filter(w => w.length > 3);
-                for (const word of beforeWords) {
-                    if (contextBefore.includes(word))
-                        score += 2;
-                }
-                if (contextBefore.includes(beforeLower.slice(-30)))
-                    score += 5;
-            }
-            if (after) {
-                const contextAfter = result.slice(pos + anchorLen, pos + anchorLen + after.length + 20).toLowerCase();
-                const afterLower = after.toLowerCase();
-                const afterWords = afterLower.split(/\s+/).filter(w => w.length > 3);
-                for (const word of afterWords) {
-                    if (contextAfter.includes(word))
-                        score += 2;
-                }
-                if (contextAfter.includes(afterLower.slice(0, 30)))
-                    score += 5;
-            }
-            if (score > bestScore || (score === bestScore && pos < bestIdx)) {
-                bestScore = score;
-                bestIdx = pos;
-            }
-        }
-        usedPositions.add(bestIdx);
+        const bestIdx = pickBestOccurrence(occurrences, result, before, after, anchorLen, usedPositions);
+        const finalIdx = bestIdx >= 0 ? bestIdx : occurrences[0];
+        usedPositions.add(finalIdx);
         if (matchedAnchor) {
-            return { ...c, pos: bestIdx, anchorText: matchedAnchor, anchorEnd: bestIdx + anchorLen };
+            return { ...c, pos: finalIdx, anchorText: matchedAnchor, anchorEnd: finalIdx + anchorLen };
         }
         else {
-            return { ...c, pos: bestIdx, anchorText: null };
+            return { ...c, pos: finalIdx, anchorText: null };
         }
     });
     // Log any unmatched comments for debugging

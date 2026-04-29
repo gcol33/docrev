@@ -22,6 +22,41 @@ export function stripCriticMarkup(text) {
  * Empty needles return no occurrences (empty matches are not useful
  * for anchor placement).
  */
+/**
+ * Score how well the docx-side `before` / `after` context matches the
+ * surroundings of a candidate position in the target text. Used by
+ * `verify-anchors` to tell apart "multiple hits but context picks one
+ * cleanly" (sync will place it correctly) from "multiple hits, context
+ * doesn't help" (truly ambiguous, needs human placement).
+ *
+ * Returns 0 if no context was provided.
+ */
+export function scoreContextAt(pos, text, before, after, anchorLen) {
+    let score = 0;
+    if (before) {
+        const contextBefore = text.slice(Math.max(0, pos - before.length - 20), pos).toLowerCase();
+        const beforeLower = before.toLowerCase();
+        const beforeWords = beforeLower.split(/\s+/).filter(w => w.length > 3);
+        for (const word of beforeWords) {
+            if (contextBefore.includes(word))
+                score += 2;
+        }
+        if (contextBefore.includes(beforeLower.slice(-30)))
+            score += 5;
+    }
+    if (after) {
+        const contextAfter = text.slice(pos + anchorLen, pos + anchorLen + after.length + 20).toLowerCase();
+        const afterLower = after.toLowerCase();
+        const afterWords = afterLower.split(/\s+/).filter(w => w.length > 3);
+        for (const word of afterWords) {
+            if (contextAfter.includes(word))
+                score += 2;
+        }
+        if (contextAfter.includes(afterLower.slice(0, 30)))
+            score += 5;
+    }
+    return score;
+}
 export function findAllOccurrences(haystack, needle) {
     if (!needle || needle.length === 0)
         return [];
