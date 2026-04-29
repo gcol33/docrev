@@ -77,16 +77,19 @@ function isCommentFalsePositive(commentContent, fullText, position) {
     // Contains markdown figure reference syntax
     if (/\{#fig:|!\[/.test(commentContent))
         return true;
-    // Contains URL patterns (likely a link, not a comment)
-    if (/https?:\/\/|www\./i.test(commentContent) && commentContent.length < 150)
+    // Real comments typically have "Author:" at start. Accept hyphens, apostrophes,
+    // periods, and Unicode letters so names like "Jens-Christian Svenning" or
+    // "Camilla T Colding-Jørgensen" don't get rejected. See gcol33/docrev#1.
+    const hasAuthorPrefix = /^[\p{L}][\p{L}\s\-'.]{0,30}:\s/u.test(commentContent.trim());
+    const hasResolvedMark = /^[✓✔]\s/.test(commentContent.trim());
+    // Contains URL patterns (likely a link, not a comment) — only filter when
+    // there is no real author prefix, since reviewers legitimately cite URLs/DOIs.
+    if (!hasAuthorPrefix && /https?:\/\/|www\./i.test(commentContent) && commentContent.length < 150)
         return true;
     // Looks like code (contains programming patterns)
     if (/function\s*\(|=>|import\s+|export\s+|const\s+|let\s+|var\s+/.test(commentContent))
         return true;
     // Very long without clear author pattern (likely caption, not comment)
-    // Real comments typically have "Author:" at start and are shorter
-    const hasAuthorPrefix = /^[A-Za-z][A-Za-z\s]{0,20}:\s/.test(commentContent.trim());
-    const hasResolvedMark = /^[✓✔]\s/.test(commentContent.trim());
     if (!hasAuthorPrefix && !hasResolvedMark && commentContent.length > MAX_COMMENT_CONTENT_LENGTH)
         return true;
     // Looks like a figure caption (starts with "Fig" or contains typical caption words)
