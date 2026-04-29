@@ -337,6 +337,40 @@ describe('getComments edge cases', () => {
     const comments = getComments(text);
     assert.strictEqual(comments.length, 3);
   });
+
+  // Regression: gcol33/docrev#1 — author-prefix regex previously rejected
+  // hyphens, apostrophes and accented letters, so long comments from authors
+  // like "Jens-Christian Svenning" were silently dropped as suspected captions.
+  it('should preserve long comments from hyphenated author names', () => {
+    const longContent = 'I\'m quite skeptical about these listings of all the bad things alien species do, with any kind of proper benchmarking - you could arguably make similar lists of all the annoying or dangerous things native species do, and that does not even start to address the many positive contributions of alien species';
+    const text = `Sentence{>>Jens-Christian Svenning: ${longContent}<<}.`;
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 1);
+    assert.strictEqual(comments[0].author, 'Jens-Christian Svenning');
+  });
+
+  it('should preserve comments from accented author names', () => {
+    const longContent = 'a'.repeat(250);
+    const text1 = `Sentence{>>Camilla T Colding-Jørgensen: ${longContent}<<}.`;
+    const text2 = `Sentence{>>Renata Ćušterevska: ${longContent}<<}.`;
+    assert.strictEqual(getComments(text1).length, 1);
+    assert.strictEqual(getComments(text2).length, 1);
+  });
+
+  // Regression: gcol33/docrev#1 — short comments containing URLs were dropped
+  // even when prefixed with a valid author. Reviewers legitimately cite DOIs.
+  it('should preserve short URL-citing comments with author prefix', () => {
+    const text = '{>>Jens-Christian Svenning: see https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/1365-2745.14307<<}';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 1);
+    assert.strictEqual(comments[0].author, 'Jens-Christian Svenning');
+  });
+
+  it('should still drop bare URLs without author prefix', () => {
+    const text = '{>>https://example.com/figure.png<<}';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 0);
+  });
 });
 
 describe('nested annotations', () => {
