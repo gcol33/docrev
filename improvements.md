@@ -21,3 +21,7 @@
 - [x] TUI mode for visual comment review (lib/tui.js, `rev comments -t`)
 - [x] In-session undo stack for comment operations (lib/undo.js, integrated in TUI mode)
 - [x] Batch operations for multiple documents (`rev batch` command)
+- [x] `rev sync --comments-only` — import only fuzzy-matched comments without modifying prose, for the "merge feedback into a moved-on draft" workflow (lib/commands/sync.ts)
+- [x] `rev verify-anchors reviewed.docx` — drift report between Word comment anchors and current markdown, to plan placement before sync (lib/commands/verify-anchors.ts, lib/anchor-match.ts)
+- [x] Real heading detection from `<w:pStyle>` paragraph styles (lib/word-extraction.ts:extractHeadings) — replaces brittle keyword search that mistook "results across countries" for the Results section
+- [x] `lib/commands/section-boundaries.ts` — single source of truth for mapping `sections.yaml` to docx text positions, used by both sync and verify-anchors

@@ -21,10 +21,37 @@ rev import manuscript.docx --output ./project
 ### rev sync
 Sync feedback from a reviewed Word document into existing markdown sections.
 ```bash
-rev sync reviewed.docx       # Updates markdown with track changes/comments
-rev sync                     # Auto-detect most recent .docx
+rev sync reviewed.docx          # Updates markdown with track changes/comments
+rev sync                        # Auto-detect most recent .docx
 rev sync reviewed.docx methods  # Sync only methods section
+rev sync reviewed.docx --comments-only  # Insert comments only; never modify prose
 ```
+
+`--comments-only` skips the Word→Markdown diff entirely. Use it when the
+markdown has been revised between sending the docx out for review and
+receiving it back: applying track changes from a stale draft would clobber
+newer edits, but comments still need to land. Comments are placed at
+fuzzy-matched anchors against the current prose. Pair with
+`rev verify-anchors` to see which ones won't fit before you run sync.
+
+### rev verify-anchors
+Report drift between Word comment anchors and the current markdown.
+```bash
+rev verify-anchors reviewed.docx       # Print per-comment match quality
+rev verify-anchors reviewed.docx --json  # Machine-readable report
+```
+
+Each comment is classified by how well its anchor still matches the current
+section prose:
+
+- `clean` – exact or whitespace-normalized hit
+- `drift` – anchor only matches via stripped-CriticMarkup or partial-prefix fallbacks
+- `context-only` – anchor text is gone, only surrounding context survives
+- `ambiguous` – multiple candidate positions; needs context to disambiguate
+- `unmatched` – nothing maps; user must place the comment manually
+
+Useful before `rev sync --comments-only` to plan which comments will land
+automatically and which need manual placement.
 
 ### rev build
 Build output documents from markdown sections.

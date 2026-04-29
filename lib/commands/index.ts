@@ -11,6 +11,7 @@ import { register as registerCommentCommands } from './comments.js';
 import { register as registerInitCommands } from './init.js';
 import { register as registerSectionCommands } from './sections.js';
 import { register as registerSyncCommands } from './sync.js';
+import { register as registerVerifyAnchorsCommands } from './verify-anchors.js';
 import { register as registerMergeResolveCommands } from './merge-resolve.js';
 import { register as registerBuildCommands } from './build.js';
 import { register as registerResponseCommands } from './response.js';
@@ -31,6 +32,7 @@ export {
   registerInitCommands,
   registerSectionCommands,
   registerSyncCommands,
+  registerVerifyAnchorsCommands,
   registerMergeResolveCommands,
   registerBuildCommands,
   registerResponseCommands,
@@ -68,6 +70,7 @@ export function registerAllCommands(program: Command, pkg?: PackageJson): void {
   registerInitCommands(program);
   registerSectionCommands(program);
   registerSyncCommands(program);
+  registerVerifyAnchorsCommands(program);
   registerMergeResolveCommands(program);
   registerBuildCommands(program, pkg || {});
   registerResponseCommands(program);

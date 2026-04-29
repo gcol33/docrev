@@ -42,6 +42,17 @@ export interface CommentAnchorsResult {
   fullDocText: string;
 }
 
+export interface DocxHeading {
+  /** Heading style name from `<w:pStyle>`, e.g. "Heading1" */
+  style: string;
+  /** Heading depth: 1, 2, 3, ... (parsed from style name; 0 if unknown) */
+  level: number;
+  /** Concatenated text content of the heading paragraph */
+  text: string;
+  /** Position in fullDocText (same coordinate system as CommentAnchorData.docPosition) */
+  docPosition: number;
+}
+
 export interface WordTable {
   markdown: string;
   rowCount: number;
@@ -329,6 +340,88 @@ export async function extractCommentAnchors(docxPath: string): Promise<CommentAn
   }
 
   return { anchors, fullDocText };
+}
+
+/**
+ * Extract heading paragraphs from a docx, with their text positions in the
+ * same coordinate system as `extractCommentAnchors`'s `fullDocText` and
+ * `CommentAnchorData.docPosition`.
+ *
+ * Headings are paragraphs whose `<w:pStyle>` is a Heading style. Reading
+ * styles directly is more reliable than keyword-matching the concatenated
+ * body text — there, paragraph boundaries are gone, so the literal string
+ * "Methods" can appear inside prose ("results across countries") and the
+ * structured-abstract label "Methods:" loses its colon when text runs are
+ * concatenated.
+ */
+export async function extractHeadings(docxPath: string): Promise<DocxHeading[]> {
+  const AdmZip = (await import('adm-zip')).default;
+
+  if (!fs.existsSync(docxPath)) {
+    throw new Error(`File not found: ${docxPath}`);
+  }
+
+  const zip = new AdmZip(docxPath);
+  const docEntry = zip.getEntry('word/document.xml');
+  if (!docEntry) return [];
+  const xml = docEntry.getData().toString('utf8');
+
+  // Build the same xml-pos → text-pos mapping that extractCommentAnchors does
+  const textNodePattern = /<w:t[^>]*>([^<]*)<\/w:t>/g;
+  const nodes: Array<{ xmlStart: number; xmlEnd: number; textStart: number; textEnd: number }> = [];
+  let textPos = 0;
+  let m;
+  while ((m = textNodePattern.exec(xml)) !== null) {
+    const decoded = decodeXmlEntities(m[1] ?? '');
+    nodes.push({
+      xmlStart: m.index,
+      xmlEnd: m.index + m[0].length,
+      textStart: textPos,
+      textEnd: textPos + decoded.length,
+    });
+    textPos += decoded.length;
+  }
+
+  function xmlToTextPos(xmlPos: number): number {
+    for (const n of nodes) {
+      if (xmlPos >= n.xmlStart && xmlPos < n.xmlEnd) return n.textStart;
+      if (xmlPos < n.xmlStart) return n.textStart;
+    }
+    return nodes.length ? nodes[nodes.length - 1].textEnd : 0;
+  }
+
+  const headings: DocxHeading[] = [];
+  const paraPattern = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
+  let pm;
+  while ((pm = paraPattern.exec(xml)) !== null) {
+    const inner = pm[1];
+    const styleMatch = inner.match(/<w:pStyle[^>]*w:val="([^"]+)"/);
+    if (!styleMatch) continue;
+    const style = styleMatch[1];
+    if (!/heading/i.test(style)) continue;
+
+    // Concatenate text runs; include w:delText so a heading inside a tracked
+    // deletion is still surfaced (verifying anchors against an original draft)
+    const textInRange = /<w:t[^>]*>([^<]*)<\/w:t>|<w:delText[^>]*>([^<]*)<\/w:delText>/g;
+    let txt = '';
+    let tm;
+    while ((tm = textInRange.exec(inner)) !== null) {
+      txt += decodeXmlEntities(tm[1] || tm[2] || '');
+    }
+    const trimmed = txt.trim();
+    if (!trimmed) continue;
+
+    const levelMatch = style.match(/(\d+)/);
+    const level = levelMatch ? parseInt(levelMatch[1], 10) : 0;
+    headings.push({
+      style,
+      level,
+      text: trimmed,
+      docPosition: xmlToTextPos(pm.index),
+    });
+  }
+
+  return headings;
 }
 
 /**
