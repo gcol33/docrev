@@ -18,5 +18,5 @@ export interface SectionBoundary {
     start: number;
     end: number;
 }
-export declare function computeSectionBoundaries(sections: Record<string, SectionConfig>, headings: DocxHeading[]): SectionBoundary[];
+export declare function computeSectionBoundaries(sections: Record<string, SectionConfig>, headings: DocxHeading[], docLength?: number): SectionBoundary[];
 //# sourceMappingURL=section-boundaries.d.ts.map

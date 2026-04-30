@@ -39,10 +39,12 @@ export function register(program) {
         let comments;
         let anchors;
         let headings;
+        let fullDocText = '';
         try {
             comments = await extractWordComments(docxPath);
             const result = await extractCommentAnchors(docxPath);
             anchors = result.anchors;
+            fullDocText = result.fullDocText;
             headings = await extractHeadings(docxPath);
         }
         catch (err) {
@@ -56,7 +58,7 @@ export function register(program) {
             console.log(fmt.status('info', 'No comments found in document.'));
             return;
         }
-        const boundaries = computeSectionBoundaries(config.sections, headings);
+        const boundaries = computeSectionBoundaries(config.sections, headings, fullDocText.length);
         // Cache section markdown contents on first read
         const sectionCache = new Map();
         function loadSection(file) {

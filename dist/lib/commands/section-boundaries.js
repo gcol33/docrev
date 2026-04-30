@@ -11,7 +11,7 @@
  * countries") or in structured-abstract labels where paragraph boundaries
  * are lost in concatenation.
  */
-export function computeSectionBoundaries(sections, headings) {
+export function computeSectionBoundaries(sections, headings, docLength) {
     const matched = [];
     // Only consider top-level (Heading1-style) when level info is available;
     // when level==0 (unparseable style), fall back to all headings.
@@ -43,10 +43,20 @@ export function computeSectionBoundaries(sections, headings) {
             matched.push({ file, start: firstMatch, end: Number.MAX_SAFE_INTEGER });
         }
     }
-    // Sort by start position and tighten each end to the next start
+    // Sort by start position and tighten each end to the next start.
+    // The last section's end is capped at docLength when known, otherwise
+    // left at MAX_SAFE_INTEGER. Without the cap, single-section configs
+    // produce a sectionLength of ~9e15, collapsing proportional-position
+    // math in insertCommentsIntoMarkdown to 0 and stacking every comment
+    // at the document start.
     matched.sort((a, b) => a.start - b.start);
     for (let i = 0; i < matched.length - 1; i++) {
         matched[i].end = matched[i + 1].start;
+    }
+    if (matched.length > 0 && docLength !== undefined) {
+        const last = matched[matched.length - 1];
+        if (last.end > docLength)
+            last.end = docLength;
     }
     return matched;
 }

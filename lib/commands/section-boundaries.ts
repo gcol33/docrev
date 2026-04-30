@@ -24,6 +24,7 @@ export interface SectionBoundary {
 export function computeSectionBoundaries(
   sections: Record<string, SectionConfig>,
   headings: DocxHeading[],
+  docLength?: number,
 ): SectionBoundary[] {
   const matched: SectionBoundary[] = [];
 
@@ -62,10 +63,19 @@ export function computeSectionBoundaries(
     }
   }
 
-  // Sort by start position and tighten each end to the next start
+  // Sort by start position and tighten each end to the next start.
+  // The last section's end is capped at docLength when known, otherwise
+  // left at MAX_SAFE_INTEGER. Without the cap, single-section configs
+  // produce a sectionLength of ~9e15, collapsing proportional-position
+  // math in insertCommentsIntoMarkdown to 0 and stacking every comment
+  // at the document start.
   matched.sort((a, b) => a.start - b.start);
   for (let i = 0; i < matched.length - 1; i++) {
     matched[i].end = matched[i + 1].start;
+  }
+  if (matched.length > 0 && docLength !== undefined) {
+    const last = matched[matched.length - 1];
+    if (last.end > docLength) last.end = docLength;
   }
 
   return matched;

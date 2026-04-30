@@ -71,10 +71,12 @@ export function register(program: Command): void {
       let comments;
       let anchors;
       let headings;
+      let fullDocText = '';
       try {
         comments = await extractWordComments(docxPath);
         const result = await extractCommentAnchors(docxPath);
         anchors = result.anchors;
+        fullDocText = result.fullDocText;
         headings = await extractHeadings(docxPath);
       } catch (err) {
         const error = err as Error;
@@ -88,7 +90,7 @@ export function register(program: Command): void {
         return;
       }
 
-      const boundaries = computeSectionBoundaries(config.sections, headings);
+      const boundaries = computeSectionBoundaries(config.sections, headings, fullDocText.length);
 
       // Cache section markdown contents on first read
       const sectionCache = new Map<string, string>();

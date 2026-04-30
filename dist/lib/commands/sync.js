@@ -462,10 +462,12 @@ async function syncCommentsOnly(docx, sectionFilter, options, configPath) {
     let comments;
     let anchors;
     let headings;
+    let fullDocText = '';
     try {
         comments = await extractWordComments(docx);
         const result = await extractCommentAnchors(docx);
         anchors = result.anchors;
+        fullDocText = result.fullDocText;
         headings = await extractHeadings(docx);
         spin.stop();
     }
@@ -481,7 +483,7 @@ async function syncCommentsOnly(docx, sectionFilter, options, configPath) {
         console.log(fmt.status('info', 'No comments found in document.'));
         return;
     }
-    const boundaries = computeSectionBoundaries(config.sections, headings);
+    const boundaries = computeSectionBoundaries(config.sections, headings, fullDocText.length);
     if (boundaries.length === 0) {
         console.error(fmt.status('warning', 'No section headings detected in Word document.'));
         console.error(chalk.dim('  Check that headers in sections.yaml match heading paragraphs in the docx.'));

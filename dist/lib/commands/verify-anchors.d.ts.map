@@ -1,1 +1,1 @@
-{"version":3,"file":"verify-anchors.d.ts","sourceRoot":"","sources":["../../../lib/commands/verify-anchors.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;GAaG;AAWH,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAsBzC,wBAAgB,QAAQ,CAAC,OAAO,EAAE,OAAO,GAAG,IAAI,CA6J/C"}
+{"version":3,"file":"verify-anchors.d.ts","sourceRoot":"","sources":["../../../lib/commands/verify-anchors.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;GAaG;AAWH,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAsBzC,wBAAgB,QAAQ,CAAC,OAAO,EAAE,OAAO,GAAG,IAAI,CA+J/C"}

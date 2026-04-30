@@ -571,10 +571,12 @@ async function syncCommentsOnly(
   let comments;
   let anchors;
   let headings;
+  let fullDocText = '';
   try {
     comments = await extractWordComments(docx);
     const result = await extractCommentAnchors(docx);
     anchors = result.anchors;
+    fullDocText = result.fullDocText;
     headings = await extractHeadings(docx);
     spin.stop();
   } catch (err) {
@@ -592,7 +594,7 @@ async function syncCommentsOnly(
     return;
   }
 
-  const boundaries = computeSectionBoundaries(config.sections, headings);
+  const boundaries = computeSectionBoundaries(config.sections, headings, fullDocText.length);
 
   if (boundaries.length === 0) {
     console.error(fmt.status('warning', 'No section headings detected in Word document.'));
