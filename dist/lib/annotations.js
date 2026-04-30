@@ -291,9 +291,11 @@ export function stripAnnotations(text, options = {}) {
     text = text.replace(/\{~~/g, '');
     text = text.replace(/~>/g, '');
     // Remove orphan [ from stripped {.mark} spans where the closing ]{.mark}
-    // was inside a comment. A [ is orphan if no matching ] follows before
-    // the next [ or end of line.
-    text = text.replace(/\[(?![^\[\]]*\])/g, '');
+    // was inside a comment. A [ is orphan if no `]` follows before end of line.
+    // We deliberately allow other `[` between the candidate and the matching `]`
+    // — otherwise nested forms like `[[0..9]]{.mark}` would have their outer
+    // `[` stripped because the lookahead saw the inner `[` as a barrier.
+    text = text.replace(/\[(?![^\]\n]*\])/g, '');
     return text;
 }
 /**

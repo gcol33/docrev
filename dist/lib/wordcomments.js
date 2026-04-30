@@ -30,8 +30,37 @@ function generateParaId(commentIdx, paraNum) {
  * - comments: array with author, text, isReply, parentIdx
  */
 export function prepareMarkdownWithMarkers(markdown) {
-    // Match all comments with optional anchor
-    const commentPattern = /\{>>(.+?)<<\}(?:\s*\[([^\]]+)\]\{\.mark\})?/g;
+    // Match the comment block first; extend manually to capture an optional
+    // trailing `[anchor]{.mark}` span. A regex `[^\]]+` for the anchor would
+    // bail on the inner `]` of nested syntax (e.g. `[[0..9]]{.mark}` or
+    // `[*phrase*]{.mark}` after pandoc-rewriting), so we walk the brackets
+    // ourselves and verify a `{.mark}` suffix.
+    const commentPattern = /\{>>([\s\S]+?)<<\}/g;
+    function tryParseTrailingAnchor(text, fromIdx) {
+        let i = fromIdx;
+        while (i < text.length && /\s/.test(text[i] ?? ''))
+            i++;
+        if (text[i] !== '[')
+            return null;
+        let depth = 1;
+        let j = i + 1;
+        while (j < text.length) {
+            const ch = text[j];
+            if (ch === '[')
+                depth++;
+            else if (ch === ']') {
+                depth--;
+                if (depth === 0)
+                    break;
+            }
+            j++;
+        }
+        if (depth !== 0)
+            return null;
+        if (text.slice(j + 1, j + 8) !== '{.mark}')
+            return null;
+        return { anchor: text.slice(i + 1, j), endIdx: j + 8 };
+    }
     const rawMatches = [];
     let match;
     while ((match = commentPattern.exec(markdown)) !== null) {
@@ -43,14 +72,23 @@ export function prepareMarkdownWithMarkers(markdown) {
             author = content.slice(0, colonIdx).trim();
             text = content.slice(colonIdx + 1).trim();
         }
+        const commentEnd = match.index + match[0].length;
+        const trailing = tryParseTrailingAnchor(markdown, commentEnd);
         rawMatches.push({
             author,
             text,
-            anchor: match[2] || null,
+            anchor: trailing ? trailing.anchor : null,
             start: match.index,
-            end: match.index + match[0].length,
-            fullMatch: match[0]
+            end: trailing ? trailing.endIdx : commentEnd,
+            fullMatch: markdown.slice(match.index, trailing ? trailing.endIdx : commentEnd),
         });
+        // Advance regex lastIndex past the consumed anchor so the next iteration
+        // doesn't re-scan inside it (e.g. `[*emphasis*]{.mark}` would otherwise
+        // tempt the matcher to look for another `{>>...<<}` in the body of the
+        // anchor span).
+        if (trailing) {
+            commentPattern.lastIndex = trailing.endIdx;
+        }
     }
     if (rawMatches.length === 0) {
         return { markedMarkdown: markdown, comments: [] };
