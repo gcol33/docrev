@@ -285,8 +285,16 @@ export function stripAnnotations(text: string, options: StripOptions = {}): stri
       text = text.replace(PATTERNS.comment, '');
     }
 
-    // Strip pandoc highlight spans: [text]{.mark} → text
-    text = text.replace(/\[([^\]]*)\]\{\.mark\}/g, '$1');
+    // Strip pandoc highlight spans: [text]{.mark} → text.
+    // When `keepComments=true`, preserve `[anchor]{.mark}` that is the
+    // anchor of a kept `{>>...<<}` comment. The dual-build flow runs
+    // stripAnnotations() before prepareMarkdownWithMarkers(), and stripping
+    // the anchor span here would leave the marker generator with no anchor
+    // text — collapsing every multi-word anchor to a single fallback word
+    // in the rebuilt docx.
+    text = keepComments
+      ? text.replace(/(?<!<<\}\s{0,3})\[([^\]]*)\]\{\.mark\}/g, '$1')
+      : text.replace(/\[([^\]]*)\]\{\.mark\}/g, '$1');
 
     // Clean up partial/orphaned markers within the loop
     // This handles cases where nested annotations leave behind fragments

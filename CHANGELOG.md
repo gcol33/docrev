@@ -5,6 +5,14 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.10] - 2026-04-30
+
+### Fixed
+- `stripAnnotations` stripped `[anchor]{.mark}` spans even when `keepComments=true`, leaving the dual-build marker generator with no anchor text and collapsing every multi-word anchor to a single fallback word in the rebuilt docx. Now preserves anchor spans that belong to retained `{>>...<<}` comments.
+- Comments authored at the very start of a Word section landed before the markdown file's `# Heading` line and rendered in the previous section. Added `pushPastSectionHeading` so position-0 comments advance to the first body paragraph of the section they were authored in.
+- Empty-anchor comments fell through to proportional placement even when before/after context uniquely identified the position, landing mid-word or splitting unrelated phrases. Context match now runs first; proportional placement is the fallback.
+- When an anchor appeared multiple times in the search window (repeated phrasing, formulaic prose), `insertCommentsIntoMarkdown` always picked the first occurrence. Now picks the occurrence closest to the docx-derived insert position.
+
 ## [0.9.7] - 2026-04-29
 
 ### Added

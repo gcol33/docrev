@@ -176,6 +176,34 @@ export interface MoveExtractedMediaResult {
 // ============================================
 
 /**
+ * If `pos` lands inside a section file's leading `# Heading` line (or the
+ * blank line right after it), advance past the first paragraph break so
+ * the comment stays inside the section. A comment authored at the very
+ * start of a Word section maps to `pos === 0`, but inserting at column 0
+ * of a markdown file that begins with `# Heading` puts the `{>>...<<}`
+ * before the heading marker — Pandoc then treats the line as ordinary
+ * paragraph text and the comment renders in the previous section.
+ */
+function pushPastSectionHeading(text: string, pos: number): number {
+  if (pos > 0) {
+    const headingMatch = text.match(/^#{1,6}\s.+$/m);
+    if (!headingMatch || headingMatch.index === undefined) return pos;
+    const headingEnd = headingMatch.index + headingMatch[0].length;
+    if (pos >= headingEnd) return pos;
+  }
+  // pos is at-or-before the first heading line. Advance to the first
+  // non-blank position after the heading paragraph.
+  const headingLine = text.match(/^#{1,6}\s.+(?:\n|$)/m);
+  if (!headingLine || headingLine.index === undefined) return pos;
+  let after = headingLine.index + headingLine[0].length;
+  // Skip blank lines so we land at the start of the first body paragraph.
+  while (after < text.length && (text[after] === '\n' || text[after] === '\r')) {
+    after++;
+  }
+  return after;
+}
+
+/**
  * Insert comments into markdown text based on anchor texts with context
  */
 export function insertCommentsIntoMarkdown(
@@ -222,6 +250,18 @@ export function insertCommentsIntoMarkdown(
         const proportion = Math.min(relativePos / sectionLength, 1.0);
         const markdownPos = Math.floor(proportion * result.length);
 
+        // For empty anchors, before/after context is the only signal that
+        // pinpoints the original split — without it, proportional placement
+        // can land mid-word or split unrelated phrases. Try context match
+        // first; only fall through to proportional when context is gone.
+        if ((!anchor || isEmpty) && (before || after)) {
+          const ctx = findAnchorInText('', result, before, after);
+          if (ctx.occurrences.length > 0) {
+            const pos = pushPastSectionHeading(result, ctx.occurrences[0]);
+            return { ...c, pos, anchorText: null, isEmpty: true, strategy: `ctx:${ctx.strategy}` };
+          }
+        }
+
         let insertPos = markdownPos;
 
         // Look for nearby word boundary
@@ -231,25 +271,54 @@ export function insertCommentsIntoMarkdown(
           insertPos = Math.max(0, markdownPos - 25) + spaceIdx;
         }
 
-        // If we have anchor text, try to find it near this position
+        // If we have anchor text, try to find it near this position.
+        // When the anchor appears multiple times in the search window
+        // (repeated phrasing, formulaic prose), pick the occurrence
+        // CLOSEST to `insertPos` rather than the first one — the docx
+        // position is the only signal we have for which copy was meant.
         if (anchor && !isEmpty) {
           const searchStart = Math.max(0, insertPos - 200);
           const searchEnd = Math.min(result.length, insertPos + 200);
           const localSearch = result.slice(searchStart, searchEnd).toLowerCase();
           const anchorLower = anchor.toLowerCase();
-          const localIdx = localSearch.indexOf(anchorLower);
-          if (localIdx !== -1) {
-            return { ...c, pos: searchStart + localIdx, anchorText: anchor, anchorEnd: searchStart + localIdx + anchor.length, strategy: 'position+text' };
+
+          const pickClosest = (needle: string): number => {
+            let bestAbs = -1;
+            let bestDist = Infinity;
+            let from = 0;
+            while (true) {
+              const i = localSearch.indexOf(needle, from);
+              if (i === -1) break;
+              const abs = searchStart + i;
+              const dist = Math.abs(abs - insertPos);
+              if (dist < bestDist) {
+                bestDist = dist;
+                bestAbs = abs;
+              }
+              from = i + 1;
+            }
+            return bestAbs;
+          };
+
+          const localAbs = pickClosest(anchorLower);
+          if (localAbs !== -1) {
+            return { ...c, pos: localAbs, anchorText: anchor, anchorEnd: localAbs + anchor.length, strategy: 'position+text' };
           }
           // Try first few words
           const words = anchor.split(/\s+/).slice(0, 4).join(' ').toLowerCase();
           if (words.length >= 10) {
-            const partialIdx = localSearch.indexOf(words);
-            if (partialIdx !== -1) {
-              return { ...c, pos: searchStart + partialIdx, anchorText: words, anchorEnd: searchStart + partialIdx + words.length, strategy: 'position+partial' };
+            const partialAbs = pickClosest(words);
+            if (partialAbs !== -1) {
+              return { ...c, pos: partialAbs, anchorText: words, anchorEnd: partialAbs + words.length, strategy: 'position+partial' };
             }
           }
         }
+
+        // A docPosition at the very start of a section maps to markdownPos=0,
+        // which sits before the file's `# Heading` line and gets rendered in
+        // the previous section. Push past the heading line so the comment
+        // stays inside the section it was authored in.
+        insertPos = pushPastSectionHeading(result, insertPos);
 
         return { ...c, pos: insertPos, anchorText: null, strategy: 'position-only' };
       }
