@@ -6,6 +6,12 @@ export interface WordComment {
     author: string;
     date: string;
     text: string;
+    /**
+     * Parent comment id when this is a reply in a Word comment thread.
+     * Resolved from `commentsExtended.xml`'s `w15:paraIdParent` field.
+     * `undefined` for top-level comments.
+     */
+    parentId?: string;
 }
 export interface TextNode {
     xmlStart: number;

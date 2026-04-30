@@ -113,10 +113,42 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
     let placedCount = 0;
     const duplicateWarnings = [];
     const usedPositions = new Set(); // For tie-breaking: track used positions
+    // Resolve threading: replies share their parent's anchor in Word, so they
+    // must inherit the parent's position and ride alongside it as one cluster.
+    // Letting each reply run through anchor scoring scatters the cluster (the
+    // same docPosition forces `usedPositions` to push later replies onto a
+    // different occurrence), which on re-build looks like independent comments
+    // and loses the paraIdParent threading. See gcol33/docrev issue #2.
+    const inputById = new Map();
+    for (const c of comments)
+        inputById.set(c.id, c);
+    function rootIdOf(c) {
+        let cur = c;
+        const seen = new Set();
+        while (cur.parentId && !seen.has(cur.id)) {
+            seen.add(cur.id);
+            const parent = inputById.get(cur.parentId);
+            if (!parent || parent === cur)
+                break;
+            cur = parent;
+        }
+        return cur.id;
+    }
+    const replyRootId = new Map();
+    for (const c of comments) {
+        const root = rootIdOf(c);
+        if (root !== c.id)
+            replyRootId.set(c.id, root);
+    }
     // Anchor matching primitives live in lib/anchor-match.ts so that
     // `rev verify-anchors` can use the same strategies for drift reporting.
-    // Get all positions in order (for sequential tie-breaking)
+    // Get all positions in order (for sequential tie-breaking).
+    // Replies skip scoring entirely — they piggyback on their root's position
+    // in the emit pass below.
     const commentsWithPositions = comments.map((c) => {
+        if (replyRootId.has(c.id)) {
+            return { ...c, pos: -1, anchorText: null, strategy: 'reply' };
+        }
         const anchorData = anchors.get(c.id);
         if (!anchorData) {
             unmatchedCount++;
@@ -244,51 +276,86 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
             return { ...c, pos: finalIdx, anchorText: null };
         }
     });
-    // Log any unmatched comments for debugging
-    const unmatched = commentsWithPositions.filter((c) => c.pos < 0);
+    // Group comments into clusters (root + ordered replies). The root carries
+    // the resolved position; replies inherit it and ride along in input order
+    // so the rebuilt CriticMarkup looks like `{>>p<<}{>>r1<<}{>>r2<<}[anchor]`
+    // and adjacency-based reply detection picks the cluster up again.
+    const byId = new Map();
+    for (const cwp of commentsWithPositions)
+        byId.set(cwp.id, cwp);
+    const repliesByRoot = new Map();
+    for (const c of comments) {
+        const rootId = replyRootId.get(c.id);
+        if (!rootId)
+            continue;
+        const cwp = byId.get(c.id);
+        if (!cwp)
+            continue;
+        const list = repliesByRoot.get(rootId);
+        if (list)
+            list.push(cwp);
+        else
+            repliesByRoot.set(rootId, [cwp]);
+    }
+    // Replies whose root never resolved (parent missing from the input slice or
+    // parent unmatched) count as unmatched too — there's no position to attach
+    // them to.
+    for (const [rootId, replies] of repliesByRoot) {
+        const root = byId.get(rootId);
+        if (!root || root.pos < 0) {
+            unmatchedCount += replies.length;
+        }
+    }
+    // Roots only — replies attach during emission.
+    const rootsWithPos = commentsWithPositions.filter(c => !replyRootId.has(c.id));
+    // Log any unmatched roots for debugging
+    const unmatched = rootsWithPos.filter((c) => c.pos < 0);
     if (process.env.DEBUG) {
-        console.log(`[DEBUG] insertComments: ${comments.length} input, ${commentsWithPositions.length} processed, ${unmatched.length} unmatched`);
+        console.log(`[DEBUG] insertComments: ${comments.length} input, ${rootsWithPos.length} roots, ${unmatched.length} unmatched roots, ${replyRootId.size} replies`);
         if (unmatched.length > 0) {
             unmatched.forEach(c => console.log(`[DEBUG]   Unmatched ID=${c.id}: anchor="${(c.anchorText || 'none').slice(0, 30)}"`));
         }
     }
-    const matched = commentsWithPositions.filter((c) => c.pos >= 0);
+    const matchedRoots = rootsWithPos.filter((c) => c.pos >= 0);
     // Sort by position descending (insert from end to avoid offset issues)
-    matched.sort((a, b) => b.pos - a.pos);
-    // Insert each comment. With `wrapAnchor` (the default), the anchor text
+    matchedRoots.sort((a, b) => b.pos - a.pos);
+    // Insert each cluster. With `wrapAnchor` (the default), the anchor text
     // gets wrapped in `[anchor]{.mark}` so the rebuilt docx restores the
     // original Word comment range. Without it, the comment block is inserted
     // adjacent to the anchor and prose stays untouched — required for
     // comments-only sync where multiple comments may share one anchor.
-    // Skip insertion when an identical comment already lives near the target.
-    // Re-running sync against the same docx would otherwise stack duplicate
-    // CriticMarkup blocks (`{>>R1: ...<<}{>>R1: ...<<}...`) on each invocation.
-    // A 200-char window catches both wrapped (`{>>...<<}[anchor]{.mark}`) and
-    // bare (`{>>...<<}anchor`) forms while ignoring incidental matches farther
-    // away.
+    // Skip insertion when the parent's CriticMarkup already lives near the
+    // target — re-running sync against the same docx would otherwise stack
+    // duplicates. A 200-char window catches both wrapped
+    // (`{>>...<<}[anchor]{.mark}`) and bare (`{>>...<<}anchor`) forms while
+    // ignoring incidental matches farther away.
     let dedupedCount = 0;
-    for (const c of matched) {
-        const comment = `{>>${c.author}: ${c.text}<<}`;
+    for (const c of matchedRoots) {
+        const parentBlock = `{>>${c.author}: ${c.text}<<}`;
+        const replies = repliesByRoot.get(c.id) ?? [];
         const windowStart = Math.max(0, c.pos - 200);
         const windowEnd = Math.min(result.length, c.pos + 200);
-        if (result.slice(windowStart, windowEnd).includes(comment)) {
-            dedupedCount++;
+        if (result.slice(windowStart, windowEnd).includes(parentBlock)) {
+            // Cluster already synced; treat all members as deduped.
+            dedupedCount += 1 + replies.length;
             continue;
         }
+        const replyBlocks = replies.map(r => `{>>${r.author}: ${r.text}<<}`);
+        const combined = parentBlock + replyBlocks.join('');
         if (wrapAnchor && c.anchorText && c.anchorEnd) {
             const before = result.slice(0, c.pos);
             const anchor = result.slice(c.pos, c.anchorEnd);
             const after = result.slice(c.anchorEnd);
-            result = before + comment + `[${anchor}]{.mark}` + after;
+            result = before + combined + `[${anchor}]{.mark}` + after;
         }
         else {
-            // Insert comment at the anchor position with no surrounding whitespace
-            // tweaks; CriticMarkup blocks are invisible to readers, and adding a
-            // leading space would shift prose byte-for-byte (relevant when callers
-            // verify that --comments-only didn't touch the original).
-            result = result.slice(0, c.pos) + comment + result.slice(c.pos);
+            // Insert at the anchor position with no surrounding whitespace tweaks;
+            // CriticMarkup is invisible to readers, and adding leading space would
+            // shift prose byte-for-byte (callers verify --comments-only doesn't
+            // touch the original).
+            result = result.slice(0, c.pos) + combined + result.slice(c.pos);
         }
-        placedCount++;
+        placedCount += 1 + replies.length;
     }
     if (outStats) {
         outStats.placed = placedCount;

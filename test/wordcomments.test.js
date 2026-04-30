@@ -10,6 +10,11 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import AdmZip from 'adm-zip';
 import { prepareMarkdownWithMarkers, injectCommentsAtMarkers } from '../lib/wordcomments.js';
+import {
+  extractWordComments,
+  extractCommentAnchors,
+  insertCommentsIntoMarkdown,
+} from '../lib/import.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -260,6 +265,95 @@ describe('wordcomments.js', () => {
       assert.strictEqual(result.comments.length, 2);
       assert.strictEqual(result.comments[1].isReply, true);
       assert.strictEqual(result.comments[1].parentIdx, 0);
+    });
+  });
+
+  describe('round-trip threading (issue #2)', () => {
+    /**
+     * Build → extract → re-build verifies that the paraIdParent linkage from
+     * commentsExtended.xml survives `extractWordComments` and that
+     * `insertCommentsIntoMarkdown` reconstructs the cluster instead of
+     * scattering replies onto independent anchors. Without the fix, the
+     * synced markdown looks like 3 standalone parents and the next build
+     * loses the threading.
+     */
+    it('preserves paraIdParent across sync round-trip', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-thread-'));
+      const docxPath = path.join(tmpDir, 'threaded.docx');
+      const outputPath = path.join(tmpDir, 'rebuilt.docx');
+
+      // Step 1: build a docx with two parents + one reply on each parent.
+      const sourceMarkdown =
+        'Plant diversity {>>R1: needs citation<<} {>>R2: agree with R1<<} [in Europe]{.mark} spans biomes. ' +
+        'A second sentence {>>R1: this is unclear<<} {>>R2: I disagree<<} [needs work]{.mark} here.';
+      const { markedMarkdown, comments: prepared } = prepareMarkdownWithMarkers(sourceMarkdown);
+      const zip = createTestDocx(markedMarkdown);
+      zip.writeZip(docxPath);
+      const inject = await injectCommentsAtMarkers(docxPath, prepared, docxPath);
+      assert.strictEqual(inject.success, true);
+      assert.strictEqual(inject.commentCount, 2);
+      assert.strictEqual(inject.replyCount, 2);
+
+      // Step 2: extractWordComments must surface parentId from commentsExtended.xml.
+      const extracted = await extractWordComments(docxPath);
+      assert.strictEqual(extracted.length, 4, 'expected 4 comments (2 parents + 2 replies)');
+      const replies = extracted.filter(c => c.parentId !== undefined);
+      assert.strictEqual(replies.length, 2, 'expected 2 replies with parentId set');
+      for (const r of replies) {
+        const parent = extracted.find(c => c.id === r.parentId);
+        assert.ok(parent, `reply ${r.id} should reference a known parent id`);
+        assert.strictEqual(parent.parentId, undefined, 'parent should not itself be a reply');
+      }
+
+      // Step 3: simulate `rev sync --comments-only` against the original
+      // (un-annotated) markdown. The output must keep each cluster adjacent
+      // so prepareMarkdownWithMarkers picks the threading up again.
+      const plainMarkdown =
+        'Plant diversity in Europe spans biomes. A second sentence needs work here.';
+      const { anchors } = await extractCommentAnchors(docxPath);
+      const synced = insertCommentsIntoMarkdown(plainMarkdown, extracted, anchors, {
+        quiet: true,
+        wrapAnchor: false,
+      });
+
+      // Each cluster should appear back-to-back: parent then reply, no prose
+      // in between, so adjacency-based threading detection fires again.
+      assert.match(
+        synced,
+        /\{>>[^<]*needs citation<<\}\{>>[^<]*agree with R1<<\}/,
+        'first cluster should land as one adjacent block',
+      );
+      assert.match(
+        synced,
+        /\{>>[^<]*this is unclear<<\}\{>>[^<]*I disagree<<\}/,
+        'second cluster should land as one adjacent block',
+      );
+
+      // Step 4: re-prepare to confirm threading detection survived the round-trip.
+      const reprepared = prepareMarkdownWithMarkers(synced);
+      const replyMarks = reprepared.comments.filter(c => c.isReply);
+      assert.strictEqual(
+        replyMarks.length,
+        2,
+        `expected 2 replies after round-trip, got ${replyMarks.length} ` +
+          `(comments: ${JSON.stringify(reprepared.comments.map(c => ({ author: c.author, isReply: c.isReply })))})`,
+      );
+
+      // Step 5: re-injection should still produce a docx with threading metadata.
+      const rebuiltZip = createTestDocx(reprepared.markedMarkdown);
+      rebuiltZip.writeZip(outputPath);
+      const reinject = await injectCommentsAtMarkers(outputPath, reprepared.comments, outputPath);
+      assert.strictEqual(reinject.success, true);
+      assert.strictEqual(reinject.replyCount, 2, 'rebuilt docx should still have 2 replies');
+
+      const reZip = new AdmZip(outputPath);
+      const extEntry = reZip.getEntry('word/commentsExtended.xml');
+      assert.ok(extEntry, 'rebuilt docx should contain commentsExtended.xml');
+      const extXml = reZip.readAsText(extEntry);
+      const parentRefs = (extXml.match(/w15:paraIdParent="/g) || []).length;
+      assert.strictEqual(parentRefs, 2, 'rebuilt docx should still link 2 replies via paraIdParent');
+
+      fs.rmSync(tmpDir, { recursive: true });
     });
   });
 });

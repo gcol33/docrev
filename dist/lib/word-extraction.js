@@ -40,7 +40,6 @@ export async function extractWordComments(docxPath) {
             throw new Error(`Failed to read comments from document: ${err.message}`);
         }
         const parsed = await parseStringPromise(commentsXml, { explicitArray: false });
-        const ns = 'w:';
         const commentsRoot = parsed['w:comments'];
         if (!commentsRoot || !commentsRoot['w:comment']) {
             return comments;
@@ -49,11 +48,16 @@ export async function extractWordComments(docxPath) {
         const commentNodes = Array.isArray(commentsRoot['w:comment'])
             ? commentsRoot['w:comment']
             : [commentsRoot['w:comment']];
+        // Map every paraId that lives inside a comment back to that comment's id.
+        // Word's commentsExtended.xml expresses threading via w15:paraIdParent,
+        // which references the parent's first <w:p>. Replies use a secondary
+        // (often-empty) <w:p>, so each comment may contribute multiple paraIds.
+        const paraIdToCommentId = new Map();
         for (const comment of commentNodes) {
             const id = comment.$?.['w:id'] || '';
             const author = comment.$?.['w:author'] || 'Unknown';
             const date = comment.$?.['w:date'] || '';
-            // Extract text from nested w:p/w:r/w:t elements
+            // Extract text from nested w:p/w:r/w:t elements and record paraIds.
             let text = '';
             const extractText = (node) => {
                 if (!node)
@@ -72,11 +76,50 @@ export async function extractWordComments(docxPath) {
                 }
                 if (node['w:p']) {
                     const paras = Array.isArray(node['w:p']) ? node['w:p'] : [node['w:p']];
-                    paras.forEach(extractText);
+                    for (const para of paras) {
+                        const paraId = para?.$?.['w14:paraId'];
+                        if (paraId && id)
+                            paraIdToCommentId.set(paraId, id);
+                        extractText(para);
+                    }
                 }
             };
             extractText(comment);
             comments.push({ id, author, date: date.slice(0, 10), text: text.trim() });
+        }
+        // Resolve parent links from commentsExtended.xml. Missing entry just
+        // means the docx has no threading metadata (e.g. legacy/non-Word source).
+        const extendedEntry = zip.getEntry('word/commentsExtended.xml');
+        if (extendedEntry && paraIdToCommentId.size > 0) {
+            let extendedXml = '';
+            try {
+                extendedXml = extendedEntry.getData().toString('utf8');
+            }
+            catch {
+                // Unreadable threading metadata is non-fatal; skip parent linking.
+            }
+            if (extendedXml) {
+                const parentByCommentId = new Map();
+                const exPattern = /<w15:commentEx\b([^>]*?)\/>/g;
+                let m;
+                while ((m = exPattern.exec(extendedXml)) !== null) {
+                    const attrs = m[1] ?? '';
+                    const paraIdMatch = attrs.match(/w15:paraId="([^"]+)"/);
+                    const parentMatch = attrs.match(/w15:paraIdParent="([^"]+)"/);
+                    if (!paraIdMatch || !parentMatch)
+                        continue;
+                    const childCommentId = paraIdToCommentId.get(paraIdMatch[1]);
+                    const parentCommentId = paraIdToCommentId.get(parentMatch[1]);
+                    if (childCommentId && parentCommentId && childCommentId !== parentCommentId) {
+                        parentByCommentId.set(childCommentId, parentCommentId);
+                    }
+                }
+                for (const c of comments) {
+                    const parent = parentByCommentId.get(c.id);
+                    if (parent)
+                        c.parentId = parent;
+                }
+            }
         }
     }
     catch (err) {
