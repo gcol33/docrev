@@ -104,6 +104,44 @@ function pushPastSectionHeading(text, pos) {
     return after;
 }
 /**
+ * Snap a position to the nearest whitespace boundary within ±50 chars so a
+ * proportional fallback insertion never lands mid-word.
+ */
+function snapToWordBoundary(text, pos) {
+    if (pos <= 0)
+        return 0;
+    if (pos >= text.length)
+        return text.length;
+    if (/\s/.test(text[pos] ?? ''))
+        return pos;
+    for (let d = 1; d <= 50; d++) {
+        if (pos + d < text.length && /\s/.test(text[pos + d] ?? ''))
+            return pos + d;
+        if (pos - d >= 0 && /\s/.test(text[pos - d] ?? ''))
+            return pos - d;
+    }
+    return pos;
+}
+/**
+ * Final-resort placement when every text-matching strategy failed. The docx
+ * carries a real `<w:commentRangeStart w:id="N">` marker at a known offset
+ * inside its body text — that's a structural anchor, even if the anchored
+ * span itself is empty and the surrounding context drifted in the target.
+ *
+ * Map docPosition into the target markdown proportionally and snap to a word
+ * boundary. This is approximate when the document was heavily restructured,
+ * but it's strictly better than silently dropping a reviewer's comment: the
+ * comment lands in roughly the right neighborhood and the reviewer can
+ * relocate it during their next pass.
+ */
+function proportionalFallback(anchorData, target) {
+    if (anchorData.docLength <= 0)
+        return null;
+    const proportion = Math.min(anchorData.docPosition / anchorData.docLength, 1.0);
+    const rawPos = Math.floor(proportion * target.length);
+    return pushPastSectionHeading(target, snapToWordBoundary(target, rawPos));
+}
+/**
  * Insert comments into markdown text based on anchor texts with context
  */
 export function insertCommentsIntoMarkdown(markdown, comments, anchors, options = {}) {
@@ -244,12 +282,28 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
                     return { ...c, pos: occurrences[0], anchorText: null, isEmpty: true };
                 }
             }
+            // Last resort: docx carried a structural marker at docPosition; map
+            // it proportionally into the target so the comment isn't dropped.
+            if (typeof anchorData === 'object') {
+                const fallback = proportionalFallback(anchorData, result);
+                if (fallback !== null) {
+                    return { ...c, pos: fallback, anchorText: null, isEmpty: true, strategy: 'proportional-fallback' };
+                }
+            }
             unmatchedCount++;
             return { ...c, pos: -1, anchorText: null, isEmpty: true };
         }
         // Text-based matching strategies
         const { occurrences, matchedAnchor, strategy, stripped } = findAnchorInText(anchor, result, before, after);
         if (occurrences.length === 0) {
+            // Same last-resort as the empty-anchor path: anchor text is gone from
+            // the target, but the marker's text-offset survived extraction.
+            if (typeof anchorData === 'object') {
+                const fallback = proportionalFallback(anchorData, result);
+                if (fallback !== null) {
+                    return { ...c, pos: fallback, anchorText: null, strategy: 'proportional-fallback' };
+                }
+            }
             unmatchedCount++;
             return { ...c, pos: -1, anchorText: null };
         }
