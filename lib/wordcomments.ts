@@ -422,93 +422,152 @@ export async function injectCommentsAtMarkers(
       const endMarker = `${MARKER_END_PREFIX}${idx}${MARKER_SUFFIX}`;
 
       const startPos = documentXml.indexOf(startMarker);
-      const endPos = documentXml.indexOf(endMarker);
+      const endPos = documentXml.indexOf(endMarker, startPos + startMarker.length);
 
       if (startPos === -1 || endPos === -1) continue;
 
-      // Find the <w:r> containing the markers
-      const rStartBefore = documentXml.lastIndexOf('<w:r>', startPos);
-      const rStartOpen = documentXml.lastIndexOf('<w:r ', startPos);
-      const rStart = Math.max(rStartBefore, rStartOpen);
-      const rEndPos = documentXml.indexOf('</w:r>', endPos);
+      // Find the runs containing each marker. Pandoc may split a single
+      // markdown anchor across multiple <w:r> blocks when it applies styling
+      // mid-anchor (smart-quote substitution, *italic*, `code`, **bold**).
+      // The same-run path (current happy path) collapses into the multi-run
+      // path when start and end runs coincide.
+      const startRunOpen = Math.max(
+        documentXml.lastIndexOf('<w:r>', startPos),
+        documentXml.lastIndexOf('<w:r ', startPos),
+      );
+      const startRunCloseIdx = documentXml.indexOf('</w:r>', startPos);
+      const endRunOpen = Math.max(
+        documentXml.lastIndexOf('<w:r>', endPos),
+        documentXml.lastIndexOf('<w:r ', endPos),
+      );
+      const endRunCloseIdx = documentXml.indexOf('</w:r>', endPos);
 
-      if (rStart === -1 || rEndPos === -1) continue;
+      if (
+        startRunOpen === -1 || startRunCloseIdx === -1 ||
+        endRunOpen === -1 || endRunCloseIdx === -1
+      ) continue;
 
-      const rEnd = rEndPos + '</w:r>'.length;
-      const runContent = documentXml.slice(rStart, rEnd);
+      const startRunClose = startRunCloseIdx + '</w:r>'.length;
+      const endRunClose = endRunCloseIdx + '</w:r>'.length;
 
-      // Extract styling
-      const rPrMatch = runContent.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
-      const rPr = rPrMatch ? rPrMatch[0] : '';
+      const startRunFull = documentXml.slice(startRunOpen, startRunClose);
+      const endRunFull = documentXml.slice(endRunOpen, endRunClose);
 
-      // Extract text
-      const textMatch = runContent.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/);
-      if (!textMatch) continue;
-
-      const fullText = textMatch[1] ?? '';
-      const tElementMatch = textMatch[0].match(/<w:t[^>]*>/);
-      if (!tElementMatch) continue;
-      const tElement = tElementMatch[0];
-
-      const startInText = fullText.indexOf(startMarker);
-      const endInText = fullText.indexOf(endMarker);
-      if (startInText === -1 || endInText === -1) continue;
-
-      let textBefore = fullText.slice(0, startInText);
-      let anchorText = fullText.slice(startInText + startMarker.length, endInText);
-      let textAfter = fullText.slice(endInText + endMarker.length);
-
-      // When anchor is empty, use the first word from textAfter as fallback
-      if (!anchorText && textAfter) {
-        const wordMatch = textAfter.match(/^\s*(\S+)/);
-        if (wordMatch) {
-          anchorText = wordMatch[1] ?? '';
-          textAfter = textAfter.slice(wordMatch[0].length);
-        }
+      // Extract <w:rPr> and <w:t> element shape from each run. Both pieces
+      // are needed verbatim so a textBefore split keeps its original styling
+      // and so the post-anchor textAfter render keeps the end run's styling.
+      function dissectRun(runXml: string, marker: string): {
+        rPr: string;
+        tElement: string;
+        textBefore: string;
+        textAfter: string;
+      } | null {
+        const rPrMatch = runXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+        const tMatch = runXml.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/);
+        if (!tMatch) return null;
+        const tOpenMatch = tMatch[0].match(/<w:t[^>]*>/);
+        if (!tOpenMatch) return null;
+        const tContent = tMatch[1] ?? '';
+        const markerInT = tContent.indexOf(marker);
+        if (markerInT === -1) return null;
+        return {
+          rPr: rPrMatch ? rPrMatch[0] : '',
+          tElement: tOpenMatch[0],
+          textBefore: tContent.slice(0, markerInT),
+          textAfter: tContent.slice(markerInT + marker.length),
+        };
       }
 
-      // When anchor is still empty, normalize double spaces to single space
-      if (!anchorText && textBefore.endsWith(' ') && textAfter.startsWith(' ')) {
-        textAfter = textAfter.slice(1); // Remove leading space from textAfter
-      }
-
-      // Build replacement
       let replacement = '';
-
-      if (textBefore) {
-        replacement += `<w:r>${rPr}${tElement}${textBefore}</w:t></w:r>`;
-      }
-
-      // Find replies to this comment
       const replies = commentsWithIds.filter(c => c.isReply && c.parentIdx === comment?.commentIdx);
 
-      // Start ranges for parent AND all replies (nested)
-      replacement += `<w:commentRangeStart w:id="${comment.id}"/>`;
-      for (const reply of replies) {
-        replacement += `<w:commentRangeStart w:id="${reply.id}"/>`;
+      const emitRangeStarts = () => {
+        replacement += `<w:commentRangeStart w:id="${comment.id}"/>`;
+        for (const reply of replies) {
+          replacement += `<w:commentRangeStart w:id="${reply.id}"/>`;
+        }
+      };
+
+      const emitRangeEnds = () => {
+        replacement += `<w:commentRangeEnd w:id="${comment.id}"/>`;
+        replacement += `<w:r><w:commentReference w:id="${comment.id}"/></w:r>`;
+        for (const reply of replies) {
+          replacement += `<w:commentRangeEnd w:id="${reply.id}"/>`;
+          replacement += `<w:r><w:commentReference w:id="${reply.id}"/></w:r>`;
+          injectedIds.add(reply.id);
+        }
+      };
+
+      if (startRunOpen === endRunOpen) {
+        // Same-run path: both markers live inside one <w:t>. Original logic.
+        const startInfo = dissectRun(startRunFull, startMarker);
+        if (!startInfo) continue;
+        const fullText = startInfo.textBefore + startMarker + startInfo.textAfter;
+        const endInTextRel = startInfo.textAfter.indexOf(endMarker);
+        if (endInTextRel === -1) continue;
+        const anchorTextSame = startInfo.textAfter.slice(0, endInTextRel);
+        let textAfter = startInfo.textAfter.slice(endInTextRel + endMarker.length);
+        let anchorText = anchorTextSame;
+        let textBefore = startInfo.textBefore;
+
+        // Empty anchor: borrow the next word so the comment has something
+        // to anchor on. Then normalize the trailing double space.
+        if (!anchorText && textAfter) {
+          const wordMatch = textAfter.match(/^\s*(\S+)/);
+          if (wordMatch) {
+            anchorText = wordMatch[1] ?? '';
+            textAfter = textAfter.slice(wordMatch[0].length);
+          }
+        }
+        if (!anchorText && textBefore.endsWith(' ') && textAfter.startsWith(' ')) {
+          textAfter = textAfter.slice(1);
+        }
+        // Suppress unused warning for pre-empty-anchor fullText var
+        void fullText;
+
+        if (textBefore) {
+          replacement += `<w:r>${startInfo.rPr}${startInfo.tElement}${textBefore}</w:t></w:r>`;
+        }
+        emitRangeStarts();
+        if (anchorText) {
+          replacement += `<w:r>${startInfo.rPr}${startInfo.tElement}${anchorText}</w:t></w:r>`;
+        }
+        emitRangeEnds();
+        if (textAfter) {
+          replacement += `<w:r>${startInfo.rPr}${startInfo.tElement}${textAfter}</w:t></w:r>`;
+        }
+        documentXml = documentXml.slice(0, startRunOpen) + replacement + documentXml.slice(startRunClose);
+        injectedIds.add(comment.id);
+        continue;
       }
 
-      // Anchor text
-      if (anchorText) {
-        replacement += `<w:r>${rPr}${tElement}${anchorText}</w:t></w:r>`;
+      // Multi-run path: markers sit in different <w:r> blocks because pandoc
+      // applied mid-anchor styling. Split the start run at the start marker,
+      // keep all middle runs verbatim (they carry the styled anchor portions),
+      // split the end run at the end marker.
+      const startInfo = dissectRun(startRunFull, startMarker);
+      const endInfo = dissectRun(endRunFull, endMarker);
+      if (!startInfo || !endInfo) continue;
+
+      const middle = documentXml.slice(startRunClose, endRunOpen);
+
+      if (startInfo.textBefore) {
+        replacement += `<w:r>${startInfo.rPr}${startInfo.tElement}${startInfo.textBefore}</w:t></w:r>`;
+      }
+      emitRangeStarts();
+      if (startInfo.textAfter) {
+        replacement += `<w:r>${startInfo.rPr}${startInfo.tElement}${startInfo.textAfter}</w:t></w:r>`;
+      }
+      replacement += middle;
+      if (endInfo.textBefore) {
+        replacement += `<w:r>${endInfo.rPr}${endInfo.tElement}${endInfo.textBefore}</w:t></w:r>`;
+      }
+      emitRangeEnds();
+      if (endInfo.textAfter) {
+        replacement += `<w:r>${endInfo.rPr}${endInfo.tElement}${endInfo.textAfter}</w:t></w:r>`;
       }
 
-      // End parent range and reference (NO rStyle wrapper - required for threading)
-      replacement += `<w:commentRangeEnd w:id="${comment.id}"/>`;
-      replacement += `<w:r><w:commentReference w:id="${comment.id}"/></w:r>`;
-
-      // End reply ranges and references (same position as parent, NO rStyle wrapper)
-      for (const reply of replies) {
-        replacement += `<w:commentRangeEnd w:id="${reply.id}"/>`;
-        replacement += `<w:r><w:commentReference w:id="${reply.id}"/></w:r>`;
-        injectedIds.add(reply.id);
-      }
-
-      if (textAfter) {
-        replacement += `<w:r>${rPr}${tElement}${textAfter}</w:t></w:r>`;
-      }
-
-      documentXml = documentXml.slice(0, rStart) + replacement + documentXml.slice(rEnd);
+      documentXml = documentXml.slice(0, startRunOpen) + replacement + documentXml.slice(endRunClose);
       injectedIds.add(comment.id);
     }
 
