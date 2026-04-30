@@ -507,7 +507,7 @@ async function syncCommentsOnly(docx, sectionFilter, options, configPath) {
     for (const boundary of activeBoundaries) {
         const sectionPath = path.join(options.dir, boundary.file);
         if (!fs.existsSync(sectionPath)) {
-            results.push({ file: boundary.file, placed: 0, unmatched: 0, skipped: true });
+            results.push({ file: boundary.file, placed: 0, deduped: 0, unmatched: 0, skipped: true });
             continue;
         }
         const isFirstSection = boundary === activeBoundaries[0];
@@ -523,43 +523,47 @@ async function syncCommentsOnly(docx, sectionFilter, options, configPath) {
             return false;
         });
         if (sectionComments.length === 0) {
-            results.push({ file: boundary.file, placed: 0, unmatched: 0, skipped: false });
+            results.push({ file: boundary.file, placed: 0, deduped: 0, unmatched: 0, skipped: false });
             continue;
         }
         const original = fs.readFileSync(sectionPath, 'utf-8');
-        const commentPattern = /\{>>.*?<<\}/gs;
-        const beforeCount = (original.match(commentPattern) || []).length;
+        const stats = { placed: 0, deduped: 0, unmatched: 0 };
         const annotated = insertCommentsIntoMarkdown(original, sectionComments, anchors, {
             quiet: !process.env.DEBUG,
             sectionBoundary: { start: boundary.start, end: boundary.end },
             wrapAnchor: false,
+            outStats: stats,
         });
-        const afterCount = (annotated.match(commentPattern) || []).length;
-        const placed = afterCount - beforeCount;
-        const unmatched = sectionComments.length - placed;
-        if (!options.dryRun && placed > 0) {
+        if (!options.dryRun && stats.placed > 0) {
             fs.writeFileSync(sectionPath, annotated, 'utf-8');
         }
-        results.push({ file: boundary.file, placed, unmatched, skipped: false });
+        results.push({ file: boundary.file, ...stats, skipped: false });
     }
     const tableRows = results.map(r => {
         if (r.skipped) {
-            return [chalk.dim(r.file), chalk.yellow('missing'), '', ''];
+            return [chalk.dim(r.file), chalk.yellow('missing'), '', '', ''];
         }
         return [
             chalk.bold(r.file),
             chalk.green(`${r.placed}`),
+            r.deduped > 0 ? chalk.cyan(`${r.deduped}`) : chalk.dim('-'),
             r.unmatched > 0 ? chalk.yellow(`${r.unmatched}`) : chalk.dim('-'),
             chalk.dim('comments only'),
         ];
     });
-    console.log(fmt.table(['File', 'Placed', 'Unmatched', 'Mode'], tableRows, { align: ['left', 'right', 'right', 'left'] }));
+    console.log(fmt.table(['File', 'Placed', 'Already', 'Unmatched', 'Mode'], tableRows, { align: ['left', 'right', 'right', 'right', 'left'] }));
     console.log();
     const totalPlaced = results.reduce((s, r) => s + r.placed, 0);
+    const totalDeduped = results.reduce((s, r) => s + r.deduped, 0);
     const totalUnmatched = results.reduce((s, r) => s + r.unmatched, 0);
     const lines = [];
     lines.push(`${chalk.bold(comments.length)} comments in document`);
-    lines.push(`${chalk.bold(totalPlaced)} placed at fuzzy-matched anchors`);
+    if (totalPlaced > 0) {
+        lines.push(`${chalk.bold(totalPlaced)} placed at anchors`);
+    }
+    if (totalDeduped > 0) {
+        lines.push(`${chalk.cyan(totalDeduped)} already present (skipped to avoid duplication)`);
+    }
     if (totalUnmatched > 0) {
         lines.push(`${chalk.yellow(totalUnmatched)} unmatched (no anchor in current prose)`);
     }

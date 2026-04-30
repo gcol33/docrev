@@ -158,6 +158,14 @@ export interface InsertCommentsOptions {
    * comments sharing one anchor don't produce nested broken markup.
    */
   wrapAnchor?: boolean;
+  /**
+   * Mutable output: when provided, the function fills in counters so callers
+   * can distinguish placement outcomes in their summary. `placed` counts new
+   * insertions, `deduped` counts comments that were already present at their
+   * anchor (skipped to avoid duplication on re-sync), `unmatched` counts
+   * comments whose anchor couldn't be located.
+   */
+  outStats?: { placed: number; deduped: number; unmatched: number };
 }
 
 export interface CommentWithPos {
@@ -270,9 +278,10 @@ export function insertCommentsIntoMarkdown(
   anchors: Map<string, CommentAnchorData | string>,
   options: InsertCommentsOptions = {}
 ): string {
-  const { quiet = false, sectionBoundary = null, wrapAnchor = true } = options;
+  const { quiet = false, sectionBoundary = null, wrapAnchor = true, outStats } = options;
   let result = markdown;
   let unmatchedCount = 0;
+  let placedCount = 0;
   const duplicateWarnings: string[] = [];
   const usedPositions = new Set<number>(); // For tie-breaking: track used positions
 
@@ -444,8 +453,21 @@ export function insertCommentsIntoMarkdown(
   // original Word comment range. Without it, the comment block is inserted
   // adjacent to the anchor and prose stays untouched — required for
   // comments-only sync where multiple comments may share one anchor.
+  // Skip insertion when an identical comment already lives near the target.
+  // Re-running sync against the same docx would otherwise stack duplicate
+  // CriticMarkup blocks (`{>>R1: ...<<}{>>R1: ...<<}...`) on each invocation.
+  // A 200-char window catches both wrapped (`{>>...<<}[anchor]{.mark}`) and
+  // bare (`{>>...<<}anchor`) forms while ignoring incidental matches farther
+  // away.
+  let dedupedCount = 0;
   for (const c of matched) {
     const comment = `{>>${c.author}: ${c.text}<<}`;
+    const windowStart = Math.max(0, c.pos - 200);
+    const windowEnd = Math.min(result.length, c.pos + 200);
+    if (result.slice(windowStart, windowEnd).includes(comment)) {
+      dedupedCount++;
+      continue;
+    }
     if (wrapAnchor && c.anchorText && c.anchorEnd) {
       const before = result.slice(0, c.pos);
       const anchor = result.slice(c.pos, c.anchorEnd);
@@ -458,12 +480,22 @@ export function insertCommentsIntoMarkdown(
       // verify that --comments-only didn't touch the original).
       result = result.slice(0, c.pos) + comment + result.slice(c.pos);
     }
+    placedCount++;
+  }
+
+  if (outStats) {
+    outStats.placed = placedCount;
+    outStats.deduped = dedupedCount;
+    outStats.unmatched = unmatchedCount;
   }
 
   // Log warnings unless quiet mode
   if (!quiet) {
     if (unmatchedCount > 0) {
       console.warn(`Warning: ${unmatchedCount} comment(s) could not be matched to anchor text`);
+    }
+    if (dedupedCount > 0) {
+      console.warn(`Note: ${dedupedCount} comment(s) already present at anchor — skipped to avoid duplication`);
     }
     if (duplicateWarnings.length > 0) {
       console.warn(`Warning: Duplicate anchor text found (using context & tie-breaks for placement):`);

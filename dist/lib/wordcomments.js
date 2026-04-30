@@ -127,10 +127,11 @@ export function prepareMarkdownWithMarkers(markdown) {
             continue;
         if (c.isReply) {
             // Reply: remove from document entirely (will be in comments.xml only)
-            // Also consume leading whitespace to avoid double spaces
+            // Also consume one preceding whitespace char to avoid double spaces.
+            // We deliberately consume at most one — walking arbitrarily backwards
+            // would shift positions that lower-index comments still depend on.
             let removeStart = c.start;
-            const charBefore = markedMarkdown[removeStart - 1];
-            while (removeStart > 0 && charBefore && /\s/.test(charBefore)) {
+            if (removeStart > 0 && /\s/.test(markedMarkdown[removeStart - 1] ?? '')) {
                 removeStart--;
             }
             // If this reply places parent's markers (anchor was propagated)
@@ -155,10 +156,10 @@ export function prepareMarkdownWithMarkers(markdown) {
         else {
             // Parent comment
             if (c.anchorFromReply) {
-                // Anchor markers are placed by the reply, just remove this comment
+                // Anchor markers are placed by the reply, just remove this comment.
+                // Consume one preceding whitespace char only (see reply branch above).
                 let removeStart = c.start;
-                const charBefore = markedMarkdown[removeStart - 1];
-                while (removeStart > 0 && charBefore && /\s/.test(charBefore)) {
+                if (removeStart > 0 && /\s/.test(markedMarkdown[removeStart - 1] ?? '')) {
                     removeStart--;
                 }
                 markedMarkdown = markedMarkdown.slice(0, removeStart) + markedMarkdown.slice(c.end);

@@ -27,6 +27,18 @@ export interface InsertCommentsOptions {
      * comments sharing one anchor don't produce nested broken markup.
      */
     wrapAnchor?: boolean;
+    /**
+     * Mutable output: when provided, the function fills in counters so callers
+     * can distinguish placement outcomes in their summary. `placed` counts new
+     * insertions, `deduped` counts comments that were already present at their
+     * anchor (skipped to avoid duplication on re-sync), `unmatched` counts
+     * comments whose anchor couldn't be located.
+     */
+    outStats?: {
+        placed: number;
+        deduped: number;
+        unmatched: number;
+    };
 }
 export interface CommentWithPos {
     id: string;
