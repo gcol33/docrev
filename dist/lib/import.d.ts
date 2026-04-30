@@ -4,8 +4,8 @@
  * Orchestration workflows + re-exports from extraction/diff/restore modules
  */
 import type { WordComment, CommentAnchorData, WordTable } from './word-extraction.js';
-export { extractFromWord, extractWordComments, extractCommentAnchors, extractWordTables, } from './word-extraction.js';
-export type { WordComment, TextNode, CommentAnchorData, CommentAnchorsResult, WordTable, ParsedRow, ExtractFromWordOptions, ExtractMessage, ExtractFromWordResult, } from './word-extraction.js';
+export { extractFromWord, extractWordComments, extractCommentAnchors, extractHeadings, extractWordTables, } from './word-extraction.js';
+export type { WordComment, TextNode, CommentAnchorData, CommentAnchorsResult, DocxHeading, WordTable, ParsedRow, ExtractFromWordOptions, ExtractMessage, ExtractFromWordResult, } from './word-extraction.js';
 export { generateSmartDiff, generateAnnotatedDiff, cleanupAnnotations, fixCitationAnnotations, } from './diff-engine.js';
 export type { GenerateSmartDiffOptions, } from './diff-engine.js';
 export { restoreCrossrefFromWord, restoreImagesFromRegistry, parseVisibleComments, convertVisibleComments, } from './restore-references.js';
@@ -16,6 +16,17 @@ export interface InsertCommentsOptions {
         start: number;
         end: number;
     } | null;
+    /**
+     * When true (default), comments wrap their anchor text in `[anchor]{.mark}`
+     * so the rebuilt docx restores the original Word comment range. When false,
+     * comments are inserted as standalone `{>>...<<}` blocks adjacent to the
+     * anchor — the prose stays byte-identical except for the inserted blocks.
+     *
+     * Set to false from `sync --comments-only` so a draft revised after the
+     * docx was sent for review keeps its prose intact, and so multiple
+     * comments sharing one anchor don't produce nested broken markup.
+     */
+    wrapAnchor?: boolean;
 }
 export interface CommentWithPos {
     id: string;
@@ -28,12 +39,7 @@ export interface CommentWithPos {
     isEmpty?: boolean;
     strategy?: string;
 }
-export interface AnchorSearchResult {
-    occurrences: number[];
-    matchedAnchor: string | null;
-    strategy: string;
-    stripped?: boolean;
-}
+export type { AnchorSearchResult } from './anchor-match.js';
 export interface MarkdownPrefixResult {
     prefix: string;
     content: string;

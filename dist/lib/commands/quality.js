@@ -298,7 +298,7 @@ export function register(program) {
                 }
             }
             // Check for unresolved comments
-            const unresolvedComments = (content.match(/\{>>[^<]*<<\}/g) || [])
+            const unresolvedComments = (content.match(/\{>>[\s\S]*?<<\}/g) || [])
                 .filter(c => !c.includes('[RESOLVED]'));
             if (unresolvedComments.length > 0) {
                 lintWarnings.push({ file, message: `${unresolvedComments.length} unresolved comment(s)` });

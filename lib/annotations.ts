@@ -433,7 +433,7 @@ export function applyDecision(text: string, annotation: Annotation, accept: bool
 
   // Extract any comments embedded in the annotation content
   // These should be preserved when accepting deletions or rejecting insertions
-  const commentPattern = /\{>>[^<]*<<\}/g;
+  const commentPattern = /\{>>[\s\S]*?<<\}/g;
   const embeddedComments = (annotation.match || '').match(commentPattern) || [];
 
   switch (annotation.type) {

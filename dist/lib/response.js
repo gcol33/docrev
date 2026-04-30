@@ -21,7 +21,7 @@ export function parseCommentsWithReplies(text, file = '') {
         if (matches.length === 0)
             continue;
         // Get context (surrounding text without comments)
-        const contextLine = line.replace(/\{>>[^<]+<<\}/g, '').trim();
+        const contextLine = line.replace(/\{>>[\s\S]+?<<\}/g, '').trim();
         const context = contextLine.slice(0, 100) + (contextLine.length > 100 ? '...' : '');
         // First match is the original comment, rest are replies
         const [first, ...rest] = matches;

@@ -100,5 +100,19 @@ test('stripCriticMarkup removes all annotation forms', () => {
   assert.equal(stripCriticMarkup(t), 'a insbcnewdemarkf');
 });
 
+test('stripCriticMarkup handles comments containing literal < and > chars', () => {
+  // Reviewers paste math/code into comments. The earlier [^<]* regex bailed
+  // on the first '<' and left the comment in place — anchors that lived
+  // underneath such a comment then fell through every fuzzy strategy.
+  const t = 'before {>>R: contains < and > and <html> chars<<} after';
+  assert.equal(stripCriticMarkup(t), 'before  after');
+});
+
+test('stripCriticMarkup non-greedy across two adjacent comments', () => {
+  // Greedy matching would eat both comments as one big span.
+  const t = 'pre {>>A: one<<} mid {>>B: two<<} post';
+  assert.equal(stripCriticMarkup(t), 'pre  mid  post');
+});
+
 console.log(`\n📊 Results: ${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

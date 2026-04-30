@@ -370,7 +370,7 @@ export async function realignComments(
 
   // Strip ALL comments (both authors) from markdown to start fresh
   let markdown = originalMarkdown;
-  markdown = markdown.replace(/\s*\{>>[^<]+<<\}/g, '');
+  markdown = markdown.replace(/\s*\{>>[\s\S]+?<<\}/g, '');
   console.log(`Stripped all comments from markdown`);
 
   // Parse markdown paragraphs
@@ -469,7 +469,7 @@ export async function realignMarkdown(
     );
 
     // Strip ALL comments from markdown
-    let result = markdown.replace(/\s*\{>>[^<]+<<\}/g, '');
+    let result = markdown.replace(/\s*\{>>[\s\S]+?<<\}/g, '');
 
     // Parse markdown paragraphs
     const mdParagraphs = parseMdParagraphs(result);

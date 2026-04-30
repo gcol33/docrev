@@ -26,6 +26,16 @@ export interface CommentAnchorsResult {
     anchors: Map<string, CommentAnchorData>;
     fullDocText: string;
 }
+export interface DocxHeading {
+    /** Heading style name from `<w:pStyle>`, e.g. "Heading1" */
+    style: string;
+    /** Heading depth: 1, 2, 3, ... (parsed from style name; 0 if unknown) */
+    level: number;
+    /** Concatenated text content of the heading paragraph */
+    text: string;
+    /** Position in fullDocText (same coordinate system as CommentAnchorData.docPosition) */
+    docPosition: number;
+}
 export interface WordTable {
     markdown: string;
     rowCount: number;
@@ -66,6 +76,19 @@ export declare function extractWordComments(docxPath: string): Promise<WordComme
  * Also returns fullDocText for section boundary matching
  */
 export declare function extractCommentAnchors(docxPath: string): Promise<CommentAnchorsResult>;
+/**
+ * Extract heading paragraphs from a docx, with their text positions in the
+ * same coordinate system as `extractCommentAnchors`'s `fullDocText` and
+ * `CommentAnchorData.docPosition`.
+ *
+ * Headings are paragraphs whose `<w:pStyle>` is a Heading style. Reading
+ * styles directly is more reliable than keyword-matching the concatenated
+ * body text — there, paragraph boundaries are gone, so the literal string
+ * "Methods" can appear inside prose ("results across countries") and the
+ * structured-abstract label "Methods:" loses its colon when text runs are
+ * concatenated.
+ */
+export declare function extractHeadings(docxPath: string): Promise<DocxHeading[]>;
 /**
  * Extract tables directly from Word document XML and convert to markdown pipe tables
  */

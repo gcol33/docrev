@@ -9,6 +9,7 @@ import { register as registerCommentCommands } from './comments.js';
 import { register as registerInitCommands } from './init.js';
 import { register as registerSectionCommands } from './sections.js';
 import { register as registerSyncCommands } from './sync.js';
+import { register as registerVerifyAnchorsCommands } from './verify-anchors.js';
 import { register as registerMergeResolveCommands } from './merge-resolve.js';
 import { register as registerBuildCommands } from './build.js';
 import { register as registerResponseCommands } from './response.js';
@@ -22,7 +23,7 @@ import { register as registerPreviewCommands } from './preview.js';
 import { register as registerQualityCommands } from './quality.js';
 import { register as registerWordToolsCommands } from './word-tools.js';
 import { register as registerTextOpsCommands } from './text-ops.js';
-export { registerCoreCommands, registerCommentCommands, registerInitCommands, registerSectionCommands, registerSyncCommands, registerMergeResolveCommands, registerBuildCommands, registerResponseCommands, registerCitationCommands, registerDoiCommands, registerHistoryCommands, registerUtilityCommands, registerProjectInfoCommands, registerFileOpsCommands, registerPreviewCommands, registerQualityCommands, registerWordToolsCommands, registerTextOpsCommands, };
+export { registerCoreCommands, registerCommentCommands, registerInitCommands, registerSectionCommands, registerSyncCommands, registerVerifyAnchorsCommands, registerMergeResolveCommands, registerBuildCommands, registerResponseCommands, registerCitationCommands, registerDoiCommands, registerHistoryCommands, registerUtilityCommands, registerProjectInfoCommands, registerFileOpsCommands, registerPreviewCommands, registerQualityCommands, registerWordToolsCommands, registerTextOpsCommands, };
 // Re-export context utilities for use by the main CLI
 export { setQuietMode, setJsonMode, quietMode, jsonMode, } from './context.js';
 /**
@@ -34,6 +35,7 @@ export function registerAllCommands(program, pkg) {
     registerInitCommands(program);
     registerSectionCommands(program);
     registerSyncCommands(program);
+    registerVerifyAnchorsCommands(program);
     registerMergeResolveCommands(program);
     registerBuildCommands(program, pkg || {});
     registerResponseCommands(program);
