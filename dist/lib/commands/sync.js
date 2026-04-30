@@ -24,6 +24,7 @@ export function register(program) {
         .option('--no-diff', 'Skip showing diff preview')
         .option('--force', 'Overwrite files without conflict warning')
         .option('--dry-run', 'Preview without writing files')
+        .option('--comments-only', 'Insert comments at fuzzy-matched anchors only; never modify existing prose or apply track changes (use when markdown was revised after the docx was sent for review)')
         .action(async (docx, sections, options) => {
         // Auto-detect most recent docx or pdf if not provided
         if (!docx) {
@@ -93,6 +94,13 @@ export function register(program) {
             console.error(fmt.status('error', `Config not found: ${configPath}`));
             console.error(chalk.dim('  Run "rev init" first to generate sections.yaml'));
             process.exit(1);
+        }
+        // --comments-only: import comments only, never modify existing prose.
+        // Use this when the markdown has been revised since the docx was sent
+        // out — track changes from a stale draft would clobber newer edits.
+        if (options.commentsOnly) {
+            await syncCommentsOnly(docx, sections, options, configPath);
+            return;
         }
         // Check pandoc availability upfront and warn
         const { hasPandoc, getInstallInstructions } = await import('../dependencies.js');
@@ -437,5 +445,132 @@ export function register(program) {
             process.exit(1);
         }
     });
+}
+/**
+ * `sync --comments-only`: import only Word comments at fuzzy-matched anchors.
+ *
+ * Skips the Word→Markdown diff entirely (no track changes, no pandoc, no
+ * prose modifications). Useful when the markdown has been edited after the
+ * docx was sent for review — applying track changes from a stale draft
+ * would overwrite newer edits.
+ */
+async function syncCommentsOnly(docx, sectionFilter, options, configPath) {
+    const config = loadConfig(configPath);
+    const { extractWordComments, extractCommentAnchors, extractHeadings, insertCommentsIntoMarkdown } = await import('../import.js');
+    const { computeSectionBoundaries } = await import('./section-boundaries.js');
+    const spin = fmt.spinner(`Reading comments from ${path.basename(docx)}...`).start();
+    let comments;
+    let anchors;
+    let headings;
+    try {
+        comments = await extractWordComments(docx);
+        const result = await extractCommentAnchors(docx);
+        anchors = result.anchors;
+        headings = await extractHeadings(docx);
+        spin.stop();
+    }
+    catch (err) {
+        spin.stop();
+        const error = err;
+        console.error(fmt.status('error', error.message));
+        process.exit(1);
+    }
+    console.log(fmt.header(`Comments from ${path.basename(docx)} (comments-only)`));
+    console.log();
+    if (comments.length === 0) {
+        console.log(fmt.status('info', 'No comments found in document.'));
+        return;
+    }
+    const boundaries = computeSectionBoundaries(config.sections, headings);
+    if (boundaries.length === 0) {
+        console.error(fmt.status('warning', 'No section headings detected in Word document.'));
+        console.error(chalk.dim('  Check that headers in sections.yaml match heading paragraphs in the docx.'));
+        process.exit(1);
+    }
+    // Apply optional section filter from CLI
+    let activeBoundaries = boundaries;
+    if (sectionFilter && sectionFilter.length > 0) {
+        const wanted = sectionFilter.map(s => s.trim().toLowerCase());
+        activeBoundaries = boundaries.filter(b => {
+            const base = b.file.replace(/\.md$/i, '').toLowerCase();
+            return wanted.some(name => base === name || base.includes(name));
+        });
+        if (activeBoundaries.length === 0) {
+            console.error(fmt.status('error', `No sections matched: ${sectionFilter.join(', ')}`));
+            process.exit(1);
+        }
+    }
+    const firstBoundaryStart = boundaries[0].start;
+    const results = [];
+    for (const boundary of activeBoundaries) {
+        const sectionPath = path.join(options.dir, boundary.file);
+        if (!fs.existsSync(sectionPath)) {
+            results.push({ file: boundary.file, placed: 0, unmatched: 0, skipped: true });
+            continue;
+        }
+        const isFirstSection = boundary === activeBoundaries[0];
+        const sectionComments = comments.filter((c) => {
+            const anchor = anchors.get(c.id);
+            if (!anchor || anchor.docPosition === undefined)
+                return false;
+            if (anchor.docPosition >= boundary.start && anchor.docPosition < boundary.end)
+                return true;
+            // Comments before the first heading land in the first matched section
+            if (isFirstSection && anchor.docPosition < firstBoundaryStart)
+                return true;
+            return false;
+        });
+        if (sectionComments.length === 0) {
+            results.push({ file: boundary.file, placed: 0, unmatched: 0, skipped: false });
+            continue;
+        }
+        const original = fs.readFileSync(sectionPath, 'utf-8');
+        const commentPattern = /\{>>.*?<<\}/gs;
+        const beforeCount = (original.match(commentPattern) || []).length;
+        const annotated = insertCommentsIntoMarkdown(original, sectionComments, anchors, {
+            quiet: !process.env.DEBUG,
+            sectionBoundary: { start: boundary.start, end: boundary.end },
+            wrapAnchor: false,
+        });
+        const afterCount = (annotated.match(commentPattern) || []).length;
+        const placed = afterCount - beforeCount;
+        const unmatched = sectionComments.length - placed;
+        if (!options.dryRun && placed > 0) {
+            fs.writeFileSync(sectionPath, annotated, 'utf-8');
+        }
+        results.push({ file: boundary.file, placed, unmatched, skipped: false });
+    }
+    const tableRows = results.map(r => {
+        if (r.skipped) {
+            return [chalk.dim(r.file), chalk.yellow('missing'), '', ''];
+        }
+        return [
+            chalk.bold(r.file),
+            chalk.green(`${r.placed}`),
+            r.unmatched > 0 ? chalk.yellow(`${r.unmatched}`) : chalk.dim('-'),
+            chalk.dim('comments only'),
+        ];
+    });
+    console.log(fmt.table(['File', 'Placed', 'Unmatched', 'Mode'], tableRows, { align: ['left', 'right', 'right', 'left'] }));
+    console.log();
+    const totalPlaced = results.reduce((s, r) => s + r.placed, 0);
+    const totalUnmatched = results.reduce((s, r) => s + r.unmatched, 0);
+    const lines = [];
+    lines.push(`${chalk.bold(comments.length)} comments in document`);
+    lines.push(`${chalk.bold(totalPlaced)} placed at fuzzy-matched anchors`);
+    if (totalUnmatched > 0) {
+        lines.push(`${chalk.yellow(totalUnmatched)} unmatched (no anchor in current prose)`);
+    }
+    if (options.dryRun) {
+        lines.push(chalk.yellow('Dry run — no files written'));
+    }
+    else if (totalPlaced > 0) {
+        lines.push(chalk.dim('Existing prose unchanged.'));
+    }
+    console.log(fmt.box(lines.join('\n'), { title: 'Summary', padding: 0 }));
+    if (totalUnmatched > 0) {
+        console.log();
+        console.log(chalk.dim('Tip: run "rev verify-anchors" to see which comments drifted.'));
+    }
 }
 //# sourceMappingURL=sync.js.map

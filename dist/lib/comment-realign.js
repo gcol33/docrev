@@ -252,7 +252,7 @@ export async function realignComments(docxPath, markdownPath, options = {}) {
     console.log(`Found ${refWithComments.length} paragraphs with ${author} comments in reference`);
     // Strip ALL comments (both authors) from markdown to start fresh
     let markdown = originalMarkdown;
-    markdown = markdown.replace(/\s*\{>>[^<]+<<\}/g, '');
+    markdown = markdown.replace(/\s*\{>>[\s\S]+?<<\}/g, '');
     console.log(`Stripped all comments from markdown`);
     // Parse markdown paragraphs
     const mdParagraphs = parseMdParagraphs(markdown);
@@ -325,7 +325,7 @@ export async function realignMarkdown(docxPath, markdown, options = {}) {
         const refParagraphs = await extractParagraphsWithComments(docxPath);
         const refWithComments = refParagraphs.filter((p) => p.comments.length > 0 && p.comments.some((c) => c.author === author));
         // Strip ALL comments from markdown
-        let result = markdown.replace(/\s*\{>>[^<]+<<\}/g, '');
+        let result = markdown.replace(/\s*\{>>[\s\S]+?<<\}/g, '');
         // Parse markdown paragraphs
         const mdParagraphs = parseMdParagraphs(result);
         // Track insertions
