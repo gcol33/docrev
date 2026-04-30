@@ -5,6 +5,19 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.11] - 2026-04-30
+
+### Fixed
+- **Single-section comment placement.** `computeSectionBoundaries` left the last section's `end` at `Number.MAX_SAFE_INTEGER`, which collapsed the proportional-position math in `insertCommentsIntoMarkdown` to ~0. Every comment whose anchor wasn't in the first 200 chars of the markdown stacked at position 0. Now caps the last boundary's `end` at `fullDocText.length`, passed in from sync and verify-anchors.
+- **Re-sync duplicated comments.** `sync --comments-only` re-inserted every comment on each invocation, producing `{>>R1<<}{>>R1<<}{>>R1<<}…` over time. `insertCommentsIntoMarkdown` now scans ±200 chars around the target for an identical `{>>author: text<<}` block and skips insertion when found.
+- **Threading content destruction.** `prepareMarkdownWithMarkers`'s whitespace-consumption loops captured `charBefore` once outside the loop, so a single leading space caused `removeStart` to walk to position 0 and `slice()` to delete every preceding paragraph. Replaced with a one-char check.
+- **Multi-run anchor injection.** Pandoc splits a single anchor across multiple `<w:r>` blocks whenever it applies styling mid-anchor — smart-quote substitution, `*italic*`, `` `code` ``, `**bold**` all trigger this. The single-run scan in `injectCommentsAtMarkers` grabbed the start marker's `<w:t>`, looked for the end marker inside it, found nothing, and silently skipped the comment. New multi-run path splits the start run at the start marker, keeps middle runs verbatim, splits the end run at the end marker, and rebuilds with `commentRangeStart`/`commentRangeEnd` around the styled anchor portions.
+- **Nested-bracket anchors.** `prepareMarkdownWithMarkers` used `\[([^\]]+)\]\{\.mark\}` for the trailing anchor group, so any inner `]` (e.g. `[[0..9]]{.mark}`, `[*italic*]{.mark}`) terminated the match prematurely. Replaced with a manual balanced-bracket walker that handles arbitrary nesting depth and verifies a `{.mark}` suffix.
+- **Orphan-`[` over-stripping.** `stripAnnotations`'s orphan cleanup used `\[(?![^\[\]]*\])`, treating any inner `[` as a barrier and stripping the outer `[` of nested forms. Loosened to `\[(?![^\]\n]*\])`: an `[` is orphan only when no `]` follows before end of line.
+
+### Changed
+- `sync --comments-only` summary distinguishes `placed` / `already present` / `unmatched` instead of subtracting before/after counts. Re-syncs now report "6 already present (skipped to avoid duplication)" instead of misreporting them as fully placed or fully unmatched. New `outStats` channel from `insertCommentsIntoMarkdown`.
+
 ## [0.9.10] - 2026-04-30
 
 ### Fixed
