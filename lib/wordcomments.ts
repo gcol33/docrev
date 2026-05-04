@@ -102,7 +102,8 @@ export function prepareMarkdownWithMarkers(markdown: string): PrepareResult {
     return { anchor: text.slice(i + 1, j), endIdx: j + 8 };
   }
 
-  const rawMatches: ParsedComment[] = [];
+  const REPLY_PREFIX = '↪ ';
+  const rawMatches: (ParsedComment & { explicitReply: boolean })[] = [];
   let match: RegExpExecArray | null;
   while ((match = commentPattern.exec(markdown)) !== null) {
     const content = match[1] ?? '';
@@ -112,6 +113,15 @@ export function prepareMarkdownWithMarkers(markdown: string): PrepareResult {
     if (colonIdx > 0 && colonIdx < 30) {
       author = content.slice(0, colonIdx).trim();
       text = content.slice(colonIdx + 1).trim();
+    }
+
+    // The `↪ ` prefix is the authoritative reply signal emitted by
+    // `insertCommentsIntoMarkdown`. Strip it from the author before injection
+    // so Word displays the real name.
+    let explicitReply = false;
+    if (author.startsWith(REPLY_PREFIX)) {
+      explicitReply = true;
+      author = author.slice(REPLY_PREFIX.length).trim();
     }
 
     const commentEnd = match.index + match[0].length;
@@ -124,6 +134,7 @@ export function prepareMarkdownWithMarkers(markdown: string): PrepareResult {
       start: match.index,
       end: trailing ? trailing.endIdx : commentEnd,
       fullMatch: markdown.slice(match.index, trailing ? trailing.endIdx : commentEnd),
+      explicitReply,
     });
 
     // Advance regex lastIndex past the consumed anchor so the next iteration
@@ -139,10 +150,17 @@ export function prepareMarkdownWithMarkers(markdown: string): PrepareResult {
     return { markedMarkdown: markdown, comments: [] };
   }
 
-  // Detect reply relationships based on adjacency
-  // First comment in a cluster = parent, all subsequent = replies to that parent
-  // Comments are "adjacent" if there's minimal text between them (< 10 chars)
+  // Two-mode reply detection driven by the markdown itself:
+  //   - If any comment carries the `↪ ` author prefix, the markdown came
+  //     through `insertCommentsIntoMarkdown` and we use prefix-only mode.
+  //     Distinct clusters that happen to land at gap=0 (a real failure
+  //     mode on dense reviewer docs — 298-comment paper produced 9 such
+  //     collisions) are not misthreaded.
+  //   - If no comment carries the prefix, the markdown was hand-typed.
+  //     Fall back to gap < 10 adjacency for backward compat with users
+  //     who write CriticMarkup directly.
   const ADJACENT_THRESHOLD = 10;
+  const useExplicitMode = rawMatches.some(m => m.explicitReply);
   const comments: PreparedComment[] = [];
   let clusterParentIdx = -1;  // Index of first comment in current cluster
   let lastCommentEnd = -1;
@@ -151,9 +169,10 @@ export function prepareMarkdownWithMarkers(markdown: string): PrepareResult {
     const m = rawMatches[i];
     if (!m) continue;
 
-    // Check if this comment is adjacent to the previous one
     const gap = lastCommentEnd >= 0 ? m.start - lastCommentEnd : Infinity;
-    const isAdjacent = gap < ADJACENT_THRESHOLD;
+    const isAdjacent = useExplicitMode
+      ? m.explicitReply
+      : gap < ADJACENT_THRESHOLD;
 
     // Reset cluster if there's a gap (comments not in same cluster)
     if (!isAdjacent) {

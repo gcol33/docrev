@@ -83,8 +83,12 @@ describe('wordcomments.js', () => {
       assert.strictEqual(result.comments[0].isReply, false);
     });
 
-    it('should detect reply relationships (Guy -> Gilles)', () => {
-      const markdown = 'This is test content {>>Guy Colling: Question here<<} {>>Gilles Colling: My reply<<} with some text.';
+    it('should detect reply relationships (Guy -> Gilles) on exact concat', () => {
+      // Reply detection requires zero-char gap between `<<}` and `{>>` —
+      // matching what `insertCommentsIntoMarkdown` emits programmatically.
+      // A whitespace gap means independent comments that happened to land
+      // close, not a parent→reply chain.
+      const markdown = 'This is test content {>>Guy Colling: Question here<<}{>>Gilles Colling: My reply<<} with some text.';
       const result = prepareMarkdownWithMarkers(markdown);
 
       assert.strictEqual(result.comments.length, 2);
@@ -93,6 +97,18 @@ describe('wordcomments.js', () => {
       assert.strictEqual(result.comments[1].author, 'Gilles Colling');
       assert.strictEqual(result.comments[1].isReply, true);
       assert.strictEqual(result.comments[1].parentIdx, 0);
+    });
+
+    it('should NOT thread two comments separated by whitespace', () => {
+      // Distinct comments that happened to land near each other (e.g. on
+      // a dense reviewer doc, two separate roots resolving to nearby anchors)
+      // must not be promoted to a reply chain just because of a 1-char gap.
+      const markdown = 'Start {>>A: first<<} {>>B: independent<<} end';
+      const result = prepareMarkdownWithMarkers(markdown);
+
+      assert.strictEqual(result.comments.length, 2);
+      assert.strictEqual(result.comments[0].isReply, false);
+      assert.strictEqual(result.comments[1].isReply, false);
     });
 
     it('should handle multiple independent comments', () => {
@@ -257,9 +273,9 @@ describe('wordcomments.js', () => {
       assert.strictEqual(result.comments[1].isReply, false);
     });
 
-    it('should thread adjacent comments', () => {
-      // Comments immediately following each other should be threaded
-      const markdown = 'Start {>>Guy Colling: Question<<} {>>Gilles Colling: Reply<<} end';
+    it('should thread comments concatenated without whitespace', () => {
+      // Programmatic emission concatenates parent + reply with zero gap.
+      const markdown = 'Start {>>Guy Colling: Question<<}{>>Gilles Colling: Reply<<} end';
       const result = prepareMarkdownWithMarkers(markdown);
 
       assert.strictEqual(result.comments.length, 2);

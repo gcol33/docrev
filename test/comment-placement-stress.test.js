@@ -152,14 +152,14 @@ describe('comment placement stress', () => {
 
       assert.strictEqual(extracted.length, N);
       const placed = countCriticComments(synced);
-      assert.ok(
-        placed >= Math.floor(N * 0.9),
-        `expected ≥90% placement when anchor survives, got ${placed}/${N}`,
+      assert.strictEqual(
+        placed,
+        N,
+        `expected 100% placement when anchor phrase survives, got ${placed}/${N}`,
       );
 
-      // Spot-check: comment N must land near "marker-N-here" in the synced
-      // text — not on a different section's marker.
-      for (let i = 0; i < N; i += 7) {
+      // Every comment must land near its own "marker-N-here" — not a sibling's.
+      for (let i = 0; i < N; i++) {
         const commentIdx = synced.indexOf(`drift-${i}`);
         const markerIdx = synced.indexOf(`marker-${i}-here`);
         assert.ok(commentIdx >= 0, `comment drift-${i} missing from synced output`);
