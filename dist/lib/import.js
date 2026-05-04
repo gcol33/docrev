@@ -394,7 +394,12 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
             dedupedCount += 1 + replies.length;
             continue;
         }
-        const replyBlocks = replies.map(r => `{>>${r.author}: ${r.text}<<}`);
+        // Replies carry an explicit `↪ ` author prefix so the round-trip does not
+        // depend on positional adjacency in the markdown. On dense reviewer docs
+        // distinct clusters frequently land at the same anchor position; without
+        // the prefix the re-parse would misthread them. The injection side strips
+        // `↪ ` back off the author so Word renders the original name.
+        const replyBlocks = replies.map(r => `{>>↪ ${r.author}: ${r.text}<<}`);
         const combined = parentBlock + replyBlocks.join('');
         if (wrapAnchor && c.anchorText && c.anchorEnd) {
             const before = result.slice(0, c.pos);
@@ -403,10 +408,6 @@ export function insertCommentsIntoMarkdown(markdown, comments, anchors, options 
             result = before + combined + `[${anchor}]{.mark}` + after;
         }
         else {
-            // Insert at the anchor position with no surrounding whitespace tweaks;
-            // CriticMarkup is invisible to readers, and adding leading space would
-            // shift prose byte-for-byte (callers verify --comments-only doesn't
-            // touch the original).
             result = result.slice(0, c.pos) + combined + result.slice(c.pos);
         }
         placedCount += 1 + replies.length;

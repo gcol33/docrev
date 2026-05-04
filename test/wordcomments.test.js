@@ -99,16 +99,41 @@ describe('wordcomments.js', () => {
       assert.strictEqual(result.comments[1].parentIdx, 0);
     });
 
-    it('should NOT thread two comments separated by whitespace', () => {
-      // Distinct comments that happened to land near each other (e.g. on
-      // a dense reviewer doc, two separate roots resolving to nearby anchors)
-      // must not be promoted to a reply chain just because of a 1-char gap.
-      const markdown = 'Start {>>A: first<<} {>>B: independent<<} end';
+    it('treats `↪ ` author prefix as authoritative reply marker', () => {
+      // Programmatic emission tags replies with `↪ ` so the round-trip
+      // does not depend on positional adjacency. The prefix is stripped
+      // from the author before injection so Word renders the real name.
+      const markdown = 'Start {>>Bob: original<<}{>>↪ Alice: I disagree<<} end';
       const result = prepareMarkdownWithMarkers(markdown);
 
       assert.strictEqual(result.comments.length, 2);
+      assert.strictEqual(result.comments[0].author, 'Bob');
       assert.strictEqual(result.comments[0].isReply, false);
-      assert.strictEqual(result.comments[1].isReply, false);
+      assert.strictEqual(result.comments[1].author, 'Alice');
+      assert.strictEqual(result.comments[1].isReply, true);
+      assert.strictEqual(result.comments[1].parentIdx, 0);
+    });
+
+    it('disables adjacency in explicit mode so collisions do not misthread', () => {
+      // Once any `↪ ` marker appears the markdown came from sync; distinct
+      // comments that happen to land at gap=0 (the real-paper collision
+      // case) must NOT be promoted to replies just because of adjacency.
+      const markdown =
+        'Plant diversity {>>A: first cluster<<}{>>↪ R1: reply to A<<} ' +
+        '{>>B: separate<<}{>>C: also separate<<} end.';
+      const result = prepareMarkdownWithMarkers(markdown);
+
+      assert.strictEqual(result.comments.length, 4);
+      assert.strictEqual(result.comments[0].author, 'A');
+      assert.strictEqual(result.comments[0].isReply, false);
+      assert.strictEqual(result.comments[1].author, 'R1');
+      assert.strictEqual(result.comments[1].isReply, true);
+      assert.strictEqual(result.comments[2].author, 'B');
+      assert.strictEqual(result.comments[2].isReply, false);
+      // C concatenates to B with gap=0 — would mis-thread under the
+      // pre-fix loose adjacency rule. In explicit mode it stays a parent.
+      assert.strictEqual(result.comments[3].author, 'C');
+      assert.strictEqual(result.comments[3].isReply, false);
     });
 
     it('should handle multiple independent comments', () => {
@@ -273,8 +298,8 @@ describe('wordcomments.js', () => {
       assert.strictEqual(result.comments[1].isReply, false);
     });
 
-    it('should thread comments concatenated without whitespace', () => {
-      // Programmatic emission concatenates parent + reply with zero gap.
+    it('should thread comments concatenated without whitespace (legacy mode)', () => {
+      // No `↪ ` prefix → hand-typed mode → adjacency rule applies.
       const markdown = 'Start {>>Guy Colling: Question<<}{>>Gilles Colling: Reply<<} end';
       const result = prepareMarkdownWithMarkers(markdown);
 
