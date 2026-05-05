@@ -57,6 +57,18 @@ export interface PdfConfig {
   linestretch?: number;
   numbersections?: boolean;
   toc?: boolean;
+  /**
+   * LaTeX engine: pdflatex (default), xelatex, lualatex, tectonic, etc.
+   * xelatex/lualatex are required for native UTF-8 rendering of Latin-Extended
+   * diacritics (Czech/Polish/Croatian/Spanish author names, species epithets).
+   */
+  engine?: string;
+  /** Roman/serif main font (xelatex/lualatex only — uses fontspec). */
+  mainfont?: string;
+  /** Sans-serif font (xelatex/lualatex only). */
+  sansfont?: string;
+  /** Monospace font (xelatex/lualatex only). */
+  monofont?: string;
 }
 
 export interface DocxConfig {
@@ -893,6 +905,18 @@ export function buildPandocArgs(format: string, config: BuildConfig, outputPath:
   if (format === 'pdf') {
     if (config.pdf.template) {
       args.push('--template', config.pdf.template);
+    }
+    if (config.pdf.engine) {
+      args.push(`--pdf-engine=${config.pdf.engine}`);
+    }
+    if (config.pdf.mainfont) {
+      args.push('-V', `mainfont=${config.pdf.mainfont}`);
+    }
+    if (config.pdf.sansfont) {
+      args.push('-V', `sansfont=${config.pdf.sansfont}`);
+    }
+    if (config.pdf.monofont) {
+      args.push('-V', `monofont=${config.pdf.monofont}`);
     }
     args.push('-V', `documentclass=${config.pdf.documentclass}`);
     args.push('-V', `fontsize=${config.pdf.fontsize}`);

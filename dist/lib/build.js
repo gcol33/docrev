@@ -648,6 +648,18 @@ export function buildPandocArgs(format, config, outputPath) {
         if (config.pdf.template) {
             args.push('--template', config.pdf.template);
         }
+        if (config.pdf.engine) {
+            args.push(`--pdf-engine=${config.pdf.engine}`);
+        }
+        if (config.pdf.mainfont) {
+            args.push('-V', `mainfont=${config.pdf.mainfont}`);
+        }
+        if (config.pdf.sansfont) {
+            args.push('-V', `sansfont=${config.pdf.sansfont}`);
+        }
+        if (config.pdf.monofont) {
+            args.push('-V', `monofont=${config.pdf.monofont}`);
+        }
         args.push('-V', `documentclass=${config.pdf.documentclass}`);
         args.push('-V', `fontsize=${config.pdf.fontsize}`);
         args.push('-V', `geometry:${config.pdf.geometry}`);

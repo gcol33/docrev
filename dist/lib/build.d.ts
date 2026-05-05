@@ -25,6 +25,18 @@ export interface PdfConfig {
     linestretch?: number;
     numbersections?: boolean;
     toc?: boolean;
+    /**
+     * LaTeX engine: pdflatex (default), xelatex, lualatex, tectonic, etc.
+     * xelatex/lualatex are required for native UTF-8 rendering of Latin-Extended
+     * diacritics (Czech/Polish/Croatian/Spanish author names, species epithets).
+     */
+    engine?: string;
+    /** Roman/serif main font (xelatex/lualatex only — uses fontspec). */
+    mainfont?: string;
+    /** Sans-serif font (xelatex/lualatex only). */
+    sansfont?: string;
+    /** Monospace font (xelatex/lualatex only). */
+    monofont?: string;
 }
 export interface DocxConfig {
     reference?: string | null;

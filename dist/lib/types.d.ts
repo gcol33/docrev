@@ -53,6 +53,22 @@ export interface PdfConfig {
     geometry?: string;
     linestretch?: number;
     toc?: boolean;
+    /**
+     * LaTeX engine to use for PDF output. One of `pdflatex` (default),
+     * `xelatex`, `lualatex`, `tectonic`, etc. xelatex/lualatex are required
+     * for native UTF-8 rendering of diacritics in author names, place
+     * names, and species epithets.
+     */
+    engine?: string;
+    /** Roman/serif main font (xelatex/lualatex only — uses fontspec). */
+    mainfont?: string;
+    /** Sans-serif font (xelatex/lualatex only). */
+    sansfont?: string;
+    /** Monospace font (xelatex/lualatex only). */
+    monofont?: string;
+    numbersections?: boolean;
+    template?: string;
+    headerIncludes?: string;
 }
 export interface DocxConfig {
     reference?: string;
@@ -304,6 +320,10 @@ export interface JournalFormatting {
         linestretch?: number;
         template?: string;
         numbersections?: boolean;
+        engine?: string;
+        mainfont?: string;
+        sansfont?: string;
+        monofont?: string;
     };
     docx?: {
         reference?: string;
