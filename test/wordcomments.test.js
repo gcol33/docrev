@@ -397,4 +397,99 @@ describe('wordcomments.js', () => {
       fs.rmSync(tmpDir, { recursive: true });
     });
   });
+
+  describe('marker placement vs XML attributes (issue #4)', () => {
+    /**
+     * Pandoc renders a markdown image's inline caption text into both the
+     * <wp:docPr descr="..."> alt-text attribute on the drawing AND the
+     * visible Caption paragraph. The naive `documentXml.indexOf(marker)`
+     * landed on the attribute occurrence, where the surrounding run held a
+     * <w:drawing> (no <w:t>), so dissectRun returned null and the comment
+     * was silently dropped.
+     */
+    it('anchors comment whose markers appear first inside an XML attribute', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-issue4-'));
+      const docxPath = path.join(tmpDir, 'caption.docx');
+      const outputPath = path.join(tmpDir, 'output.docx');
+
+      const markedCaption = 'Caption text ⟦CMS:0⟧ with prose ⟦CME:0⟧ here.';
+      // Mimic Pandoc's output: marker text duplicated inside a <wp:docPr descr="...">
+      // attribute (drawing run, no <w:t>) followed by the visible Caption paragraph.
+      const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="1" name="image" descr="${markedCaption}"/>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Caption"/></w:pPr>
+      <w:r>
+        <w:t xml:space="preserve">${markedCaption}</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>`;
+
+      const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+      const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+      const docRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+
+      const zip = new AdmZip();
+      zip.addFile('[Content_Types].xml', Buffer.from(contentTypes));
+      zip.addFile('_rels/.rels', Buffer.from(rels));
+      zip.addFile('word/document.xml', Buffer.from(documentXml));
+      zip.addFile('word/_rels/document.xml.rels', Buffer.from(docRels));
+      zip.writeZip(docxPath);
+
+      const comments = [
+        {
+          commentIdx: 0,
+          author: 'Reviewer',
+          text: 'caption comment',
+          isReply: false,
+          parentIdx: null,
+        },
+      ];
+
+      const result = await injectCommentsAtMarkers(docxPath, comments, outputPath);
+
+      assert.strictEqual(result.success, true);
+      assert.strictEqual(result.commentCount, 1, 'caption-anchored comment should be injected');
+      assert.strictEqual(result.skippedComments ?? 0, 0, 'no comments should be skipped');
+
+      const outputZip = new AdmZip(outputPath);
+      const commentsXml = outputZip.readAsText(outputZip.getEntry('word/comments.xml'));
+      assert.ok(commentsXml.includes('Reviewer'), 'comments.xml should include author');
+      assert.ok(commentsXml.includes('caption comment'), 'comments.xml should include text');
+
+      // The anchor range should land in the visible Caption paragraph, not the drawing.
+      const docOut = outputZip.readAsText(outputZip.getEntry('word/document.xml'));
+      const rangeStartIdx = docOut.indexOf('<w:commentRangeStart');
+      const captionStyleIdx = docOut.indexOf('w:val="Caption"');
+      assert.ok(rangeStartIdx !== -1, 'commentRangeStart should exist');
+      assert.ok(
+        rangeStartIdx > captionStyleIdx,
+        'commentRangeStart should land after the Caption pStyle, not in the drawing',
+      );
+
+      fs.rmSync(tmpDir, { recursive: true });
+    });
+  });
 });

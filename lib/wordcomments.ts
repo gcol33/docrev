@@ -478,8 +478,31 @@ export async function injectCommentsAtMarkers(
       const startMarker = `${MARKER_START_PREFIX}${idx}${MARKER_SUFFIX}`;
       const endMarker = `${MARKER_END_PREFIX}${idx}${MARKER_SUFFIX}`;
 
-      const startPos = documentXml.indexOf(startMarker);
-      const endPos = documentXml.indexOf(endMarker, startPos + startMarker.length);
+      // Pandoc duplicates inline image alt-text into <wp:docPr descr="...">
+      // metadata attributes AND into the visible caption paragraph. A naive
+      // indexOf hits the metadata-attribute occurrence first, where there is
+      // no <w:t> element so dissectRun fails. Skip occurrences whose position
+      // is inside an XML tag (last unbalanced '<' before position).
+      // See: https://github.com/gcol33/docrev/issues/4
+      function findInTextContent(haystack: string, needle: string, fromIdx = 0): number {
+        let i = fromIdx;
+        while (true) {
+          const p = haystack.indexOf(needle, i);
+          if (p < 0) return -1;
+          const lastLt = haystack.lastIndexOf('<', p);
+          const lastGt = haystack.lastIndexOf('>', p);
+          if (lastLt > lastGt) {
+            i = p + 1;
+            continue;
+          }
+          return p;
+        }
+      }
+
+      const startPos = findInTextContent(documentXml, startMarker);
+      const endPos = startPos === -1
+        ? -1
+        : findInTextContent(documentXml, endMarker, startPos + startMarker.length);
 
       if (startPos === -1 || endPos === -1) continue;
 
