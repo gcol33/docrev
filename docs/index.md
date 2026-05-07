@@ -1,10 +1,12 @@
 # docrev
 
+<div class="badge-row">
 [![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
 [![npm downloads](https://img.shields.io/npm/dm/docrev)](https://www.npmjs.com/package/docrev)
 [![node](https://img.shields.io/node/v/docrev)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
+</div>
 
 A CLI for writing documents in Markdown while collaborating with Word users.
 
@@ -33,7 +35,7 @@ docrev keeps the markdown as the canonical version, under git. The DOCX is rebui
 npm install -g docrev
 ```
 
-Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see [Installing Dependencies](https://github.com/gcol33/docrev#installing-dependencies).
+Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see the [Troubleshooting](troubleshooting.html) page.
 
 ## Quick Start
 
@@ -64,38 +66,33 @@ rev build docx --dual     # clean + annotated versions
 
 ## Documentation
 
-<div class="grid cards" markdown>
-
--   :material-rocket-launch: **Get Started**
-
-    ---
-
-    The full revision cycle: import, build, sync, reply, resolve, rebuild, archive.
-
-    [:octicons-arrow-right-24: Revision Workflow](workflow.md)
-
--   :material-console: **Commands**
-
-    ---
-
-    Complete reference for all `rev` commands, grouped by task.
-
-    [:octicons-arrow-right-24: Command Reference](commands.md)
-
--   :material-cog: **Configuration**
-
-    ---
-
-    `rev.yaml` options, journal profiles, custom templates, CSL styles.
-
-    [:octicons-arrow-right-24: Configuration](configuration.md)
-
--   :material-wrench: **Troubleshooting**
-
-    ---
-
-    Common issues with installation, builds, imports, and cross-references.
-
-    [:octicons-arrow-right-24: Troubleshooting](troubleshooting.md)
-
+<div class="row g-3 mt-1">
+  <div class="col-sm-6">
+    <div class="doc-card position-relative">
+      <h5>Get Started</h5>
+      <p>The full revision cycle: import, build, sync, reply, resolve, rebuild, archive.</p>
+      <a href="workflow.html" class="stretched-link text-decoration-none">Revision Workflow →</a>
+    </div>
+  </div>
+  <div class="col-sm-6">
+    <div class="doc-card position-relative">
+      <h5>Commands</h5>
+      <p>Complete reference for all <code>rev</code> commands, grouped by task.</p>
+      <a href="commands.html" class="stretched-link text-decoration-none">Command Reference →</a>
+    </div>
+  </div>
+  <div class="col-sm-6">
+    <div class="doc-card position-relative">
+      <h5>Configuration</h5>
+      <p><code>rev.yaml</code> options, journal profiles, custom templates, CSL styles.</p>
+      <a href="configuration.html" class="stretched-link text-decoration-none">Configuration →</a>
+    </div>
+  </div>
+  <div class="col-sm-6">
+    <div class="doc-card position-relative">
+      <h5>Troubleshooting</h5>
+      <p>Common issues with installation, builds, imports, and cross-references.</p>
+      <a href="troubleshooting.html" class="stretched-link text-decoration-none">Troubleshooting →</a>
+    </div>
+  </div>
 </div>
