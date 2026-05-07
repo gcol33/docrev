@@ -9,11 +9,24 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  padding-top: 4rem;
   font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
-.container-xl { flex: 1; }
+.container { flex: 1; }
 footer { margin-top: auto; }
+
+/* ── Navbar (pkgdown-style subtle tint, not bg-primary) ── */
+.navbar {
+  background: color-mix(in oklab, color-mix(in oklab, var(--bs-body-bg) 95%, var(--bs-primary)) 95%, var(--bs-body-color));
+  border-bottom: 1px solid #DFD7CA;
+  line-height: initial;
+}
+
+.navbar .nav-link.active {
+  font-weight: 600;
+  color: var(--bs-primary) !important;
+}
 
 /* ── Links ─────────────────────────────────────────────── */
 a { color: #325D88; }
@@ -57,7 +70,6 @@ pre code, div.sourceCode code {
   color: inherit;
 }
 
-/* Pandoc wraps highlighted blocks in div.sourceCode > pre.sourceCode */
 div.sourceCode { padding: 0; }
 div.sourceCode pre { border: none; margin: 0; }
 
@@ -81,23 +93,44 @@ thead th {
 td, th { padding: .4rem .75rem; border-bottom: 1px solid #e8e2d8; }
 tbody tr:hover { background-color: rgba(223,215,202,.2); }
 
-/* ── TOC ───────────────────────────────────────────────── */
-nav.toc ul {
+/* ── TOC sidebar ───────────────────────────────────────── */
+aside#toc, aside .toc, aside nav.toc { font-size: .875rem; }
+
+aside h2.h6 {
+  text-transform: uppercase;
+  font-size: .68rem;
+  letter-spacing: .07em;
+  color: #6c757d;
+  font-weight: 600;
+  margin-bottom: .5rem;
+  border: none;
+  padding: 0;
+}
+
+aside .toc, aside #TOC {
+  position: sticky;
+  top: 5rem;
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+aside ul {
   list-style: none;
   padding-left: .9rem;
   margin: 0;
 }
-nav.toc > ul { padding-left: 0; }
+aside > nav > .toc > ul,
+aside .toc > ul { padding-left: 0; }
 
-nav.toc li { margin: .1rem 0; }
+aside li { margin: .1rem 0; }
 
-nav.toc a {
+aside a {
   color: #6c757d;
   text-decoration: none;
   display: block;
   line-height: 1.55;
 }
-nav.toc a:hover { color: #325D88; text-decoration: none; }
+aside a:hover { color: #325D88; }
 
 /* ── Home page cards ───────────────────────────────────── */
 .doc-card {
@@ -124,8 +157,15 @@ nav.toc a:hover { color: #325D88; text-decoration: none; }
 
 [data-bs-theme="dark"] body  { background-color: #343739; color: #DFD7CA; }
 
+[data-bs-theme="dark"] .navbar {
+  background: color-mix(in oklab, color-mix(in oklab, #343739 92%, var(--bs-primary)) 95%, #DFD7CA);
+  border-bottom-color: #495057;
+}
+
 [data-bs-theme="dark"] a       { color: #7ba8d0; }
 [data-bs-theme="dark"] a:hover { color: #a5c4e8; }
+
+[data-bs-theme="dark"] .navbar .nav-link.active { color: #7ba8d0 !important; }
 
 [data-bs-theme="dark"] h1,
 [data-bs-theme="dark"] h2,
@@ -146,7 +186,6 @@ nav.toc a:hover { color: #325D88; text-decoration: none; }
   color: #DFD7CA;
 }
 
-/* Strip pandoc light-mode token colours in dark mode */
 [data-bs-theme="dark"] div.sourceCode span[class] { color: #DFD7CA !important; }
 
 [data-bs-theme="dark"] thead th {
@@ -158,8 +197,8 @@ nav.toc a:hover { color: #325D88; text-decoration: none; }
 [data-bs-theme="dark"] th  { border-color: #3d4043; }
 [data-bs-theme="dark"] tbody tr:hover { background-color: rgba(73,80,87,.3); }
 
-[data-bs-theme="dark"] nav.toc a       { color: #8e9499; }
-[data-bs-theme="dark"] nav.toc a:hover { color: #7ba8d0; }
+[data-bs-theme="dark"] aside a       { color: #8e9499; }
+[data-bs-theme="dark"] aside a:hover { color: #7ba8d0; }
 
 [data-bs-theme="dark"] .doc-card {
   background: #2C2F31;

@@ -73,9 +73,11 @@ def build_page(md_name, html_name, title, active_key, use_toc, version):
 
 
 def build(deploy=False, serve=False):
-    SITE.mkdir(exist_ok=True)
+    if SITE.exists():
+        shutil.rmtree(SITE)
+    SITE.mkdir()
     assets = SITE / "assets"
-    assets.mkdir(exist_ok=True)
+    assets.mkdir()
 
     shutil.copy(EXTRA_CSS, assets / "extra.css")
 

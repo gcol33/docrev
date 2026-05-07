@@ -67,32 +67,32 @@ rev build docx --dual     # clean + annotated versions
 ## Documentation
 
 <div class="row g-3 mt-1">
-  <div class="col-sm-6">
-    <div class="doc-card position-relative">
-      <h5>Get Started</h5>
-      <p>The full revision cycle: import, build, sync, reply, resolve, rebuild, archive.</p>
-      <a href="workflow.html" class="stretched-link text-decoration-none">Revision Workflow →</a>
-    </div>
-  </div>
-  <div class="col-sm-6">
-    <div class="doc-card position-relative">
-      <h5>Commands</h5>
-      <p>Complete reference for all <code>rev</code> commands, grouped by task.</p>
-      <a href="commands.html" class="stretched-link text-decoration-none">Command Reference →</a>
-    </div>
-  </div>
-  <div class="col-sm-6">
-    <div class="doc-card position-relative">
-      <h5>Configuration</h5>
-      <p><code>rev.yaml</code> options, journal profiles, custom templates, CSL styles.</p>
-      <a href="configuration.html" class="stretched-link text-decoration-none">Configuration →</a>
-    </div>
-  </div>
-  <div class="col-sm-6">
-    <div class="doc-card position-relative">
-      <h5>Troubleshooting</h5>
-      <p>Common issues with installation, builds, imports, and cross-references.</p>
-      <a href="troubleshooting.html" class="stretched-link text-decoration-none">Troubleshooting →</a>
-    </div>
-  </div>
+<div class="col-sm-6">
+<div class="doc-card position-relative">
+<h5>Get Started</h5>
+<p>The full revision cycle: import, build, sync, reply, resolve, rebuild, archive.</p>
+<a href="workflow.html" class="stretched-link text-decoration-none">Revision Workflow →</a>
+</div>
+</div>
+<div class="col-sm-6">
+<div class="doc-card position-relative">
+<h5>Commands</h5>
+<p>Complete reference for all <code>rev</code> commands, grouped by task.</p>
+<a href="commands.html" class="stretched-link text-decoration-none">Command Reference →</a>
+</div>
+</div>
+<div class="col-sm-6">
+<div class="doc-card position-relative">
+<h5>Configuration</h5>
+<p><code>rev.yaml</code> options, journal profiles, custom templates, CSL styles.</p>
+<a href="configuration.html" class="stretched-link text-decoration-none">Configuration →</a>
+</div>
+</div>
+<div class="col-sm-6">
+<div class="doc-card position-relative">
+<h5>Troubleshooting</h5>
+<p>Common issues with installation, builds, imports, and cross-references.</p>
+<a href="troubleshooting.html" class="stretched-link text-decoration-none">Troubleshooting →</a>
+</div>
+</div>
 </div>
