@@ -1,294 +1,309 @@
-# Complete Workflow Guide
+# Revision Workflow
 
-The Word ↔ Markdown round-trip workflow for academic papers.
+The canonical version lives in your markdown files. Word is the exchange format — you build it when you need to share, and sync it when feedback comes back.
 
-## The Big Picture
+A revision cycle in brief:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                                                                 │
-│   Word Doc ──────► Markdown ──────► Word/PDF                    │
-│      │               │                 │                        │
-│      │          (you work here)        │                        │
-│      │               │                 ▼                        │
-│      │               │            Send to reviewers             │
-│      │               │                 │                        │
-│      │               │                 ▼                        │
-│      │               │            Receive feedback              │
-│      └───────────────┴─────────────────┘                        │
-│                      │                                          │
-│                   (repeat)                                      │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Key insight:** You always work in Markdown. Word is just for delivery and collecting feedback.
+1. Build a Word document and send it to reviewers.
+2. They return it with track changes and comments.
+3. `rev sync` pulls the feedback into your markdown sections.
+4. Navigate comments with `rev next` and `rev todo`, reply with `rev reply`, accept or reject changes with `rev accept`.
+5. Rebuild with `rev build docx --dual` — a clean document and an annotated one with your replies threaded into the original Word comments.
+6. Archive the reviewer's file. Repeat.
 
 ---
 
-## Phase 1: Start Your Project
+## Starting a Project
 
-### Option A: Import from existing Word doc
+From an existing Word document:
 
 ```bash
 rev import manuscript.docx
 ```
 
-This creates:
-```
-my-paper/
-├── rev.yaml           # Project config
-├── introduction.md    # Section files (auto-detected)
-├── methods.md
-├── results.md
-├── discussion.md
-├── references.bib     # If citations found
-└── figures/           # Extracted images
-```
+docrev splits the document at top-level headings and creates one `.md` file per section. Images land in `figures/`, equations convert from OMML to LaTeX, and any existing comments or track changes are preserved as CriticMarkup annotations.
 
-### Option B: Start fresh
+From scratch:
 
 ```bash
-rev new my-paper
+rev new my-paper -s intro,methods,results,discussion
 cd my-paper
 ```
 
-Edit the generated section files.
+The `-s` flag sets section names and skips the interactive prompt. Set your preferred sections once and future `rev new` calls use them automatically:
+
+```bash
+rev config sections "intro,methods,results,discussion"
+```
+
+Either way, the project has this shape:
+
+```
+my-paper/
+├── rev.yaml          ← config: title, authors, section order, journal profile
+├── intro.md          ← section files — edit these
+├── methods.md
+├── results.md
+├── discussion.md
+├── references.bib    ← BibTeX bibliography
+├── figures/          ← images referenced from sections
+├── paper.md          ← auto-combined on each build, not hand-edited
+└── output/
+    ├── my-paper.docx
+    └── my-paper.pdf
+```
+
+`paper.md` is regenerated from the section files in the order set by `rev.yaml`; output files go to `output/` by default. Set `outputDir: null` in `rev.yaml` if you prefer them alongside `paper.md`.
 
 ---
 
-## Phase 2: Work in Markdown
+## Writing in Markdown
 
-Edit your section files using any text editor. The Markdown supports:
+Citations use pandoc-citeproc syntax — `[@key]` for one source, `[@key1; @key2]` for multiple:
 
-**Citations:**
 ```markdown
-Previous studies [@Smith2020; @Jones2021] have shown...
+Global temperatures have risen by 1.1°C since pre-industrial levels [@IPCC2021].
 ```
 
-**Figures with cross-refs:**
-```markdown
-![Caption text](figures/heatmap.png){#fig:heatmap}
+Figures get a label so they can be referenced by number:
 
-See @fig:heatmap for the results.
+```markdown
+![Temperature anomalies since 1880](figures/temperature.png){#fig:temperature}
+
+As shown in @fig:temperature, the trend has accelerated since 1970.
 ```
 
-**Equations:**
+Equations use standard LaTeX — inline with `$...$`, display with `$$...$$`:
+
 ```markdown
-The model is defined as $y = mx + b$ where...
+The forcing relationship follows $\Delta T = \lambda \cdot \Delta F$, where
+$\lambda$ is the climate sensitivity parameter.
 
 $$
-\hat{p} = \frac{\sum_d w_d p_d}{\sum_d w_d}
-$$
+\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i
+$$ {#eq:mean}
+
+Reference with @eq:mean → "Equation 1"
+```
+
+Simple tables take pipe syntax:
+
+```markdown
+| Site | Lat  | Long   | n  |
+|------|------|--------|----|
+| A    | 45.2 | -120.5 | 48 |
+| B    | 52.1 | -105.3 | 61 |
+
+: Study sites {#tbl:sites}
+```
+
+For merged cells or multi-line cell content, use grid table syntax:
+
+```markdown
++----------+----------+----------+
+| Results                        |
++==========+==========+==========+
+| Site     | 2023     | 2024     |
++----------+----------+----------+
+| A        | 100      | 150      |
++----------+----------+----------+
+
+: Annual measurements {#tbl:results}
+```
+
+Cross-references resolve automatically at build time — `@fig:label`, `@tbl:label`, `@eq:label`, `@sec:label` become "Figure 1", "Table 2", "Equation 3", "Section 4". Use `rev migrate` to convert hardcoded references (Fig. 1, Table 2) to dynamic ones if you're importing an existing document.
+
+---
+
+## Building and Sharing
+
+```bash
+rev build docx        # → output/my-paper.docx
+rev build pdf         # → output/my-paper.pdf
+rev build docx pdf    # both at once
+```
+
+Set a journal profile to get the right citation style and PDF formatting automatically:
+
+```bash
+rev build pdf -j nature
+```
+
+Six profiles include formatting defaults — `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`. All 21 support validation. To see the full list:
+
+```bash
+rev validate --list
+```
+
+For a live preview while you write:
+
+```bash
+rev watch docx    # rebuilds on every save
 ```
 
 ---
 
-## Phase 3: Build & Deliver
+## Syncing Reviewer Feedback
 
-### Build for collaborators
+When a reviewer returns a Word document with track changes and comments:
 
 ```bash
-rev build docx           # Standard Word doc
-rev build --dual         # Clean + comments versions
-rev build pdf            # PDF for submission
+rev sync reviewed.docx
 ```
 
-**Dual output creates:**
-- `paper.docx` - Clean document for reading
-- `paper_comments.docx` - With threaded Word comments for discussion
+Track changes become CriticMarkup annotations inline in your section files:
 
-### Preview while writing
+```markdown
+The sample size was {--100--}{++150++} participants.
+Data was collected {~~monthly~>weekly~~}.
+```
+
+Comments land with the reviewer's name:
+
+```markdown
+{>>Reviewer 2: The confidence intervals here seem too narrow. Please clarify.<<}
+```
+
+If your markdown has changed since you sent the document out — new edits, reordered sections — run `rev verify-anchors` first to see which comments will land cleanly against the updated prose, then use `--comments-only` to import only comments (not track changes, which would overwrite your newer edits):
 
 ```bash
-rev preview docx         # Build and open
-rev watch docx           # Auto-rebuild on save
+rev verify-anchors reviewed.docx
+rev sync reviewed.docx --comments-only
+```
+
+For reviewers who annotate PDFs rather than Word files:
+
+```bash
+rev sync annotated.pdf
+```
+
+Supported annotation types: sticky notes, text boxes, highlights, underlines, strikethrough, squiggly underlines. Use `rev pdf-comments annotated.pdf --with-text` to extract the text that was highlighted or struck through.
+
+---
+
+## Track Changes
+
+List what's pending:
+
+```bash
+rev accept methods.md
+```
+
+Accept or reject individually, or all at once:
+
+```bash
+rev accept methods.md -n 1    # accept change #1
+rev reject methods.md -n 2    # reject change #2
+rev accept methods.md -a      # accept all
+```
+
+For an interactive review with keyboard shortcuts (a/r/s/q):
+
+```bash
+rev review methods.md
 ```
 
 ---
 
-## Phase 4: Receive Reviewer Feedback
+## Comments
 
-When reviewers return a Word doc with track changes and comments:
-
-### Sync feedback to section files
+Navigate pending comments:
 
 ```bash
-rev sync reviewed.docx              # explicit file
-rev sync                            # auto-detect most recent .docx
-rev sync reviewed.docx methods      # sync only methods section
+rev todo                         # list all pending as a checklist
+rev next                         # show the next one
+rev next -n 3                    # skip to the 3rd
+rev comments methods.md          # all comments in one section, with context
+rev comments methods.md --author "Reviewer 2"
 ```
 
-This:
-- Extracts track changes → CriticMarkup annotations
-- Extracts comments with author names
-- Converts equations (OMML → LaTeX)
-- Extracts images to `media/`
-
-### Navigate comments
-
-```bash
-rev status                # project overview
-rev todo                  # list all pending comments
-rev next                  # show next pending comment
-rev next -n 3             # skip to 3rd pending
-rev first methods         # first comment in methods section
-```
-
-### Accept/reject track changes
-
-```bash
-rev accept methods.md            # list all changes
-rev accept methods.md -n 1       # accept change #1
-rev accept methods.md -a         # accept all
-rev reject methods.md -n 2       # reject change #2
-rev review methods.md            # interactive TUI (a/r/s/q)
-```
-
----
-
-## Phase 5: Reply to Comments
-
-### Set your name (once)
+Reply with your name set once in config:
 
 ```bash
 rev config user "Your Name"
+rev reply methods.md -n 1 -m "Added clarification in the revised text."
 ```
 
-### Reply to specific comment
+The reply appears adjacent to the original:
 
-```bash
-rev reply methods.md -n 1 -m "Clarified in revised text."
-```
-
-### Interactive replies
-
-```bash
-rev reply methods.md
-```
-
-**Result in markdown:**
 ```markdown
-{>>Guy Colling: explain what you mean here<<} {>>Your Name: Clarified in revised text.<<}
+{>>Reviewer 2: The confidence intervals seem too narrow.<<} {>>Your Name: Clarified; the intervals are bootstrap CIs at 95%.<<}
+```
+
+Adjacent comments from different authors thread in Word automatically. Comments must be adjacent — no text between them — for threading to work.
+
+Mark addressed:
+
+```bash
+rev resolve methods.md -n 1
 ```
 
 ---
 
-## Phase 6: Rebuild & Send Back
+## Multiple Reviewers
 
-### Rebuild with threaded comments
+When several reviewers return separate files, `rev merge` reconciles them against a shared baseline:
+
+```bash
+rev merge reviewer_A.docx reviewer_B.docx
+```
+
+docrev compares each file against `.rev/base.docx` (saved automatically on every build) to isolate each reviewer's changes. Conflicts on the same passage are flagged for interactive resolution.
+
+---
+
+## Rebuilding and Responding
+
+Once you've handled the feedback, rebuild:
 
 ```bash
 rev build docx --dual
 ```
 
-The `paper_comments.docx` will have your replies threaded under the original comments - just like a conversation in Word.
-
-### Generate response letter
+This produces two files — `my-paper.docx` (clean, for submission or the next round) and `my-paper_comments.docx` (with your replies threaded under the original Word comments). The same flag works for PDF, rendering comments as LaTeX margin notes:
 
 ```bash
-rev response > response-to-reviewers.md
+rev build pdf --dual
 ```
 
-Creates a point-by-point response document.
+Generate a point-by-point response letter from the resolved comments:
+
+```bash
+rev response > response-letter.md
+```
 
 ---
 
-## Phase 7: Archive & Repeat
+## Archiving and Repeating
 
-### Archive reviewer files
+Move reviewer files out of the project folder:
 
 ```bash
-rev archive                    # move all .docx to archive/
-rev archive --by Smith         # name the reviewer
-rev archive --dry-run          # preview first
+rev archive                    # → archive/20241215_143022_reviewed.docx
+rev archive --by Smith         # → archive/20241215_143022_Smith_my-paper.docx
+rev archive --dry-run          # preview without moving
 ```
 
-Files are renamed with timestamps: `20241215_143022_Smith_my-paper.docx`
+Take a snapshot before a major revision round:
 
-### The cycle continues
+```bash
+rev backup --name "before-round-2"
+```
 
-1. Archive old files → `rev archive`
-2. Receive more feedback → `rev sync`
-3. Review and reply → `rev next`, `rev reply`, `rev resolve`
-4. Accept changes → `rev accept -a`
-5. Rebuild → `rev build docx --dual`
-6. Send back
-
-**Your markdown files remain the source of truth.** Word is just the exchange format.
+The cycle continues: receive feedback, sync, handle changes and comments, rebuild, archive.
 
 ---
 
-## Writing Markdown
+## Pre-Submission Checks
 
-### Tables
-
-**Simple tables** (pipe syntax):
-
-```markdown
-| Site | Lat  | Long  |
-|------|------|-------|
-| A    | 45.2 | -120.5|
-| B    | 52.1 | -105.3|
-
-: Study sites and coordinates {#tbl:sites}
+```bash
+rev check                       # full check: lint, citations, grammar
+rev doi check references.bib    # validate all DOIs
+rev validate -j nature          # journal-specific requirements
+rev word-count -j nature        # check against word limit
 ```
 
-**Complex tables with merged cells** (grid syntax):
-
-```markdown
-+---------------+---------------+---------------+
-| Results                                       |
-+===============+===============+===============+
-| Site          | 2023          | 2024          |
-+---------------+---------------+---------------+
-| A             | 100           | 150           |
-+---------------+---------------+---------------+
-| B             | 200           | 250           |
-+---------------+---------------+---------------+
-
-: Annual measurements {#tbl:results}
-```
-
-Grid tables support:
-- Column spanning (header row above)
-- Row spanning (repeat `|` for continuation)
-- Multi-line cell content
-
-### Equations
-
-**Inline:** `$E = mc^2$` renders as E = mc²
-
-**Display:**
-
-```markdown
-$$
-\bar{x} = \frac{1}{n} \sum_{i=1}^{n} x_i
-$$ {#eq:mean}
-```
-
-Reference with `@eq:mean` → "Equation 1"
-
-### Citations
-
-```markdown
-Previous work [@Smith2020] showed this effect.
-Multiple sources [@Smith2020; @Jones2021] confirm this.
-As Smith [-@Smith2020] demonstrated...  (suppress author)
-```
-
-### Cross-references
-
-```markdown
-![Caption text](figures/plot.png){#fig:results}
-
-See @fig:results and @tbl:sites.
-```
-
-- `@fig:label` → "Figure 1"
-- `@tbl:label` → "Table 2"
-- `@eq:label` → "Equation 3"
-- `@sec:label` → "Section 4"
+For journals with strict requirements, running `rev validate --list` shows which profiles are available and which include formatting support (`[formatting]` tag).
 
 ---
 
@@ -299,9 +314,11 @@ See @fig:results and @tbl:sites.
 | Start from Word | `rev import manuscript.docx` |
 | Start fresh | `rev new my-paper` |
 | Build DOCX | `rev build docx` |
-| Build with comments | `rev build docx --dual` |
+| Build clean + annotated | `rev build docx --dual` |
 | Build PDF | `rev build pdf` |
 | Sync feedback | `rev sync reviewed.docx` |
+| Sync comments only (prose changed) | `rev sync reviewed.docx --comments-only` |
+| Check anchor drift | `rev verify-anchors reviewed.docx` |
 | Project status | `rev status` |
 | List pending | `rev todo` |
 | Next comment | `rev next` |
@@ -310,24 +327,3 @@ See @fig:results and @tbl:sites.
 | Archive reviewer files | `rev archive` |
 | Response letter | `rev response` |
 | Pre-submit check | `rev check` |
-
----
-
-## Tips
-
-### Backup before major changes
-```bash
-rev backup --name "before-revision-2"
-```
-
-### Validate before submission
-```bash
-rev check                    # Full check
-rev doi check               # Validate DOIs
-rev validate -j nature      # Journal requirements
-```
-
-### Export comments for tracking
-```bash
-rev comments methods.md --export comments.csv
-```

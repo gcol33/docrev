@@ -8,7 +8,7 @@
 
 A CLI for writing documents in Markdown while collaborating with Word users.
 
-You keep your prose in `.md` files under version control. Builds produce Word or PDF for collaborators and journals; `rev sync` imports their tracked changes and comments back into the markdown, where you reply, resolve, and rebuild. Equations, figures, citations, and cross-references survive both directions of the round-trip.
+Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `rev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
 
 ## The Problem
 
@@ -25,7 +25,7 @@ manuscript_v3_merged_final_REAL_submitted.docx
 
 By the third filename, the document has split. One file has Jane's comments, another has John's track changes, a third has your reconciliation, and which one is current depends on what you remember. Reconciliation takes an afternoon and goes wrong every time the Word formatting drifts.
 
-docrev keeps the markdown as the canonical version, under git. The DOCX is rebuilt each time you share with a reviewer; their comments and track changes flow back into your section files when you sync, where you reply to or accept them in the terminal.
+docrev keeps the markdown as the canonical version, under git. The DOCX is rebuilt each time you share; reviewer comments and track changes come back into your section files when you sync, where you reply to or accept them in the terminal.
 
 ## Highlights
 
@@ -173,13 +173,13 @@ Or set your preferred default sections once:
 rev config sections "intro,methods,results,discussion"
 ```
 
-This creates the project folder with the section files. Write content in the section files, then build:
+This creates the project folder with your section files — edit them, then build:
 
 ```bash
 rev build docx pdf
 ```
 
-The output filename is derived from your project title in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. The directory layout is described above in [What's in a Project](#whats-in-a-project).
+The output filename comes from `title` in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. The directory layout is described above in [What's in a Project](#whats-in-a-project).
 
 ### Starting from an Existing Word Document
 
