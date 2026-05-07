@@ -87,12 +87,12 @@ rev sync reviewed.docx    # their comments → your markdown
 
 ## What's in a Project
 
-After running `rev new my-paper`, the folder looks like:
+`rev new my-paper` creates the project. It prompts for the section names (default: `introduction, methods, results, discussion`) or accepts them up front via `-s intro,methods,results,discussion`. Each name becomes its own `.md` file. (`rev import some.docx` is the other entry point — it splits an existing Word document into one section per top-level heading.)
 
 ```
 my-paper/
 ├── rev.yaml          ← config: title, authors, section order, journal profile
-├── intro.md          ← section files; one per chapter or paper section
+├── intro.md          ← section files; named at creation, one per section
 ├── methods.md
 ├── results.md
 ├── discussion.md
@@ -104,7 +104,13 @@ my-paper/
     └── my-paper.pdf
 ```
 
-You edit the section files (`intro.md`, `methods.md`, etc.) and the config; everything else is generated. `paper.md` is rebuilt from the section files in the order set by `rev.yaml`, and `output/` holds whatever the last build produced. After `rev sync`, comments and track changes from the reviewer's Word file appear inline in the section files as CriticMarkup annotations. Set `outputDir: null` in `rev.yaml` if you'd rather have outputs land alongside `paper.md`.
+You edit the section files and the config; everything else is generated. `paper.md` is rebuilt from the section files in the order set by `rev.yaml`, and `output/` holds whatever the last build produced. After `rev sync`, comments and track changes from the reviewer's Word file appear inline in the section files as CriticMarkup annotations. Set `outputDir: null` in `rev.yaml` if you'd rather have outputs land alongside `paper.md`.
+
+To set your own per-user default sections so future `rev new` calls skip the prompt:
+
+```bash
+rev config sections "intro,methods,results,discussion"
+```
 
 ## The CLI Review Cycle
 
