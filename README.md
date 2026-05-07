@@ -8,11 +8,11 @@
 
 A CLI for writing documents in Markdown while collaborating with Word users.
 
-You write in Markdown under version control. Your collaborators use Word (or PDF). docrev converts between the two, preserving track changes, comments, equations, and cross-references.
+You keep your prose in `.md` files under version control. Builds produce Word or PDF for collaborators and journals; `rev sync` imports their tracked changes and comments back into the markdown, where you reply, resolve, and rebuild. Equations, figures, citations, and cross-references survive both directions of the round-trip.
 
 ## The Problem
 
-You've been here before:
+After a few rounds of feedback, the project directory looks like this:
 
 ```
 manuscript_v1.docx
@@ -23,9 +23,9 @@ manuscript_v3_merged_final_REAL.docx
 manuscript_v3_merged_final_REAL_submitted.docx
 ```
 
-Three reviewers send back three Word files. You manually compare changes, copy-paste between documents, lose track of who said what. A week later, you can't remember which version has the figure updates.
+By the third filename, the document has split. One file has Jane's comments, another has John's track changes, a third has your reconciliation, and which one is current depends on what you remember. Reconciliation takes an afternoon and goes wrong every time the Word formatting drifts.
 
-**docrev fixes this.** You write in plain text. Reviewers use Word. Their feedback flows back into your files automatically. One source of truth, full version history, no more file chaos.
+docrev keeps the markdown as the canonical version, under git. The DOCX is rebuilt each time you share with a reviewer; their comments and track changes flow back into your section files when you sync, where you reply to or accept them in the terminal.
 
 ## Highlights
 
@@ -60,8 +60,8 @@ The relationship follows $\Delta T = \lambda \cdot \Delta F$ (@eq:forcing).
 Build and share:
 
 ```bash
-rev build docx    # → paper.docx (for collaborators)
-rev build pdf     # → paper.pdf  (for journals)
+rev build docx    # → output/paper.docx
+rev build pdf     # → output/paper.pdf
 ```
 
 When collaborators return the Word doc with track changes:
@@ -85,7 +85,26 @@ rev sync reviewed.docx    # their comments → your markdown
               their feedback → your files
 ```
 
-You stay in Markdown. Collaborators use Word. Journals get PDF. Everyone works in their preferred format.
+## What's in a Project
+
+After running `rev new my-paper`, the folder looks like:
+
+```
+my-paper/
+├── rev.yaml          ← config: title, authors, section order, journal profile
+├── intro.md          ← section files; one per chapter or paper section
+├── methods.md
+├── results.md
+├── discussion.md
+├── references.bib    ← BibTeX bibliography
+├── figures/          ← images referenced from sections
+├── paper.md          ← auto-combined source, regenerated each build
+└── output/           ← built artefacts (docx, pdf, tex)
+    ├── my-paper.docx
+    └── my-paper.pdf
+```
+
+You edit the section files (`intro.md`, `methods.md`, etc.) and the config; everything else is generated. `paper.md` is rebuilt from the section files in the order set by `rev.yaml`, and `output/` holds whatever the last build produced. After `rev sync`, comments and track changes from the reviewer's Word file appear inline in the section files as CriticMarkup annotations. Set `outputDir: null` in `rev.yaml` if you'd rather have outputs land alongside `paper.md`.
 
 ## The CLI Review Cycle
 
@@ -110,22 +129,20 @@ rev resolve methods.md -n 1       # mark as resolved
 rev build docx --dual             # clean + annotated versions
 ```
 
-Reviewers who annotate PDFs instead of Word? That works too:
+PDF annotations work the same way:
 
 ```bash
-rev sync annotated.pdf            # extract PDF comments
+rev sync annotated.pdf
 rev pdf-comments annotated.pdf --append methods.md
 ```
 
-Multiple reviewers sending back separate files? Merge them:
+When several reviewers return separate files, `rev merge` reconciles them:
 
 ```bash
-rev merge reviewer_A.docx reviewer_B.docx   # three-way merge
+rev merge reviewer_A.docx reviewer_B.docx
 ```
 
-The merge command uses the original document (auto-saved in `.rev/base.docx` on build) to detect what each reviewer changed, identifies conflicts when reviewers edit the same text differently, and lets you resolve them interactively.
-
-Your entire revision cycle stays in the terminal. `final_v3_REAL_final.docx` is over.
+Each reviewer's file is compared against `.rev/base.docx` (auto-saved on every build) to isolate that reviewer's changes; conflicts on the same passage are flagged for interactive resolution.
 
 ## Getting Started
 
@@ -150,41 +167,13 @@ Or set your preferred default sections once:
 rev config sections "intro,methods,results,discussion"
 ```
 
-This creates a folder with your chosen sections:
-
-```
-my-report/
-├── intro.md
-├── methods.md
-├── results.md
-├── discussion.md
-├── references.bib
-└── rev.yaml
-```
-
-Write your content in the markdown files. When ready to share:
+This creates the project folder with the section files. Write content in the section files, then build:
 
 ```bash
 rev build docx pdf
 ```
 
-After building, your project structure looks like:
-
-```
-my-report/
-├── intro.md
-├── methods.md
-├── results.md
-├── discussion.md
-├── references.bib
-├── rev.yaml
-├── paper.md              ← combined sections (auto-generated)
-└── output/
-    ├── my-report.docx    ← output for collaborators
-    └── my-report.pdf     ← output for journals
-```
-
-The output filename is derived from your project title in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. Set `outputDir: null` in `rev.yaml` if you'd rather have the built files land alongside `paper.md` (legacy layout).
+The output filename is derived from your project title in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. The directory layout is described above in [What's in a Project](#whats-in-a-project).
 
 ### Starting from an Existing Word Document
 
