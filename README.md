@@ -179,11 +179,12 @@ my-report/
 ├── references.bib
 ├── rev.yaml
 ├── paper.md              ← combined sections (auto-generated)
-├── my-report.docx        ← output for collaborators
-└── my-report.pdf         ← output for journals
+└── output/
+    ├── my-report.docx    ← output for collaborators
+    └── my-report.pdf     ← output for journals
 ```
 
-The output filename is derived from your project title in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered.
+The output filename is derived from your project title in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. Set `outputDir: null` in `rev.yaml` if you'd rather have the built files land alongside `paper.md` (legacy layout).
 
 ### Starting from an Existing Word Document
 
@@ -201,13 +202,31 @@ Layout is controlled in `rev.yaml`:
 
 ```yaml
 title: "My Document"
-output:
-  docx:
-    reference-doc: template.docx   # your Word template
-  pdf:
-    documentclass: article
-    fontsize: 12pt
+authors: []
+sections:
+  - intro.md
+  - methods.md
+  - results.md
+  - discussion.md
+
+# Where built artefacts land (default: output/). Set to null for the
+# legacy "outputs alongside paper.md" layout.
+outputDir: output
+
+docx:
+  reference: template.docx       # your Word template
+
+pdf:
+  documentclass: article
+  fontsize: 12pt
+  engine: pdflatex               # or xelatex/lualatex for Latin-Extended
+  # Fonts apply only under xelatex/lualatex (fontspec):
+  # mainfont: "TeX Gyre Termes"
+  # sansfont: "TeX Gyre Heros"
+  # monofont: "TeX Gyre Cursor"
 ```
+
+Switch to `engine: xelatex` (or `lualatex`) when the manuscript has Czech/Polish/Croatian/Spanish names or species epithets that `pdflatex` mangles. Under those engines, `mainfont`/`sansfont`/`monofont` are forwarded to pandoc.
 
 Configure your name for comment replies:
 
@@ -321,6 +340,7 @@ Cross-references: `@fig:label`, `@tbl:label`, `@eq:label` → "Figure 1", "Table
 | Build DOCX | `rev build docx` |
 | Build PDF | `rev build pdf` |
 | Build clean + annotated | `rev build docx --dual` |
+| Build with visible track changes | `rev build docx --show-changes` |
 | Sync Word feedback | `rev sync reviewed.docx` |
 | Sync PDF comments | `rev sync annotated.pdf` |
 | Extract PDF comments | `rev pdf-comments annotated.pdf` |

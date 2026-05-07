@@ -85,11 +85,20 @@ rev resolve methods.md -n 1  # Mark comment #1 as resolved
 ### 7. Rebuild with comment threads
 
 ```bash
-rev build docx --dual        # Produces clean + annotated versions
+rev build docx --dual            # Produces clean + annotated versions
+rev build docx --show-changes    # Single DOCX with visible track changes
 ```
 
-- `paper.docx` — clean, for submission
-- `paper_comments.docx` — includes comment threads as Word comments
+`--dual` produces:
+- `output/<title>.docx` — clean, for submission
+- `output/<title>_comments.docx` — comment threads as Word comments
+
+`--show-changes` produces a single audit DOCX where every accepted/rejected
+revision is rendered as a visible Word track change. Useful when a co-author
+wants to see what changed since the last shared version.
+
+Outputs land in `output/` by default; set `outputDir: null` in `rev.yaml`
+to keep them alongside `paper.md` (legacy layout).
 
 ### 8. Archive reviewer files
 
@@ -135,6 +144,7 @@ rev response                 # Generate point-by-point response letter
 | Build PDF | `rev build pdf` |
 | Build clean + annotated Word | `rev build docx --dual` |
 | Build clean + annotated PDF | `rev build pdf --dual` |
+| Build with visible track changes | `rev build docx --show-changes` |
 | Show contributors | `rev contributors` |
 | Lookup ORCID | `rev orcid 0000-0002-1825-0097` |
 | Archive reviewer files | `rev archive` |
@@ -193,8 +203,14 @@ my-document/
 ├── discussion.md
 ├── references.bib     # Bibliography
 ├── figures/           # Images
-└── paper.docx         # Built output
+├── paper.md           # Combined sections (auto-generated)
+└── output/            # Built artefacts
+    ├── my-document.docx
+    └── my-document.pdf
 ```
+
+Set `outputDir: null` in `rev.yaml` to write outputs alongside `paper.md`
+instead.
 
 ## PDF Comment Workflow
 

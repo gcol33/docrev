@@ -61,11 +61,20 @@ rev build pdf                # PDF only
 rev build docx               # DOCX only
 rev build --toc              # Include table of contents
 rev build docx --dual        # Clean + annotated versions
+rev build docx --show-changes  # DOCX with visible track changes (audit)
 ```
 
+By default, outputs land in `output/` next to `rev.yaml`. Override or
+disable via the `outputDir` field in rev.yaml (see below).
+
 The `--dual` flag produces:
-- `paper.docx` — clean, for submission
-- `paper_comments.docx` — includes comment threads as Word comments
+- `output/<title>.docx` — clean, for submission
+- `output/<title>_comments.docx` — includes comment threads as Word comments
+
+The `--show-changes` flag (DOCX only) produces a single audit document
+where every accepted/rejected revision and substitution is exported as a
+visible Word track change, attributed to the configured user. Useful when
+a co-author wants to see what changed since the last shared version.
 
 ### rev preview
 Build and open document in default app.
@@ -341,6 +350,39 @@ rev config                   # Show current config
 ```
 
 ## rev.yaml Settings
+
+### Output Directory
+
+By default, built artefacts land in `output/` next to `rev.yaml`. Both the
+clean output and `--dual` companion (`*_comments.docx` / `*_comments.pdf`)
+follow the configured location. Override or disable:
+
+```yaml
+outputDir: output       # default — outputs land in ./output/
+outputDir: dist         # custom subdirectory
+outputDir: null         # legacy layout — outputs alongside paper.md
+```
+
+Explicit caller-supplied output paths (e.g. internal temp files in the
+dual flow) bypass `outputDir`.
+
+### PDF Engine and Fonts
+
+The default PDF engine is `pdflatex`. Switch to xelatex/lualatex when the
+manuscript needs native UTF-8 rendering of Latin-Extended diacritics
+(Czech/Polish/Croatian/Spanish author names, species epithets):
+
+```yaml
+pdf:
+  engine: xelatex          # or lualatex, tectonic, etc.
+  mainfont: "TeX Gyre Termes"   # serif (xelatex/lualatex only — uses fontspec)
+  sansfont: "TeX Gyre Heros"    # sans (optional)
+  monofont: "TeX Gyre Cursor"   # monospace (optional)
+```
+
+`mainfont`/`sansfont`/`monofont` are forwarded as pandoc `-V` flags and
+require an engine that loads `fontspec` (xelatex or lualatex). They are
+ignored under `pdflatex`.
 
 ### Tables
 
