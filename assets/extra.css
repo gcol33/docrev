@@ -1,0 +1,169 @@
+/* ── Base ──────────────────────────────────────────────── */
+html, body {
+  height: 100%;
+}
+
+body {
+  background-color: #F5F6F8;
+  color: #3E3F3A;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+.container-xl { flex: 1; }
+footer { margin-top: auto; }
+
+/* ── Links ─────────────────────────────────────────────── */
+a { color: #325D88; }
+a:hover { color: #1E3D5C; }
+
+/* ── Headings ──────────────────────────────────────────── */
+h1 { font-size: 2rem; font-weight: 600; margin-bottom: 1rem; }
+h2 {
+  font-size: 1.4rem; font-weight: 600;
+  margin-top: 2rem; margin-bottom: .65rem;
+  padding-bottom: .3rem;
+  border-bottom: 1px solid #DFD7CA;
+}
+h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1.5rem; }
+h4 { font-size: 1rem;   font-weight: 600; margin-top: 1.2rem; }
+
+/* ── Code ──────────────────────────────────────────────── */
+pre, div.sourceCode {
+  background-color: #EEEEED;
+  border: 1px solid #DFD7CA;
+  border-radius: .375rem;
+  padding: .9rem 1.1rem;
+  font-size: .85rem;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+code {
+  background-color: #EEEEED;
+  color: #3E3F3A;
+  border-radius: .25rem;
+  padding: .1em .35em;
+  font-size: .875em;
+}
+
+pre code, div.sourceCode code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Pandoc wraps highlighted blocks in div.sourceCode > pre.sourceCode */
+div.sourceCode { padding: 0; }
+div.sourceCode pre { border: none; margin: 0; }
+
+/* ── Tables ────────────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: .9rem;
+}
+
+thead th {
+  background-color: #DFD7CA;
+  color: #3E3F3A;
+  font-weight: 600;
+  padding: .5rem .75rem;
+  border-bottom: 2px solid #c8c0b4;
+  text-align: left;
+}
+
+td, th { padding: .4rem .75rem; border-bottom: 1px solid #e8e2d8; }
+tbody tr:hover { background-color: rgba(223,215,202,.2); }
+
+/* ── TOC ───────────────────────────────────────────────── */
+nav.toc ul {
+  list-style: none;
+  padding-left: .9rem;
+  margin: 0;
+}
+nav.toc > ul { padding-left: 0; }
+
+nav.toc li { margin: .1rem 0; }
+
+nav.toc a {
+  color: #6c757d;
+  text-decoration: none;
+  display: block;
+  line-height: 1.55;
+}
+nav.toc a:hover { color: #325D88; text-decoration: none; }
+
+/* ── Home page cards ───────────────────────────────────── */
+.doc-card {
+  border: 1px solid #DFD7CA;
+  border-radius: .375rem;
+  padding: 1.1rem 1.25rem;
+  height: 100%;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.doc-card:hover {
+  border-color: #325D88;
+  box-shadow: 0 2px 8px rgba(50,93,136,.1);
+}
+.doc-card h5 { font-size: 1rem; font-weight: 600; margin-bottom: .4rem; }
+.doc-card p  { font-size: .875rem; color: #6c757d; margin-bottom: .6rem; }
+.doc-card a.stretched-link::after { z-index: 1; }
+
+/* ── Badges row ────────────────────────────────────────── */
+.badge-row { margin-bottom: 1rem; line-height: 2; }
+.badge-row img { margin-right: .25rem; }
+
+/* ── ── ── DARK MODE ── ── ── ──────────────────────────── */
+
+[data-bs-theme="dark"] body  { background-color: #343739; color: #DFD7CA; }
+
+[data-bs-theme="dark"] a       { color: #7ba8d0; }
+[data-bs-theme="dark"] a:hover { color: #a5c4e8; }
+
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3,
+[data-bs-theme="dark"] h4 { color: #DFD7CA; }
+
+[data-bs-theme="dark"] h2 { border-color: #495057; }
+
+[data-bs-theme="dark"] pre,
+[data-bs-theme="dark"] div.sourceCode {
+  background-color: #2C2F31;
+  border-color: #495057;
+  color: #DFD7CA;
+}
+
+[data-bs-theme="dark"] code {
+  background-color: #2C2F31;
+  color: #DFD7CA;
+}
+
+/* Strip pandoc light-mode token colours in dark mode */
+[data-bs-theme="dark"] div.sourceCode span[class] { color: #DFD7CA !important; }
+
+[data-bs-theme="dark"] thead th {
+  background-color: #3d4043;
+  color: #DFD7CA;
+  border-color: #495057;
+}
+[data-bs-theme="dark"] td,
+[data-bs-theme="dark"] th  { border-color: #3d4043; }
+[data-bs-theme="dark"] tbody tr:hover { background-color: rgba(73,80,87,.3); }
+
+[data-bs-theme="dark"] nav.toc a       { color: #8e9499; }
+[data-bs-theme="dark"] nav.toc a:hover { color: #7ba8d0; }
+
+[data-bs-theme="dark"] .doc-card {
+  background: #2C2F31;
+  border-color: #495057;
+}
+[data-bs-theme="dark"] .doc-card:hover { border-color: #7ba8d0; }
+[data-bs-theme="dark"] .doc-card p     { color: #8e9499; }

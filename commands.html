@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Commands — docrev</title>
+  <meta name="description" content="CLI for writing documents in Markdown while collaborating with Word users.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/sandstone/bootstrap.min.css">
+  <style>
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="assets/extra.css">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-md sticky-top" style="background-color:#325D88;">
+  <div class="container-xl">
+    <a class="navbar-brand text-white fw-semibold" href="index.html">docrev</a>
+    <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-main" aria-controls="navbar-main" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon" style="filter:invert(1)"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbar-main">
+      <ul class="navbar-nav me-auto mb-2 mb-md-0">
+        <li class="nav-item">
+          <a class="nav-link text-white" href="index.html">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white" href="workflow.html">Get Started</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white fw-semibold" href="commands.html">Commands</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white" href="configuration.html">Configuration</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white" href="troubleshooting.html">Troubleshooting</a>
+        </li>
+      </ul>
+      <ul class="navbar-nav ms-auto align-items-center gap-1">
+        <li class="nav-item">
+          <button id="theme-toggle" class="btn btn-link nav-link text-white px-2 py-1 border-0" aria-label="Toggle dark mode">
+            <svg id="icon-sun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6m0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707"/>
+            </svg>
+            <svg id="icon-moon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="display:none">
+              <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278"/>
+            </svg>
+          </button>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white px-2" href="https://github.com/gcol33/docrev" aria-label="GitHub">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8"/>
+            </svg>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link text-white px-2" href="https://www.npmjs.com/package/docrev" aria-label="npm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M0 0v16h16V0zm5.333 13.333H2.667V5.333h2.666v5.334H8V5.333h2.667v8H5.333z"/>
+            </svg>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="container-xl py-4">
+  <div class="row g-4">
+    <main class="col-lg-9 order-1">
+      <h1 id="command-reference">Command Reference</h1>
+      <p>Complete list of <code>rev</code> commands.</p>
+      <h2 id="build-create">Build &amp; Create</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev build [formats...]</code></td>
+      <td>Build PDF/DOCX/TEX from sections</td>
+      </tr>
+      <tr>
+      <td><code>rev build pdf</code></td>
+      <td>Build PDF only</td>
+      </tr>
+      <tr>
+      <td><code>rev build docx</code></td>
+      <td>Build DOCX only</td>
+      </tr>
+      <tr>
+      <td><code>rev build tex</code></td>
+      <td>Build LaTeX only</td>
+      </tr>
+      <tr>
+      <td><code>rev build all</code></td>
+      <td>Build PDF + DOCX + TEX</td>
+      </tr>
+      <tr>
+      <td><code>rev build --toc</code></td>
+      <td>Include table of contents</td>
+      </tr>
+      <tr>
+      <td><code>rev build --dual</code></td>
+      <td>Output clean + comments DOCX (with threaded comments)</td>
+      </tr>
+      <tr>
+      <td><code>rev build --show-changes</code></td>
+      <td>Export DOCX with visible track changes</td>
+      </tr>
+      <tr>
+      <td><code>rev new &lt;name&gt;</code></td>
+      <td>Create new project (prompts for sections)</td>
+      </tr>
+      <tr>
+      <td><code>rev new &lt;name&gt; -s intro,methods,results</code></td>
+      <td>Create with specified sections</td>
+      </tr>
+      <tr>
+      <td><code>rev new --list</code></td>
+      <td>List available templates</td>
+      </tr>
+      <tr>
+      <td><code>rev install</code></td>
+      <td>Check/install dependencies (pandoc-crossref)</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="import-export">Import &amp; Export</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev import &lt;docx&gt;</code></td>
+      <td>Bootstrap project from Word (creates sections + rev.yaml)</td>
+      </tr>
+      <tr>
+      <td><code>rev import &lt;docx&gt; &lt;md&gt;</code></td>
+      <td>Import changes by diffing Word against your MD</td>
+      </tr>
+      <tr>
+      <td><code>rev sync [docx] [sections...]</code></td>
+      <td>Sync feedback from Word to section files</td>
+      </tr>
+      <tr>
+      <td><code>rev sync</code></td>
+      <td>Auto-detect most recent .docx</td>
+      </tr>
+      <tr>
+      <td><code>rev sync reviewed.docx methods</code></td>
+      <td>Sync only methods section</td>
+      </tr>
+      <tr>
+      <td><code>rev sync annotated.pdf</code></td>
+      <td>Extract comments from PDF into markdown</td>
+      </tr>
+      <tr>
+      <td><code>rev extract &lt;docx&gt;</code></td>
+      <td>Extract plain text from Word</td>
+      </tr>
+      <tr>
+      <td><code>rev archive</code></td>
+      <td>Move reviewer .docx files to archive folder</td>
+      </tr>
+      <tr>
+      <td><code>rev archive --by Smith</code></td>
+      <td>Specify reviewer name</td>
+      </tr>
+      <tr>
+      <td><code>rev archive --dry-run</code></td>
+      <td>Preview without moving</td>
+      </tr>
+      </tbody>
+      </table>
+      <p><strong>Word Import Features:</strong> - Extracts text
+      preserving structure - Extracts comments with author and anchor
+      text - Converts OMML equations to LaTeX - Extracts embedded images
+      to <code>media/</code> directory</p>
+      <h2 id="pdf-comments">PDF Comments</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev pdf-comments &lt;pdf&gt;</code></td>
+      <td>Extract and display comments from annotated PDF</td>
+      </tr>
+      <tr>
+      <td><code>rev pdf-comments &lt;pdf&gt; --with-text</code></td>
+      <td>Also extract the highlighted text content</td>
+      </tr>
+      <tr>
+      <td><code>rev pdf-comments &lt;pdf&gt; --append &lt;file.md&gt;</code></td>
+      <td>Append extracted comments to markdown file</td>
+      </tr>
+      <tr>
+      <td><code>rev pdf-comments &lt;pdf&gt; --json</code></td>
+      <td>Output comments as JSON</td>
+      </tr>
+      <tr>
+      <td><code>rev pdf-comments &lt;pdf&gt; --by-page</code></td>
+      <td>Group comments by page (default)</td>
+      </tr>
+      <tr>
+      <td><code>rev pdf-comments &lt;pdf&gt; --by-author</code></td>
+      <td>Group comments by author</td>
+      </tr>
+      <tr>
+      <td><code>rev build pdf --dual</code></td>
+      <td>Build clean PDF + annotated PDF with margin notes</td>
+      </tr>
+      </tbody>
+      </table>
+      <p><strong>Supported PDF Annotations:</strong> - Sticky notes
+      (Text annotations) - Text boxes (FreeText) - Highlights with
+      comments (text extraction supported) - Underlines with comments
+      (text extraction supported) - Strikethrough/deletion suggestions
+      (text extraction supported) - Squiggly underlines (text extraction
+      supported)</p>
+      <p><strong>Text Extraction:</strong> Use <code>--with-text</code>
+      to extract the actual text that was highlighted, underlined, or
+      struck through. This is slower but shows exactly what the reviewer
+      marked.</p>
+      <p><strong>PDF Dual Export:</strong> When building with
+      <code>--dual</code>, produces: - <code>paper.pdf</code> — clean
+      version for submission - <code>paper_comments.pdf</code> —
+      CriticMarkup comments rendered as LaTeX margin notes</p>
+      <h2 id="review-edit">Review &amp; Edit</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev review &lt;file&gt;</code></td>
+      <td>Interactive accept/reject TUI for track changes</td>
+      </tr>
+      <tr>
+      <td><code>rev status</code></td>
+      <td>Show project overview (words, comments, changes)</td>
+      </tr>
+      <tr>
+      <td><code>rev status &lt;file&gt;</code></td>
+      <td>Show annotation counts for specific file</td>
+      </tr>
+      <tr>
+      <td><code>rev comments &lt;file&gt;</code></td>
+      <td>List all comments with context</td>
+      </tr>
+      <tr>
+      <td><code>rev comments &lt;file&gt; --export comments.csv</code></td>
+      <td>Export comments to CSV</td>
+      </tr>
+      <tr>
+      <td><code>rev resolve &lt;file&gt; -n 1</code></td>
+      <td>Mark comment #1 as resolved</td>
+      </tr>
+      <tr>
+      <td><code>rev strip &lt;file&gt;</code></td>
+      <td>Output clean Markdown (annotations applied)</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="comment-navigation">Comment Navigation</h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev next</code></td>
+      <td>Show next pending comment</td>
+      </tr>
+      <tr>
+      <td><code>rev next -n 3</code></td>
+      <td>Show 3rd pending comment</td>
+      </tr>
+      <tr>
+      <td><code>rev prev</code></td>
+      <td>Show last pending comment</td>
+      </tr>
+      <tr>
+      <td><code>rev prev -n 2</code></td>
+      <td>Show 2nd from last pending</td>
+      </tr>
+      <tr>
+      <td><code>rev first</code></td>
+      <td>Show first comment (all, not just pending)</td>
+      </tr>
+      <tr>
+      <td><code>rev first methods</code></td>
+      <td>First comment in methods section</td>
+      </tr>
+      <tr>
+      <td><code>rev last</code></td>
+      <td>Show last comment</td>
+      </tr>
+      <tr>
+      <td><code>rev todo</code></td>
+      <td>List all pending comments as checklist</td>
+      </tr>
+      <tr>
+      <td><code>rev todo --by-author</code></td>
+      <td>Group pending comments by author</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="track-changes">Track Changes</h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev accept &lt;file&gt;</code></td>
+      <td>List track changes</td>
+      </tr>
+      <tr>
+      <td><code>rev accept &lt;file&gt; -n 1</code></td>
+      <td>Accept change #1</td>
+      </tr>
+      <tr>
+      <td><code>rev accept &lt;file&gt; -a</code></td>
+      <td>Accept all changes</td>
+      </tr>
+      <tr>
+      <td><code>rev reject &lt;file&gt; -n 1</code></td>
+      <td>Reject change #1</td>
+      </tr>
+      <tr>
+      <td><code>rev reject &lt;file&gt; -a</code></td>
+      <td>Reject all changes</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="cross-references">Cross-References</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev refs [file]</code></td>
+      <td>Show figure/table registry and reference status</td>
+      </tr>
+      <tr>
+      <td><code>rev migrate &lt;file&gt;</code></td>
+      <td>Convert hardcoded refs (Fig. 1) to dynamic (<span
+      class="citation" data-cites="fig:label">@fig:label</span>)</td>
+      </tr>
+      </tbody>
+      </table>
+      <p><strong>Supported patterns:</strong> - <code>Figure 1</code> →
+      <code>@fig:label</code> - <code>Fig. 2a</code> →
+      <code>@fig:label</code> - <code>Figs. 1-3</code> →
+      <code>@fig:one; @fig:two; @fig:three</code> -
+      <code>Figures 1, 2, and 3</code> → multiple refs -
+      <code>Fig. 1a-c</code> → expands letter suffixes</p>
+      <h2 id="comments-replies">Comments &amp; Replies</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev config user "Name"</code></td>
+      <td>Set your name for replies</td>
+      </tr>
+      <tr>
+      <td><code>rev config sections "a,b,c"</code></td>
+      <td>Set default sections for new projects</td>
+      </tr>
+      <tr>
+      <td><code>rev reply &lt;file&gt;</code></td>
+      <td>Interactive reply to reviewer comments</td>
+      </tr>
+      <tr>
+      <td><code>rev reply &lt;file&gt; -n 1 -m "text"</code></td>
+      <td>Reply to specific comment (non-interactive)</td>
+      </tr>
+      </tbody>
+      </table>
+      <p><strong>Comment Threading:</strong> Adjacent comments from
+      different authors become threaded replies in Word:</p>
+      <div class="sourceCode" id="cb1"><pre
+      class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>{&gt;&gt;Guy Colling: Question?&lt;&lt;} {&gt;&gt;Gilles Colling: Answer.&lt;&lt;}</span></code></pre></div>
+      <h2 id="bibliography-dois">Bibliography &amp; DOIs</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev doi check [file.bib]</code></td>
+      <td>Validate DOIs in bibliography (Crossref + DataCite)</td>
+      </tr>
+      <tr>
+      <td><code>rev doi lookup [file.bib]</code></td>
+      <td>Search for missing DOIs by title/author/year</td>
+      </tr>
+      <tr>
+      <td><code>rev doi fetch &lt;doi&gt;</code></td>
+      <td>Fetch BibTeX entry from DOI</td>
+      </tr>
+      <tr>
+      <td><code>rev doi add &lt;doi&gt;</code></td>
+      <td>Fetch and add DOI entry to bibliography</td>
+      </tr>
+      </tbody>
+      </table>
+      <p><strong>Options:</strong> -
+      <code>--confidence low|medium|high</code> - Filter lookup results
+      - <code>--strict</code> - Fail if articles are missing DOIs - Skip
+      entries: add <code>nodoi = {true}</code> or <code>% no-doi</code>
+      comment</p>
+      <h2 id="validation-analysis">Validation &amp; Analysis</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev citations [file.bib]</code></td>
+      <td>Validate citations against bibliography</td>
+      </tr>
+      <tr>
+      <td><code>rev figures [file]</code></td>
+      <td>List figures/tables with reference counts</td>
+      </tr>
+      <tr>
+      <td><code>rev equations list</code></td>
+      <td>List all equations in section files</td>
+      </tr>
+      <tr>
+      <td><code>rev equations from-word &lt;docx&gt;</code></td>
+      <td>Extract equations from Word to LaTeX</td>
+      </tr>
+      <tr>
+      <td><code>rev response [files]</code></td>
+      <td>Generate response letter from comments</td>
+      </tr>
+      <tr>
+      <td><code>rev anonymize &lt;file&gt;</code></td>
+      <td>Prepare document for blind review</td>
+      </tr>
+      <tr>
+      <td><code>rev validate --journal &lt;name&gt;</code></td>
+      <td>Check manuscript against journal requirements</td>
+      </tr>
+      <tr>
+      <td><code>rev validate --list</code></td>
+      <td>List 21 available journal profiles</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="multi-reviewer-git">Multi-Reviewer &amp; Git</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev merge &lt;md&gt; &lt;docx...&gt;</code></td>
+      <td>Merge feedback from multiple Word documents</td>
+      </tr>
+      <tr>
+      <td><code>rev diff [ref]</code></td>
+      <td>Compare sections against git history</td>
+      </tr>
+      <tr>
+      <td><code>rev history [file]</code></td>
+      <td>Show revision history for sections</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="convenience-commands">Convenience Commands</h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev word-count</code></td>
+      <td>Show word counts per section</td>
+      </tr>
+      <tr>
+      <td><code>rev word-count --limit 5000</code></td>
+      <td>Warn if over limit</td>
+      </tr>
+      <tr>
+      <td><code>rev word-count -j &lt;journal&gt;</code></td>
+      <td>Use journal word limit</td>
+      </tr>
+      <tr>
+      <td><code>rev stats</code></td>
+      <td>Project dashboard (words, figures, citations)</td>
+      </tr>
+      <tr>
+      <td><code>rev search &lt;query&gt;</code></td>
+      <td>Search across all section files</td>
+      </tr>
+      <tr>
+      <td><code>rev search -i &lt;query&gt;</code></td>
+      <td>Case-insensitive search</td>
+      </tr>
+      <tr>
+      <td><code>rev backup</code></td>
+      <td>Create timestamped backup zip</td>
+      </tr>
+      <tr>
+      <td><code>rev backup --name v1</code></td>
+      <td>Custom backup name</td>
+      </tr>
+      <tr>
+      <td><code>rev export</code></td>
+      <td>Export project as distributable zip</td>
+      </tr>
+      <tr>
+      <td><code>rev preview &lt;format&gt;</code></td>
+      <td>Build and open document</td>
+      </tr>
+      <tr>
+      <td><code>rev watch [format]</code></td>
+      <td>Auto-rebuild on file changes</td>
+      </tr>
+      <tr>
+      <td><code>rev lint</code></td>
+      <td>Check for broken refs, missing citations</td>
+      </tr>
+      <tr>
+      <td><code>rev clean</code></td>
+      <td>Remove generated files</td>
+      </tr>
+      <tr>
+      <td><code>rev clean --all</code></td>
+      <td>Also remove backups and exports</td>
+      </tr>
+      <tr>
+      <td><code>rev check</code></td>
+      <td>Pre-submission check (lint + grammar + citations)</td>
+      </tr>
+      <tr>
+      <td><code>rev open</code></td>
+      <td>Open project folder</td>
+      </tr>
+      <tr>
+      <td><code>rev open paper.pdf</code></td>
+      <td>Open specific file</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="grammar-spelling">Grammar &amp; Spelling</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev grammar</code></td>
+      <td>Check grammar/style issues</td>
+      </tr>
+      <tr>
+      <td><code>rev grammar --rules</code></td>
+      <td>List available grammar rules</td>
+      </tr>
+      <tr>
+      <td><code>rev grammar --learn &lt;word&gt;</code></td>
+      <td>Add word to custom dictionary</td>
+      </tr>
+      <tr>
+      <td><code>rev grammar --list</code></td>
+      <td>Show custom dictionary</td>
+      </tr>
+      <tr>
+      <td><code>rev spelling</code></td>
+      <td>Check spelling in all sections</td>
+      </tr>
+      <tr>
+      <td><code>rev spelling --british</code></td>
+      <td>Use British English dictionary</td>
+      </tr>
+      <tr>
+      <td><code>rev spelling --learn &lt;word&gt;</code></td>
+      <td>Add word to global dictionary</td>
+      </tr>
+      <tr>
+      <td><code>rev spelling --learn-project &lt;word&gt;</code></td>
+      <td>Add word to project dictionary</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="direct-docx-editing">Direct DOCX Editing</h2>
+      <table>
+      <colgroup>
+      <col style="width: 40%" />
+      <col style="width: 59%" />
+      </colgroup>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev annotate &lt;docx&gt; -m "Comment" -s "text"</code></td>
+      <td>Add comment to Word doc</td>
+      </tr>
+      <tr>
+      <td><code>rev apply &lt;md&gt; &lt;docx&gt;</code></td>
+      <td>Apply annotations as track changes</td>
+      </tr>
+      <tr>
+      <td><code>rev comment &lt;docx&gt;</code></td>
+      <td>Interactive comment mode</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="shell-completions">Shell Completions</h2>
+      <div class="sourceCode" id="cb2"><pre
+      class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Bash - add to ~/.bashrc</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">rev</span> completions bash<span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Zsh - add to ~/.zshrc</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span> <span class="st">&quot;</span><span class="va">$(</span><span class="fu">rev</span> completions zsh<span class="va">)</span><span class="st">&quot;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># PowerShell - add to $PROFILE</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">Invoke-Expression</span> <span class="er">(</span><span class="fu">rev</span> completions powershell <span class="kw">|</span> <span class="ex">Out-String</span><span class="kw">)</span></span></code></pre></div>
+      <h2 id="collaboration-git">Collaboration &amp; Git</h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev contributors</code></td>
+      <td>Show author contributions across all sections</td>
+      </tr>
+      <tr>
+      <td><code>rev contributors &lt;file&gt;</code></td>
+      <td>Show who wrote what in a specific file</td>
+      </tr>
+      <tr>
+      <td><code>rev contributors &lt;file&gt; --blame</code></td>
+      <td>Line-by-line blame output</td>
+      </tr>
+      <tr>
+      <td><code>rev history</code></td>
+      <td>Show revision history</td>
+      </tr>
+      <tr>
+      <td><code>rev diff</code></td>
+      <td>Compare sections against git history</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="orcid-integration">ORCID Integration</h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev orcid &lt;id&gt;</code></td>
+      <td>Fetch author info from ORCID</td>
+      </tr>
+      <tr>
+      <td><code>rev orcid &lt;id&gt; --yaml</code></td>
+      <td>Output as YAML for rev.yaml authors</td>
+      </tr>
+      <tr>
+      <td><code>rev orcid &lt;id&gt; --badge</code></td>
+      <td>Generate markdown badge</td>
+      </tr>
+      </tbody>
+      </table>
+      <h2 id="self-update">Self-Update</h2>
+      <table>
+      <thead>
+      <tr>
+      <th>Command</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td><code>rev upgrade</code></td>
+      <td>Update docrev to latest version</td>
+      </tr>
+      <tr>
+      <td><code>rev upgrade --check</code></td>
+      <td>Check for updates without installing</td>
+      </tr>
+      </tbody>
+      </table>
+    </main>
+    <aside class="col-lg-3 order-2 d-none d-lg-block">
+      <div class="sticky-top" style="top:5rem;max-height:calc(100vh - 6rem);overflow-y:auto">
+        <p class="text-uppercase fw-semibold mb-2 text-muted" style="font-size:.68rem;letter-spacing:.07em">On this page</p>
+        <nav class="toc small"><ul>
+<li><a href="#command-reference" id="toc-command-reference">Command
+Reference</a>
+<ul>
+<li><a href="#build-create" id="toc-build-create">Build &amp;
+Create</a></li>
+<li><a href="#import-export" id="toc-import-export">Import &amp;
+Export</a></li>
+<li><a href="#pdf-comments" id="toc-pdf-comments">PDF Comments</a></li>
+<li><a href="#review-edit" id="toc-review-edit">Review &amp;
+Edit</a></li>
+<li><a href="#comment-navigation" id="toc-comment-navigation">Comment
+Navigation</a></li>
+<li><a href="#track-changes" id="toc-track-changes">Track
+Changes</a></li>
+<li><a href="#cross-references"
+id="toc-cross-references">Cross-References</a></li>
+<li><a href="#comments-replies" id="toc-comments-replies">Comments &amp;
+Replies</a></li>
+<li><a href="#bibliography-dois" id="toc-bibliography-dois">Bibliography
+&amp; DOIs</a></li>
+<li><a href="#validation-analysis"
+id="toc-validation-analysis">Validation &amp; Analysis</a></li>
+<li><a href="#multi-reviewer-git"
+id="toc-multi-reviewer-git">Multi-Reviewer &amp; Git</a></li>
+<li><a href="#convenience-commands"
+id="toc-convenience-commands">Convenience Commands</a></li>
+<li><a href="#grammar-spelling" id="toc-grammar-spelling">Grammar &amp;
+Spelling</a></li>
+<li><a href="#direct-docx-editing" id="toc-direct-docx-editing">Direct
+DOCX Editing</a></li>
+<li><a href="#shell-completions" id="toc-shell-completions">Shell
+Completions</a></li>
+<li><a href="#collaboration-git"
+id="toc-collaboration-git">Collaboration &amp; Git</a></li>
+<li><a href="#orcid-integration" id="toc-orcid-integration">ORCID
+Integration</a></li>
+<li><a href="#self-update" id="toc-self-update">Self-Update</a></li>
+</ul></li>
+</ul></nav>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<footer class="border-top py-3 mt-auto">
+  <div class="container-xl d-flex justify-content-between align-items-center text-muted" style="font-size:.85rem">
+    <span>docrev 0.9.15</span>
+    <span>Built with <a href="https://pandoc.org" class="text-muted">pandoc</a></span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+  var html  = document.documentElement;
+  var sun   = document.getElementById('icon-sun');
+  var moon  = document.getElementById('icon-moon');
+  function apply(t) {
+    html.setAttribute('data-bs-theme', t);
+    sun.style.display  = t === 'dark' ? 'none' : '';
+    moon.style.display = t === 'dark' ? ''     : 'none';
+  }
+  apply(localStorage.getItem('docrev-theme') || 'light');
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    var next = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('docrev-theme', next);
+    apply(next);
+  });
+})();
+</script>
+
+</body>
+</html>
