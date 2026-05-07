@@ -42,7 +42,7 @@ Three reviewers send back three Word files. You manually compare changes, copy-p
 npm install -g docrev
 ```
 
-Requires [Node.js](https://nodejs.org) 18+. [Pandoc](https://pandoc.org) is needed for building DOCX/PDF output. [LaTeX](#installing-dependencies) is additionally needed for PDF.
+Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), [LaTeX](#installing-dependencies) is also needed; simpler documents can build through pandoc alone with a non-LaTeX engine (e.g. `pdf.engine: typst` in `rev.yaml`).
 
 ## Quick Example
 
@@ -395,7 +395,7 @@ Once installed, Claude understands docrev commands and can help navigate comment
 
 Other platforms: [pandoc.org/installing](https://pandoc.org/installing.html)
 
-### LaTeX (for PDF output)
+### LaTeX (for complex PDF builds)
 
 | Platform | Command |
 |----------|---------|
