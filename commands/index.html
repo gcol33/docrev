@@ -1,0 +1,1746 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="CLI for writing documents in Markdown while collaborating with Word users.">
+      
+      
+        <meta name="author" content="Gilles Colling">
+      
+      
+        <link rel="canonical" href="https://gillescolling.com/docrev/commands/">
+      
+      
+        <link rel="prev" href="../workflow/">
+      
+      
+        <link rel="next" href="../configuration/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Commands - docrev</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#command-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="docrev" class="md-header__button md-logo" aria-label="docrev" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            docrev
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Commands
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/gcol33/docrev" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    gcol33/docrev
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../workflow/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Get Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Commands
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../troubleshooting/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Troubleshooting
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="docrev" class="md-nav__button md-logo" aria-label="docrev" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    docrev
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/gcol33/docrev" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    gcol33/docrev
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#build-create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build &amp; Create
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#import-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Import &amp; Export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pdf-comments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PDF Comments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review &amp; Edit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comment-navigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comment Navigation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#track-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Track Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comments-replies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comments &amp; Replies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bibliography-dois" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bibliography &amp; DOIs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation &amp; Analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-reviewer-git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Reviewer &amp; Git
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convenience-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenience Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grammar-spelling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grammar &amp; Spelling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#direct-docx-editing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct DOCX Editing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shell-completions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell Completions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collaboration-git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Collaboration &amp; Git
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#orcid-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ORCID Integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#self-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-Update
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#build-create" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build &amp; Create
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#import-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Import &amp; Export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pdf-comments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PDF Comments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#review-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Review &amp; Edit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comment-navigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comment Navigation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#track-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Track Changes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-References
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comments-replies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comments &amp; Replies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bibliography-dois" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bibliography &amp; DOIs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation &amp; Analysis
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-reviewer-git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-Reviewer &amp; Git
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#convenience-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Convenience Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#grammar-spelling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Grammar &amp; Spelling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#direct-docx-editing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct DOCX Editing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shell-completions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell Completions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collaboration-git" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Collaboration &amp; Git
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#orcid-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ORCID Integration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#self-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-Update
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="command-reference">Command Reference<a class="headerlink" href="#command-reference" title="Permanent link">&para;</a></h1>
+<p>Complete list of <code>rev</code> commands.</p>
+<h2 id="build-create">Build &amp; Create<a class="headerlink" href="#build-create" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev build [formats...]</code></td>
+<td>Build PDF/DOCX/TEX from sections</td>
+</tr>
+<tr>
+<td><code>rev build pdf</code></td>
+<td>Build PDF only</td>
+</tr>
+<tr>
+<td><code>rev build docx</code></td>
+<td>Build DOCX only</td>
+</tr>
+<tr>
+<td><code>rev build tex</code></td>
+<td>Build LaTeX only</td>
+</tr>
+<tr>
+<td><code>rev build all</code></td>
+<td>Build PDF + DOCX + TEX</td>
+</tr>
+<tr>
+<td><code>rev build --toc</code></td>
+<td>Include table of contents</td>
+</tr>
+<tr>
+<td><code>rev build --dual</code></td>
+<td>Output clean + comments DOCX (with threaded comments)</td>
+</tr>
+<tr>
+<td><code>rev build --show-changes</code></td>
+<td>Export DOCX with visible track changes</td>
+</tr>
+<tr>
+<td><code>rev new &lt;name&gt;</code></td>
+<td>Create new project (prompts for sections)</td>
+</tr>
+<tr>
+<td><code>rev new &lt;name&gt; -s intro,methods,results</code></td>
+<td>Create with specified sections</td>
+</tr>
+<tr>
+<td><code>rev new --list</code></td>
+<td>List available templates</td>
+</tr>
+<tr>
+<td><code>rev install</code></td>
+<td>Check/install dependencies (pandoc-crossref)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="import-export">Import &amp; Export<a class="headerlink" href="#import-export" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev import &lt;docx&gt;</code></td>
+<td>Bootstrap project from Word (creates sections + rev.yaml)</td>
+</tr>
+<tr>
+<td><code>rev import &lt;docx&gt; &lt;md&gt;</code></td>
+<td>Import changes by diffing Word against your MD</td>
+</tr>
+<tr>
+<td><code>rev sync [docx] [sections...]</code></td>
+<td>Sync feedback from Word to section files</td>
+</tr>
+<tr>
+<td><code>rev sync</code></td>
+<td>Auto-detect most recent .docx</td>
+</tr>
+<tr>
+<td><code>rev sync reviewed.docx methods</code></td>
+<td>Sync only methods section</td>
+</tr>
+<tr>
+<td><code>rev sync annotated.pdf</code></td>
+<td>Extract comments from PDF into markdown</td>
+</tr>
+<tr>
+<td><code>rev extract &lt;docx&gt;</code></td>
+<td>Extract plain text from Word</td>
+</tr>
+<tr>
+<td><code>rev archive</code></td>
+<td>Move reviewer .docx files to archive folder</td>
+</tr>
+<tr>
+<td><code>rev archive --by Smith</code></td>
+<td>Specify reviewer name</td>
+</tr>
+<tr>
+<td><code>rev archive --dry-run</code></td>
+<td>Preview without moving</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Word Import Features:</strong>
+- Extracts text preserving structure
+- Extracts comments with author and anchor text
+- Converts OMML equations to LaTeX
+- Extracts embedded images to <code>media/</code> directory</p>
+<h2 id="pdf-comments">PDF Comments<a class="headerlink" href="#pdf-comments" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev pdf-comments &lt;pdf&gt;</code></td>
+<td>Extract and display comments from annotated PDF</td>
+</tr>
+<tr>
+<td><code>rev pdf-comments &lt;pdf&gt; --with-text</code></td>
+<td>Also extract the highlighted text content</td>
+</tr>
+<tr>
+<td><code>rev pdf-comments &lt;pdf&gt; --append &lt;file.md&gt;</code></td>
+<td>Append extracted comments to markdown file</td>
+</tr>
+<tr>
+<td><code>rev pdf-comments &lt;pdf&gt; --json</code></td>
+<td>Output comments as JSON</td>
+</tr>
+<tr>
+<td><code>rev pdf-comments &lt;pdf&gt; --by-page</code></td>
+<td>Group comments by page (default)</td>
+</tr>
+<tr>
+<td><code>rev pdf-comments &lt;pdf&gt; --by-author</code></td>
+<td>Group comments by author</td>
+</tr>
+<tr>
+<td><code>rev build pdf --dual</code></td>
+<td>Build clean PDF + annotated PDF with margin notes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Supported PDF Annotations:</strong>
+- Sticky notes (Text annotations)
+- Text boxes (FreeText)
+- Highlights with comments (text extraction supported)
+- Underlines with comments (text extraction supported)
+- Strikethrough/deletion suggestions (text extraction supported)
+- Squiggly underlines (text extraction supported)</p>
+<p><strong>Text Extraction:</strong>
+Use <code>--with-text</code> to extract the actual text that was highlighted, underlined, or struck through. This is slower but shows exactly what the reviewer marked.</p>
+<p><strong>PDF Dual Export:</strong>
+When building with <code>--dual</code>, produces:
+- <code>paper.pdf</code> — clean version for submission
+- <code>paper_comments.pdf</code> — CriticMarkup comments rendered as LaTeX margin notes</p>
+<h2 id="review-edit">Review &amp; Edit<a class="headerlink" href="#review-edit" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev review &lt;file&gt;</code></td>
+<td>Interactive accept/reject TUI for track changes</td>
+</tr>
+<tr>
+<td><code>rev status</code></td>
+<td>Show project overview (words, comments, changes)</td>
+</tr>
+<tr>
+<td><code>rev status &lt;file&gt;</code></td>
+<td>Show annotation counts for specific file</td>
+</tr>
+<tr>
+<td><code>rev comments &lt;file&gt;</code></td>
+<td>List all comments with context</td>
+</tr>
+<tr>
+<td><code>rev comments &lt;file&gt; --export comments.csv</code></td>
+<td>Export comments to CSV</td>
+</tr>
+<tr>
+<td><code>rev resolve &lt;file&gt; -n 1</code></td>
+<td>Mark comment #1 as resolved</td>
+</tr>
+<tr>
+<td><code>rev strip &lt;file&gt;</code></td>
+<td>Output clean Markdown (annotations applied)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="comment-navigation">Comment Navigation<a class="headerlink" href="#comment-navigation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev next</code></td>
+<td>Show next pending comment</td>
+</tr>
+<tr>
+<td><code>rev next -n 3</code></td>
+<td>Show 3rd pending comment</td>
+</tr>
+<tr>
+<td><code>rev prev</code></td>
+<td>Show last pending comment</td>
+</tr>
+<tr>
+<td><code>rev prev -n 2</code></td>
+<td>Show 2nd from last pending</td>
+</tr>
+<tr>
+<td><code>rev first</code></td>
+<td>Show first comment (all, not just pending)</td>
+</tr>
+<tr>
+<td><code>rev first methods</code></td>
+<td>First comment in methods section</td>
+</tr>
+<tr>
+<td><code>rev last</code></td>
+<td>Show last comment</td>
+</tr>
+<tr>
+<td><code>rev todo</code></td>
+<td>List all pending comments as checklist</td>
+</tr>
+<tr>
+<td><code>rev todo --by-author</code></td>
+<td>Group pending comments by author</td>
+</tr>
+</tbody>
+</table>
+<h2 id="track-changes">Track Changes<a class="headerlink" href="#track-changes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev accept &lt;file&gt;</code></td>
+<td>List track changes</td>
+</tr>
+<tr>
+<td><code>rev accept &lt;file&gt; -n 1</code></td>
+<td>Accept change #1</td>
+</tr>
+<tr>
+<td><code>rev accept &lt;file&gt; -a</code></td>
+<td>Accept all changes</td>
+</tr>
+<tr>
+<td><code>rev reject &lt;file&gt; -n 1</code></td>
+<td>Reject change #1</td>
+</tr>
+<tr>
+<td><code>rev reject &lt;file&gt; -a</code></td>
+<td>Reject all changes</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cross-references">Cross-References<a class="headerlink" href="#cross-references" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev refs [file]</code></td>
+<td>Show figure/table registry and reference status</td>
+</tr>
+<tr>
+<td><code>rev migrate &lt;file&gt;</code></td>
+<td>Convert hardcoded refs (Fig. 1) to dynamic (@fig:label)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Supported patterns:</strong>
+- <code>Figure 1</code> → <code>@fig:label</code>
+- <code>Fig. 2a</code> → <code>@fig:label</code>
+- <code>Figs. 1-3</code> → <code>@fig:one; @fig:two; @fig:three</code>
+- <code>Figures 1, 2, and 3</code> → multiple refs
+- <code>Fig. 1a-c</code> → expands letter suffixes</p>
+<h2 id="comments-replies">Comments &amp; Replies<a class="headerlink" href="#comments-replies" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev config user "Name"</code></td>
+<td>Set your name for replies</td>
+</tr>
+<tr>
+<td><code>rev config sections "a,b,c"</code></td>
+<td>Set default sections for new projects</td>
+</tr>
+<tr>
+<td><code>rev reply &lt;file&gt;</code></td>
+<td>Interactive reply to reviewer comments</td>
+</tr>
+<tr>
+<td><code>rev reply &lt;file&gt; -n 1 -m "text"</code></td>
+<td>Reply to specific comment (non-interactive)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Comment Threading:</strong>
+Adjacent comments from different authors become threaded replies in Word:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>{&gt;&gt;Guy Colling: Question?&lt;&lt;} {&gt;&gt;Gilles Colling: Answer.&lt;&lt;}
+</code></pre></div></p>
+<h2 id="bibliography-dois">Bibliography &amp; DOIs<a class="headerlink" href="#bibliography-dois" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev doi check [file.bib]</code></td>
+<td>Validate DOIs in bibliography (Crossref + DataCite)</td>
+</tr>
+<tr>
+<td><code>rev doi lookup [file.bib]</code></td>
+<td>Search for missing DOIs by title/author/year</td>
+</tr>
+<tr>
+<td><code>rev doi fetch &lt;doi&gt;</code></td>
+<td>Fetch BibTeX entry from DOI</td>
+</tr>
+<tr>
+<td><code>rev doi add &lt;doi&gt;</code></td>
+<td>Fetch and add DOI entry to bibliography</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Options:</strong>
+- <code>--confidence low|medium|high</code> - Filter lookup results
+- <code>--strict</code> - Fail if articles are missing DOIs
+- Skip entries: add <code>nodoi = {true}</code> or <code>% no-doi</code> comment</p>
+<h2 id="validation-analysis">Validation &amp; Analysis<a class="headerlink" href="#validation-analysis" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev citations [file.bib]</code></td>
+<td>Validate citations against bibliography</td>
+</tr>
+<tr>
+<td><code>rev figures [file]</code></td>
+<td>List figures/tables with reference counts</td>
+</tr>
+<tr>
+<td><code>rev equations list</code></td>
+<td>List all equations in section files</td>
+</tr>
+<tr>
+<td><code>rev equations from-word &lt;docx&gt;</code></td>
+<td>Extract equations from Word to LaTeX</td>
+</tr>
+<tr>
+<td><code>rev response [files]</code></td>
+<td>Generate response letter from comments</td>
+</tr>
+<tr>
+<td><code>rev anonymize &lt;file&gt;</code></td>
+<td>Prepare document for blind review</td>
+</tr>
+<tr>
+<td><code>rev validate --journal &lt;name&gt;</code></td>
+<td>Check manuscript against journal requirements</td>
+</tr>
+<tr>
+<td><code>rev validate --list</code></td>
+<td>List 21 available journal profiles</td>
+</tr>
+</tbody>
+</table>
+<h2 id="multi-reviewer-git">Multi-Reviewer &amp; Git<a class="headerlink" href="#multi-reviewer-git" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev merge &lt;md&gt; &lt;docx...&gt;</code></td>
+<td>Merge feedback from multiple Word documents</td>
+</tr>
+<tr>
+<td><code>rev diff [ref]</code></td>
+<td>Compare sections against git history</td>
+</tr>
+<tr>
+<td><code>rev history [file]</code></td>
+<td>Show revision history for sections</td>
+</tr>
+</tbody>
+</table>
+<h2 id="convenience-commands">Convenience Commands<a class="headerlink" href="#convenience-commands" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev word-count</code></td>
+<td>Show word counts per section</td>
+</tr>
+<tr>
+<td><code>rev word-count --limit 5000</code></td>
+<td>Warn if over limit</td>
+</tr>
+<tr>
+<td><code>rev word-count -j &lt;journal&gt;</code></td>
+<td>Use journal word limit</td>
+</tr>
+<tr>
+<td><code>rev stats</code></td>
+<td>Project dashboard (words, figures, citations)</td>
+</tr>
+<tr>
+<td><code>rev search &lt;query&gt;</code></td>
+<td>Search across all section files</td>
+</tr>
+<tr>
+<td><code>rev search -i &lt;query&gt;</code></td>
+<td>Case-insensitive search</td>
+</tr>
+<tr>
+<td><code>rev backup</code></td>
+<td>Create timestamped backup zip</td>
+</tr>
+<tr>
+<td><code>rev backup --name v1</code></td>
+<td>Custom backup name</td>
+</tr>
+<tr>
+<td><code>rev export</code></td>
+<td>Export project as distributable zip</td>
+</tr>
+<tr>
+<td><code>rev preview &lt;format&gt;</code></td>
+<td>Build and open document</td>
+</tr>
+<tr>
+<td><code>rev watch [format]</code></td>
+<td>Auto-rebuild on file changes</td>
+</tr>
+<tr>
+<td><code>rev lint</code></td>
+<td>Check for broken refs, missing citations</td>
+</tr>
+<tr>
+<td><code>rev clean</code></td>
+<td>Remove generated files</td>
+</tr>
+<tr>
+<td><code>rev clean --all</code></td>
+<td>Also remove backups and exports</td>
+</tr>
+<tr>
+<td><code>rev check</code></td>
+<td>Pre-submission check (lint + grammar + citations)</td>
+</tr>
+<tr>
+<td><code>rev open</code></td>
+<td>Open project folder</td>
+</tr>
+<tr>
+<td><code>rev open paper.pdf</code></td>
+<td>Open specific file</td>
+</tr>
+</tbody>
+</table>
+<h2 id="grammar-spelling">Grammar &amp; Spelling<a class="headerlink" href="#grammar-spelling" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev grammar</code></td>
+<td>Check grammar/style issues</td>
+</tr>
+<tr>
+<td><code>rev grammar --rules</code></td>
+<td>List available grammar rules</td>
+</tr>
+<tr>
+<td><code>rev grammar --learn &lt;word&gt;</code></td>
+<td>Add word to custom dictionary</td>
+</tr>
+<tr>
+<td><code>rev grammar --list</code></td>
+<td>Show custom dictionary</td>
+</tr>
+<tr>
+<td><code>rev spelling</code></td>
+<td>Check spelling in all sections</td>
+</tr>
+<tr>
+<td><code>rev spelling --british</code></td>
+<td>Use British English dictionary</td>
+</tr>
+<tr>
+<td><code>rev spelling --learn &lt;word&gt;</code></td>
+<td>Add word to global dictionary</td>
+</tr>
+<tr>
+<td><code>rev spelling --learn-project &lt;word&gt;</code></td>
+<td>Add word to project dictionary</td>
+</tr>
+</tbody>
+</table>
+<h2 id="direct-docx-editing">Direct DOCX Editing<a class="headerlink" href="#direct-docx-editing" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev annotate &lt;docx&gt; -m "Comment" -s "text"</code></td>
+<td>Add comment to Word doc</td>
+</tr>
+<tr>
+<td><code>rev apply &lt;md&gt; &lt;docx&gt;</code></td>
+<td>Apply annotations as track changes</td>
+</tr>
+<tr>
+<td><code>rev comment &lt;docx&gt;</code></td>
+<td>Interactive comment mode</td>
+</tr>
+</tbody>
+</table>
+<h2 id="shell-completions">Shell Completions<a class="headerlink" href="#shell-completions" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Bash - add to ~/.bashrc</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>rev<span class="w"> </span>completions<span class="w"> </span>bash<span class="k">)</span><span class="s2">&quot;</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Zsh - add to ~/.zshrc</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>rev<span class="w"> </span>completions<span class="w"> </span>zsh<span class="k">)</span><span class="s2">&quot;</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># PowerShell - add to $PROFILE</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>Invoke-Expression<span class="w"> </span><span class="o">(</span>rev<span class="w"> </span>completions<span class="w"> </span>powershell<span class="w"> </span><span class="p">|</span><span class="w"> </span>Out-String<span class="o">)</span>
+</code></pre></div>
+<h2 id="collaboration-git">Collaboration &amp; Git<a class="headerlink" href="#collaboration-git" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev contributors</code></td>
+<td>Show author contributions across all sections</td>
+</tr>
+<tr>
+<td><code>rev contributors &lt;file&gt;</code></td>
+<td>Show who wrote what in a specific file</td>
+</tr>
+<tr>
+<td><code>rev contributors &lt;file&gt; --blame</code></td>
+<td>Line-by-line blame output</td>
+</tr>
+<tr>
+<td><code>rev history</code></td>
+<td>Show revision history</td>
+</tr>
+<tr>
+<td><code>rev diff</code></td>
+<td>Compare sections against git history</td>
+</tr>
+</tbody>
+</table>
+<h2 id="orcid-integration">ORCID Integration<a class="headerlink" href="#orcid-integration" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev orcid &lt;id&gt;</code></td>
+<td>Fetch author info from ORCID</td>
+</tr>
+<tr>
+<td><code>rev orcid &lt;id&gt; --yaml</code></td>
+<td>Output as YAML for rev.yaml authors</td>
+</tr>
+<tr>
+<td><code>rev orcid &lt;id&gt; --badge</code></td>
+<td>Generate markdown badge</td>
+</tr>
+</tbody>
+</table>
+<h2 id="self-update">Self-Update<a class="headerlink" href="#self-update" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev upgrade</code></td>
+<td>Update docrev to latest version</td>
+</tr>
+<tr>
+<td><code>rev upgrade --check</code></td>
+<td>Check for updates without installing</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/gcol33/docrev" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://www.npmjs.com/package/docrev" target="_blank" rel="noopener" title="www.npmjs.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M288 288h-32v-64h32zm288-128v192H288v32H160v-32H0V160zm-416 32H32v128h64v-96h32v96h32zm160 0H192v160h64v-32h64zm224 0H352v128h64v-96h32v96h32v-96h32v96h32z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.top", "navigation.instant", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
