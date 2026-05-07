@@ -577,7 +577,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
           process.exit(1);
         }
 
-        const { combineSections } = await import('../build.js');
+        const { combineSections, resolveOutputDir } = await import('../build.js');
         const { buildWithTrackChanges } = await import('../trackchanges.js');
 
         const spin = fmt.spinner('Building with track changes...').start();
@@ -591,7 +591,9 @@ export function register(program: Command, pkg?: { version?: string }): void {
           const baseName = config.title
             ? config.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)
             : 'paper';
-          const outputPath = path.join(dir, `${baseName}-changes.docx`);
+          const outDir = resolveOutputDir(dir, config);
+          if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+          const outputPath = path.join(outDir, `${baseName}-changes.docx`);
 
           const spinTc = fmt.spinner('Applying track changes...').start();
           const result = await buildWithTrackChanges(paperPath, outputPath, {
@@ -658,7 +660,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
           const docxResult = results.find(r => r.format === 'docx' && r.success);
           if (docxResult) {
             const { prepareMarkdownWithMarkers, injectCommentsAtMarkers } = await import('../wordcomments.js');
-            const { runPandoc } = await import('../build.js');
+            const { runPandoc, applyFormatTransforms } = await import('../build.js');
 
             let markdown = fs.readFileSync(paperPath, 'utf-8');
 
@@ -682,6 +684,12 @@ export function register(program: Command, pkg?: { version?: string }): void {
             }
 
             markdown = stripAnnotations(markdown, { keepComments: true });
+
+            // Apply DOCX transforms (author affiliations, @fig: → "Figure 1")
+            // before injecting markers, so the comments DOCX matches the clean
+            // DOCX in everything but the comments themselves.
+            const registry = buildRegistry(dir, config.sections);
+            markdown = applyFormatTransforms(markdown, 'docx', config, registry);
 
             const spinMarkers = fmt.spinner('Preparing markers...').start();
             const { markedMarkdown, comments } = prepareMarkdownWithMarkers(markdown);
@@ -730,10 +738,16 @@ export function register(program: Command, pkg?: { version?: string }): void {
           const pdfResult = results.find(r => r.format === 'pdf' && r.success);
           if (pdfResult) {
             const { prepareMarkdownForAnnotatedPdf } = await import('../pdf-comments.js');
-            const { runPandoc } = await import('../build.js');
+            const { runPandoc, applyFormatTransforms } = await import('../build.js');
 
             let markdown = fs.readFileSync(paperPath, 'utf-8');
             markdown = stripAnnotations(markdown, { keepComments: true });
+
+            // Apply PDF transforms (table normalization, authblk header
+            // injection) before todonotes preamble work, so the comments PDF
+            // matches the clean PDF in everything but the margin notes.
+            const registry = buildRegistry(dir, config.sections);
+            markdown = applyFormatTransforms(markdown, 'pdf', config, registry);
 
             const spinPdf = fmt.spinner('Preparing annotated PDF...').start();
             const { markdown: annotatedMd, preamble, commentCount } = prepareMarkdownForAnnotatedPdf(markdown, {
@@ -750,7 +764,24 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
               const annotatedConfig = JSON.parse(JSON.stringify(config));
               annotatedConfig.pdf = annotatedConfig.pdf || {};
-              annotatedConfig.pdf['header-includes'] = (annotatedConfig.pdf['header-includes'] || '') + preamble;
+
+              // Pandoc consumes header-includes via -H <file>. Write preamble
+              // (plus any existing user header file) to a temp .tex and point
+              // headerIncludes at it.
+              const preambleParts: string[] = [];
+              const existingHeader = annotatedConfig.pdf.headerIncludes;
+              if (existingHeader) {
+                const existingPath = path.isAbsolute(existingHeader)
+                  ? existingHeader
+                  : path.join(dir, existingHeader);
+                if (fs.existsSync(existingPath)) {
+                  preambleParts.push(fs.readFileSync(existingPath, 'utf-8'));
+                }
+              }
+              preambleParts.push(preamble);
+              const preamblePath = path.join(dir, '.paper-annotated.preamble.tex');
+              fs.writeFileSync(preamblePath, preambleParts.join('\n'), 'utf-8');
+              annotatedConfig.pdf.headerIncludes = preamblePath;
               annotatedConfig.pdf.geometry = 'left=2.5cm,right=4.5cm,top=2.5cm,bottom=2.5cm,marginparwidth=3.5cm';
 
               const annotatedPdfPath = pdfResult.outputPath!.replace(/\.pdf$/, '_comments.pdf');
@@ -760,6 +791,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
               if (!process.env.DEBUG) {
                 try { fs.unlinkSync(annotatedPath); } catch { /* ignore */ }
+                try { fs.unlinkSync(preamblePath); } catch { /* ignore */ }
               }
 
               if (pandocResult.success) {

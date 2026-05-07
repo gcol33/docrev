@@ -97,6 +97,12 @@ export interface BuildConfig {
     pptx: PptxConfig;
     tables: TablesConfig;
     postprocess: PostprocessConfig;
+    /**
+     * Directory (relative to the project) where final outputs land. Created on
+     * demand. Set to null/empty to keep outputs alongside paper.md (legacy
+     * behavior).
+     */
+    outputDir?: string | null;
     _configPath?: string | null;
 }
 export interface BuildResult {
@@ -127,6 +133,18 @@ interface FullBuildResult {
     warnings: string[];
     forwardRefsResolved: number;
     refsAutoInjected?: boolean;
+}
+interface Registry {
+    figures: Map<string, unknown>;
+    tables: Map<string, unknown>;
+    equations: Map<string, unknown>;
+    byNumber: {
+        fig?: Map<number, string>;
+        figS?: Map<number, string>;
+        tbl?: Map<number, string>;
+        tblS?: Map<number, string>;
+        eq?: Map<number, string>;
+    };
 }
 /**
  * Default rev.yaml configuration
@@ -167,13 +185,32 @@ export declare function combineSections(directory: string, config: BuildConfig, 
  */
 export declare function processTablesForFormat(content: string, tablesConfig: TablesConfig, format: string): string;
 /**
+ * Apply format-specific transforms (table normalization, author blocks,
+ * crossref display conversion, slide syntax). Caller is responsible for
+ * stripping annotations beforehand — the dual-output paths keep comments
+ * in the markdown stream and need to apply these transforms separately
+ * from annotation handling.
+ *
+ * @param content - Markdown content (annotations already stripped as needed)
+ * @param format - Output format
+ * @param config - Build config
+ * @param registry - Crossref registry for the project
+ * @returns Transformed markdown
+ */
+export declare function applyFormatTransforms(content: string, format: string, config: BuildConfig, registry: Registry): string;
+/**
  * Prepare paper.md for specific output format
  */
-export declare function prepareForFormat(paperPath: string, format: string, config: BuildConfig, options?: BuildOptions): string;
+export declare function prepareForFormat(paperPath: string, format: string, config: BuildConfig, _options?: BuildOptions): string;
 /**
  * Build pandoc arguments for format
  */
 export declare function buildPandocArgs(format: string, config: BuildConfig, outputPath: string): string[];
+/**
+ * Resolve the absolute directory where final outputs should land.
+ * Honors config.outputDir; falls back to the project directory when null/empty.
+ */
+export declare function resolveOutputDir(directory: string, config: BuildConfig): string;
 /**
  * Run pandoc build
  */

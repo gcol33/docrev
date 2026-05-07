@@ -136,6 +136,12 @@ export interface BuildConfig {
   pptx: PptxConfig;
   tables: TablesConfig;
   postprocess: PostprocessConfig;
+  /**
+   * Directory (relative to the project) where final outputs land. Created on
+   * demand. Set to null/empty to keep outputs alongside paper.md (legacy
+   * behavior).
+   */
+  outputDir?: string | null;
   _configPath?: string | null;
 }
 
@@ -261,6 +267,9 @@ export const DEFAULT_CONFIG: BuildConfig = {
     beamer: null,
     all: null, // Runs after any format
   },
+  // Final outputs land here (created on demand). Set to null or '' to keep
+  // outputs in the project root.
+  outputDir: 'output',
 };
 
 // =============================================================================
@@ -785,13 +794,57 @@ export function processTablesForFormat(content: string, tablesConfig: TablesConf
 }
 
 /**
+ * Apply format-specific transforms (table normalization, author blocks,
+ * crossref display conversion, slide syntax). Caller is responsible for
+ * stripping annotations beforehand — the dual-output paths keep comments
+ * in the markdown stream and need to apply these transforms separately
+ * from annotation handling.
+ *
+ * @param content - Markdown content (annotations already stripped as needed)
+ * @param format - Output format
+ * @param config - Build config
+ * @param registry - Crossref registry for the project
+ * @returns Transformed markdown
+ */
+export function applyFormatTransforms(
+  content: string,
+  format: string,
+  config: BuildConfig,
+  registry: Registry
+): string {
+  if (format === 'pdf' || format === 'tex') {
+    content = processTablesForFormat(content, config.tables, format);
+
+    if (hasNumberedAffiliations(config)) {
+      const latexBlock = generateLatexAuthorBlock(config);
+      content = content.replace(/^(---\r?\n[\s\S]*?)(---\r?\n)/, (_match, yamlContent, closing) => {
+        return `${yamlContent}header-includes: |\n${latexBlock.split('\n').map(l => '  ' + l).join('\n')}\n${closing}`;
+      });
+    }
+  } else if (format === 'docx') {
+    content = convertDynamicRefsToDisplay(content, registry);
+
+    if (hasNumberedAffiliations(config)) {
+      const mdBlock = generateMarkdownAuthorBlock(config);
+      content = content.replace(/^(---\r?\n[\s\S]*?---\r?\n)/, `$1\n${mdBlock}\n`);
+    }
+  } else if (format === 'beamer' || format === 'pptx') {
+    if (hasSlideSyntax(content)) {
+      content = processSlideMarkdown(content, format);
+    }
+  }
+
+  return content;
+}
+
+/**
  * Prepare paper.md for specific output format
  */
 export function prepareForFormat(
   paperPath: string,
   format: string,
   config: BuildConfig,
-  options: BuildOptions = {}
+  _options: BuildOptions = {}
 ): string {
   const directory = path.dirname(paperPath);
   let content = fs.readFileSync(paperPath, 'utf-8');
@@ -800,43 +853,15 @@ export function prepareForFormat(
   // Pass sections from config to ensure correct file ordering
   const registry = buildRegistry(directory, config.sections);
 
-  if (format === 'pdf' || format === 'tex') {
-    // Strip all annotations for clean output
-    content = stripAnnotations(content);
-
-    // Process tables for nowrap columns (convert Normal() → $\mathcal{N}()$ etc.)
-    content = processTablesForFormat(content, config.tables, format);
-
-    // Inject LaTeX author block with numbered affiliations
-    if (hasNumberedAffiliations(config)) {
-      const latexBlock = generateLatexAuthorBlock(config);
-      // Inject as header-includes in the YAML frontmatter
-      content = content.replace(/^(---\r?\n[\s\S]*?)(---\r?\n)/, (match, yamlContent, closing) => {
-        return `${yamlContent}header-includes: |\n${latexBlock.split('\n').map(l => '  ' + l).join('\n')}\n${closing}`;
-      });
-    }
-  } else if (format === 'docx') {
-    // Strip track changes, optionally keep comments
+  // Strip annotations per format
+  if (format === 'docx') {
     content = stripAnnotations(content, { keepComments: config.docx.keepComments });
-
-    // Convert @fig:label to "Figure 1" for Word readers
-    content = convertDynamicRefsToDisplay(content, registry);
-
-    // Inject markdown author block with superscript affiliations
-    if (hasNumberedAffiliations(config)) {
-      const mdBlock = generateMarkdownAuthorBlock(config);
-      // Insert after YAML frontmatter, before body content
-      content = content.replace(/^(---\r?\n[\s\S]*?---\r?\n)/, `$1\n${mdBlock}\n`);
-    }
-  } else if (format === 'beamer' || format === 'pptx') {
-    // Strip annotations for slide output
+  } else {
     content = stripAnnotations(content);
-
-    // Process slide syntax (::: step, ::: notes)
-    if (hasSlideSyntax(content)) {
-      content = processSlideMarkdown(content, format);
-    }
   }
+
+  // Apply shared format transforms
+  content = applyFormatTransforms(content, format, config, registry);
 
   // Write to temporary file
   const preparedPath = path.join(directory, `.paper-${format}.md`);
@@ -888,8 +913,10 @@ export function buildPandocArgs(format: string, config: BuildConfig, outputPath:
     args.push('-t', 'pptx');
   }
 
-  // Output file (use basename since we set cwd to directory in runPandoc)
-  args.push('-o', path.basename(outputPath));
+  // Output file. runPandoc sets cwd to the project directory and passes a
+  // path relative to that cwd; passing it through here unchanged lets pandoc
+  // write to subdirectories like output/<title-slug>.<ext>.
+  args.push('-o', outputPath);
 
   // Crossref filter (if available) - skip for slides
   if (hasPandocCrossref() && format !== 'beamer' && format !== 'pptx') {
@@ -1006,6 +1033,16 @@ function getInstallInstructions(tool: string): string {
 }
 
 /**
+ * Resolve the absolute directory where final outputs should land.
+ * Honors config.outputDir; falls back to the project directory when null/empty.
+ */
+export function resolveOutputDir(directory: string, config: BuildConfig): string {
+  const out = config.outputDir;
+  if (!out) return directory;
+  return path.isAbsolute(out) ? out : path.join(directory, out);
+}
+
+/**
  * Run pandoc build
  */
 export async function runPandoc(
@@ -1031,13 +1068,25 @@ export async function runPandoc(
 
   // For beamer, use -slides suffix to distinguish from regular PDF
   const suffix = format === 'beamer' ? '-slides' : '';
-  // Allow custom output path via options
-  const outputPath = options.outputPath || path.join(directory, `${baseName}${suffix}${ext}`);
+  // Allow custom output path via options. Auto-named outputs go through the
+  // configured outputDir (default 'output/'); explicit paths are honored as-is
+  // so callers can route temp/intermediate artefacts where they want.
+  const outputPath = options.outputPath
+    ? options.outputPath
+    : path.join(resolveOutputDir(directory, config), `${baseName}${suffix}${ext}`);
+
+  if (!options.outputPath) {
+    const outDir = path.dirname(outputPath);
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir, { recursive: true });
+    }
+  }
 
   // Ensure crossref.yaml exists
   ensureCrossrefConfig(directory, config);
 
-  const args = buildPandocArgs(format, config, outputPath);
+  // Pandoc runs with cwd = directory, so pass the output path relative to it.
+  const args = buildPandocArgs(format, config, path.relative(directory, outputPath) || path.basename(outputPath));
 
   // Handle PPTX reference template and themes
   let pptxMediaDir: string | null = null;
