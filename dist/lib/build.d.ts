@@ -41,6 +41,7 @@ export interface PdfConfig {
 export interface DocxConfig {
     reference?: string | null;
     keepComments?: boolean;
+    affiliationNewline?: boolean;
     toc?: boolean;
 }
 export interface TexConfig {

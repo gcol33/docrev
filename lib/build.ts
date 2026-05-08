@@ -74,6 +74,7 @@ export interface PdfConfig {
 export interface DocxConfig {
   reference?: string | null;
   keepComments?: boolean;
+  affiliationNewline?: boolean;
   toc?: boolean;
 }
 
@@ -232,7 +233,8 @@ export const DEFAULT_CONFIG: BuildConfig = {
   },
   docx: {
     reference: null,
-    keepComments: true,
+    keepComments: false,
+    affiliationNewline: true,
     toc: false,
   },
   tex: {
@@ -675,12 +677,16 @@ function generateMarkdownAuthorBlock(config: BuildConfig): string {
   lines.push('');
 
   // Affiliation lines: ^1^ Department of ...
-  for (const [key, text] of Object.entries(config.affiliations)) {
+  const affiliationEntries = Object.entries(config.affiliations);
+  const useLineBreaks = config.docx.affiliationNewline !== false;
+  affiliationEntries.forEach(([key, text], idx) => {
     const num = keyToNum.get(key);
     if (num !== undefined) {
-      lines.push(`^${num}^ ${text}`);
+      const isLast = idx === affiliationEntries.length - 1;
+      const suffix = useLineBreaks && !isLast ? '\\' : '';
+      lines.push(`^${num}^ ${text}${suffix}`);
     }
-  }
+  });
 
   // Corresponding author footnote
   const corresponding = config.authors.find(a => typeof a !== 'string' && a.corresponding) as Author | undefined;
