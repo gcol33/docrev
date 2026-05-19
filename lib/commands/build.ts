@@ -52,6 +52,8 @@ interface BuildOptions {
   colortheme?: string;
   aspectratio?: string;
   verbose?: boolean;
+  pandocArg?: string[];
+  output?: string;
 }
 
 /**
@@ -487,7 +489,14 @@ export function register(program: Command, pkg?: { version?: string }): void {
     .option('--theme <name>', 'Beamer theme (default, metropolis, etc.)')
     .option('--colortheme <name>', 'Beamer color theme')
     .option('--aspectratio <ratio>', 'Beamer aspect ratio (169, 43)')
-    .option('--verbose', 'Show detailed output including postprocess scripts')
+    .option(
+      '--pandoc-arg <arg>',
+      'Extra arg to pass to pandoc (repeatable). Applied to every format being built; appended after rev.yaml pandoc-args so CLI wins.',
+      (val: string, prev: string[] = []) => [...prev, val],
+      []
+    )
+    .option('-o, --output <path>', 'Output filename or path. Relative paths resolve under outputDir; absolute paths bypass it. Extension auto-added if missing. Applied to every format being built; overrides rev.yaml output.<format>.')
+    .option('--verbose', 'Show detailed output including postprocess scripts and the pandoc invocation')
     .action(async (formats: string[], options: BuildOptions) => {
       const dir = path.resolve(options.dir);
 
@@ -577,7 +586,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
           process.exit(1);
         }
 
-        const { combineSections, resolveOutputDir } = await import('../build.js');
+        const { combineSections, resolveOutputPath } = await import('../build.js');
         const { buildWithTrackChanges } = await import('../trackchanges.js');
 
         const spin = fmt.spinner('Building with track changes...').start();
@@ -588,12 +597,12 @@ export function register(program: Command, pkg?: { version?: string }): void {
           console.log(chalk.cyan('Combined sections → paper.md'));
           console.log(chalk.dim(`  ${paperPath}\n`));
 
-          const baseName = config.title
-            ? config.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)
-            : 'paper';
-          const outDir = resolveOutputDir(dir, config);
+          const outputPath = resolveOutputPath(dir, config, 'docx', {
+            cliOverride: options.output,
+            suffix: '-changes',
+          });
+          const outDir = path.dirname(outputPath);
           if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-          const outputPath = path.join(outDir, `${baseName}-changes.docx`);
 
           const spinTc = fmt.spinner('Applying track changes...').start();
           const result = await buildWithTrackChanges(paperPath, outputPath, {
@@ -625,10 +634,12 @@ export function register(program: Command, pkg?: { version?: string }): void {
       const spin = fmt.spinner('Building...').start();
 
       try {
-        const { results, paperPath, forwardRefsResolved, refsAutoInjected } = await build(dir, targetFormats, {
+        const { results, paperPath, forwardRefsResolved, refsAutoInjected, warnings } = await build(dir, targetFormats, {
           crossref: options.crossref,
           config,
           verbose: options.verbose,
+          pandocArgs: options.pandocArg,
+          output: options.output,
         });
 
         spin.stop();
@@ -642,6 +653,17 @@ export function register(program: Command, pkg?: { version?: string }): void {
           console.log(chalk.dim(`  References section auto-injected before supplementary`));
         }
         console.log('');
+
+        if (warnings && warnings.length > 0) {
+          for (const w of warnings) {
+            // Each warning may span multiple lines — colour the first line as
+            // a warning header and pass through the rest unchanged.
+            const [head, ...rest] = w.split('\n');
+            console.log(chalk.yellow(`Warning: ${head}`));
+            for (const line of rest) console.log(chalk.yellow(line));
+          }
+          console.log('');
+        }
 
         console.log(chalk.cyan('Output:'));
         console.log(formatBuildResults(results));
@@ -703,7 +725,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
               const spinBuild = fmt.spinner('Building marked DOCX...').start();
               const markedDocxPath = path.join(dir, '.paper-marked.docx');
-              const pandocResult = await runPandoc(markedPath, 'docx', config, { ...options, outputPath: markedDocxPath });
+              const pandocResult = await runPandoc(markedPath, 'docx', config, { ...options, outputPath: markedDocxPath, pandocArgs: options.pandocArg });
               spinBuild.stop();
 
               if (!pandocResult.success) {
@@ -786,7 +808,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
               const annotatedPdfPath = pdfResult.outputPath!.replace(/\.pdf$/, '_comments.pdf');
               spinPdf.text = 'Building annotated PDF...';
-              const pandocResult = await runPandoc(annotatedPath, 'pdf', annotatedConfig, { ...options, outputPath: annotatedPdfPath });
+              const pandocResult = await runPandoc(annotatedPath, 'pdf', annotatedConfig, { ...options, outputPath: annotatedPdfPath, pandocArgs: options.pandocArg });
               spinPdf.stop();
 
               if (!process.env.DEBUG) {

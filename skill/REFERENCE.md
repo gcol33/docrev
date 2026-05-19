@@ -62,10 +62,76 @@ rev build docx               # DOCX only
 rev build --toc              # Include table of contents
 rev build docx --dual        # Clean + annotated versions
 rev build docx --show-changes  # DOCX with visible track changes (audit)
+rev build docx --pandoc-arg=--lua-filter=tofill.lua   # Pass extra args to pandoc
+rev build -o Final_Report     # Override output filename (extension auto-added)
+rev build pdf --verbose      # Echo the pandoc invocation (useful for filter debugging)
 ```
 
 By default, outputs land in `output/` next to `rev.yaml`. Override or
 disable via the `outputDir` field in rev.yaml (see below).
+
+#### Choosing output filenames
+
+By default, the output basename is derived from `title:` (slugified — e.g.
+"My Paper" → `my-paper.docx`). Long titles are truncated at word boundaries
+(at the last `-` at-or-before 80 chars), so `communities` stays whole instead
+of becoming `communitie`.
+
+To pick your own filename, set per-format names in `rev.yaml`:
+
+```yaml
+output:
+  docx: ADAPT_proposal_draft.docx
+  pdf: ADAPT_proposal_draft.pdf
+```
+
+Extensions are optional — `ADAPT_proposal_draft` is fine, the right extension
+is added per format. Relative paths resolve under `outputDir`; absolute paths
+bypass `outputDir`.
+
+Or override on the command line with `-o, --output <path>`:
+
+```bash
+rev build docx -o Final_Report           # → output/Final_Report.docx
+rev build pdf docx -o Final_Report       # Applies to both formats
+rev build -o /tmp/draft.docx docx        # Absolute path bypasses outputDir
+```
+
+CLI `-o` wins over `output:` in `rev.yaml`. When `--dual` is on, the
+`_comments` variant piggybacks on the chosen name (e.g.
+`Final_Report_comments.docx`). When `--show-changes` is on, the audit DOCX
+uses the chosen name with a `-changes` suffix
+(e.g. `Final_Report-changes.docx`).
+
+#### Passing custom pandoc args
+
+For pandoc flags rev doesn't surface directly (Lua/JSON filters, custom
+templates, variables, etc.), use the repeatable `--pandoc-arg` flag or the
+`pandoc-args` field in `rev.yaml`:
+
+```yaml
+# rev.yaml — applies to every format
+pandoc-args:
+  - --lua-filter=tofill.lua
+  - --shift-heading-level-by=1
+
+# Format-specific (concatenated after the top-level list)
+docx:
+  pandoc-args:
+    - --lua-filter=docx_only.lua
+pdf:
+  pandoc-args:
+    - --variable=papersize:a4
+```
+
+```bash
+# CLI overrides — appended last, so pandoc's last-wins rule lets CLI flags
+# beat repeated config flags
+rev build docx --pandoc-arg=--lua-filter=cli.lua --pandoc-arg=--metadata=draft:true
+```
+
+Run with `--verbose` to print the full pandoc command line (one per format).
+Copy-paste it into a terminal to reproduce a build manually.
 
 The `--dual` flag produces:
 - `output/<title>.docx` — clean, for submission

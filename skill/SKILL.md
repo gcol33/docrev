@@ -17,9 +17,8 @@ Layout is controlled in `rev.yaml`:
 
 ```yaml
 title: "My Document"
-output:
-  docx:
-    reference-doc: template.docx
+docx:
+  reference: template.docx
 ```
 
 Change the template, rebuild, and every document gets the new formatting.
@@ -98,7 +97,15 @@ revision is rendered as a visible Word track change. Useful when a co-author
 wants to see what changed since the last shared version.
 
 Outputs land in `output/` by default; set `outputDir: null` in `rev.yaml`
-to keep them alongside `paper.md` (legacy layout).
+to keep them alongside `paper.md` (legacy layout). The basename is derived
+from `title:` unless overridden — set `output: { docx: foo.docx, pdf: foo.pdf }`
+in `rev.yaml` or pass `-o, --output <path>` on the CLI. See REFERENCE.md →
+"Choosing output filenames".
+
+For pandoc flags rev doesn't surface directly (Lua filters, custom variables,
+templates), use `--pandoc-arg` (repeatable) or `pandoc-args:` in `rev.yaml`
+(both top-level and per-format). Run with `--verbose` to see the exact pandoc
+invocation. See REFERENCE.md → "Passing custom pandoc args" for details.
 
 ### 8. Archive reviewer files
 
@@ -182,6 +189,20 @@ Use in markdown files:
 - `@tbl:label` - Table reference
 - `@eq:label` - Equation reference
 - `{#fig:label}` - Anchor for figures
+
+Insert a figure with the format-portable syntax (renders in both PDF and Word):
+
+```markdown
+![Caption text.](figures/foo.pdf){#fig:foo width=80%}
+```
+
+Raw `\begin{figure}...\end{figure}` LaTeX blocks are PDF-only. For docx
+builds, `rev` auto-translates the common shape (single `\includegraphics`
+with optional `\caption{...}` and `\label{...}`) to the markdown form above
+so figures still render. Exotic blocks (`\subfloat`, `\rotatebox`, multiple
+`\includegraphics`) are left alone and warned about — convert them by hand
+or supply a custom Lua filter via `--pandoc-arg`. Opt out of auto-translate
+with `docx.translateRawFigures: false` in `rev.yaml`.
 
 ## Template Variables
 

@@ -14,7 +14,14 @@ import {
   findSections,
   combineSections,
   buildPandocArgs,
+  collectPandocPassthroughArgs,
   processTablesForFormat,
+  slugifyTitle,
+  getFormatExtension,
+  resolveOutputPath,
+  detectRawLatexFigures,
+  translateRawLatexFigures,
+  collectRawLatexFigureWarning,
 } from '../lib/build.js';
 import { hasPandoc, hasPandocCrossref } from '../lib/dependencies.js';
 
@@ -286,6 +293,285 @@ describe('buildPandocArgs', () => {
   });
 });
 
+describe('collectPandocPassthroughArgs', () => {
+  it('returns empty array when nothing is configured', () => {
+    const args = collectPandocPassthroughArgs('docx', DEFAULT_CONFIG);
+    assert.deepStrictEqual(args, []);
+  });
+
+  it('includes top-level pandocArgs', () => {
+    const config = { ...DEFAULT_CONFIG, pandocArgs: ['--lua-filter=top.lua'] };
+    const args = collectPandocPassthroughArgs('docx', config);
+    assert.deepStrictEqual(args, ['--lua-filter=top.lua']);
+  });
+
+  it('includes format-specific pandocArgs', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      docx: { ...DEFAULT_CONFIG.docx, pandocArgs: ['--lua-filter=docx.lua'] },
+    };
+    const args = collectPandocPassthroughArgs('docx', config);
+    assert.deepStrictEqual(args, ['--lua-filter=docx.lua']);
+  });
+
+  it('format-specific pandocArgs do not leak into other formats', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      docx: { ...DEFAULT_CONFIG.docx, pandocArgs: ['--lua-filter=docx.lua'] },
+    };
+    const args = collectPandocPassthroughArgs('pdf', config);
+    assert.deepStrictEqual(args, []);
+  });
+
+  it('concatenates top-level then format-specific then CLI in order', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      pandocArgs: ['--lua-filter=top.lua'],
+      docx: { ...DEFAULT_CONFIG.docx, pandocArgs: ['--lua-filter=docx.lua'] },
+    };
+    const args = collectPandocPassthroughArgs('docx', config, ['--lua-filter=cli.lua']);
+    assert.deepStrictEqual(args, [
+      '--lua-filter=top.lua',
+      '--lua-filter=docx.lua',
+      '--lua-filter=cli.lua',
+    ]);
+  });
+
+  it('CLI args are appended last so repeated flags can override config', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      pandocArgs: ['--shift-heading-level-by=1'],
+    };
+    const args = collectPandocPassthroughArgs('docx', config, ['--shift-heading-level-by=2']);
+    // Both present; CLI value comes last, so pandoc's last-wins semantics apply
+    assert.strictEqual(args[0], '--shift-heading-level-by=1');
+    assert.strictEqual(args[1], '--shift-heading-level-by=2');
+  });
+});
+
+describe('loadConfig pandoc-args mapping', () => {
+  it('reads hyphenated pandoc-args at top level into pandocArgs', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), `
+title: "X"
+pandoc-args:
+  - --lua-filter=foo.lua
+  - --shift-heading-level-by=1
+`);
+    const config = loadConfig(tempDir);
+    assert.deepStrictEqual(config.pandocArgs, ['--lua-filter=foo.lua', '--shift-heading-level-by=1']);
+  });
+
+  it('reads hyphenated pandoc-args inside format blocks', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), `
+title: "X"
+docx:
+  pandoc-args: [--lua-filter=docx.lua]
+`);
+    const config = loadConfig(tempDir);
+    assert.deepStrictEqual(config.docx.pandocArgs, ['--lua-filter=docx.lua']);
+  });
+
+  it('accepts camelCase pandocArgs as a fallback', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), `
+title: "X"
+pandocArgs:
+  - --lua-filter=foo.lua
+`);
+    const config = loadConfig(tempDir);
+    assert.deepStrictEqual(config.pandocArgs, ['--lua-filter=foo.lua']);
+  });
+
+  it('coerces a single string pandoc-args into a one-element array', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), `
+title: "X"
+pandoc-args: --lua-filter=foo.lua
+`);
+    const config = loadConfig(tempDir);
+    assert.deepStrictEqual(config.pandocArgs, ['--lua-filter=foo.lua']);
+  });
+});
+
+describe('slugifyTitle', () => {
+  it('returns "paper" for empty title', () => {
+    assert.strictEqual(slugifyTitle(''), 'paper');
+    assert.strictEqual(slugifyTitle(undefined), 'paper');
+    assert.strictEqual(slugifyTitle(null), 'paper');
+  });
+
+  it('lowercases and hyphenates a short title', () => {
+    assert.strictEqual(slugifyTitle('My Document'), 'my-document');
+  });
+
+  it('collapses non-alphanumeric runs into a single hyphen', () => {
+    assert.strictEqual(slugifyTitle('Foo --- Bar/Baz!!!'), 'foo-bar-baz');
+  });
+
+  it('trims leading/trailing hyphens', () => {
+    assert.strictEqual(slugifyTitle('---Foo---'), 'foo');
+  });
+
+  it('truncates at last hyphen boundary when too long (no mid-word cut)', () => {
+    // The original ADAPT title that triggered Issue 2: 50-char blind cut produced
+    // "adapt-alien-dark-diversity-across-plant-communitie" — missing the trailing "s".
+    // With the 80-char cap and hyphen-boundary, the whole slug now fits.
+    const title = 'ADAPT: Alien dark diversity across plant communities';
+    const slug = slugifyTitle(title);
+    assert.strictEqual(slug, 'adapt-alien-dark-diversity-across-plant-communities');
+  });
+
+  it('truncates at last hyphen boundary for titles longer than the cap', () => {
+    // Long enough to exceed 80 chars; should cut at last hyphen, not mid-word
+    const title = 'A '.repeat(60).trim(); // 60 "a" words separated by spaces
+    const slug = slugifyTitle(title);
+    assert.ok(slug.length <= 80, `slug ${slug.length} chars, expected <= 80`);
+    assert.ok(!slug.endsWith('-'), 'slug should not end with hyphen');
+    // Should be all whole "a"s, not a partial
+    assert.ok(/^(a-)+a$/.test(slug), `slug "${slug}" is not whole words`);
+  });
+
+  it('falls back to hard cut when no hyphen boundary exists', () => {
+    // No word breaks at all — must hard-cut at 80
+    const title = 'x'.repeat(200);
+    const slug = slugifyTitle(title);
+    assert.strictEqual(slug.length, 80);
+  });
+});
+
+describe('getFormatExtension', () => {
+  it('returns canonical extension for each format', () => {
+    assert.strictEqual(getFormatExtension('pdf'), '.pdf');
+    assert.strictEqual(getFormatExtension('docx'), '.docx');
+    assert.strictEqual(getFormatExtension('tex'), '.tex');
+    assert.strictEqual(getFormatExtension('beamer'), '.pdf');
+    assert.strictEqual(getFormatExtension('pptx'), '.pptx');
+  });
+
+  it('defaults to .pdf for unknown formats', () => {
+    assert.strictEqual(getFormatExtension('weird'), '.pdf');
+  });
+});
+
+describe('resolveOutputPath', () => {
+  it('falls back to slug under outputDir when no explicit name', () => {
+    const config = { ...DEFAULT_CONFIG, title: 'My Paper', outputDir: 'output' };
+    const p = resolveOutputPath(tempDir, config, 'docx');
+    assert.strictEqual(p, path.join(tempDir, 'output', 'my-paper.docx'));
+  });
+
+  it('honors config.output[format] under outputDir', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      title: 'My Paper',
+      outputDir: 'output',
+      output: { docx: 'Final_Report.docx' },
+    };
+    const p = resolveOutputPath(tempDir, config, 'docx');
+    assert.strictEqual(p, path.join(tempDir, 'output', 'Final_Report.docx'));
+  });
+
+  it('per-format output does not leak to other formats', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      title: 'My Paper',
+      outputDir: 'output',
+      output: { docx: 'Final_Report.docx' },
+    };
+    const p = resolveOutputPath(tempDir, config, 'pdf');
+    assert.strictEqual(p, path.join(tempDir, 'output', 'my-paper.pdf'));
+  });
+
+  it('auto-adds extension if missing from config.output value', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      outputDir: 'output',
+      output: { docx: 'Final_Report' },
+    };
+    const p = resolveOutputPath(tempDir, config, 'docx');
+    assert.strictEqual(p, path.join(tempDir, 'output', 'Final_Report.docx'));
+  });
+
+  it('CLI override beats config.output', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      outputDir: 'output',
+      output: { docx: 'Configured.docx' },
+    };
+    const p = resolveOutputPath(tempDir, config, 'docx', { cliOverride: 'FromCli.docx' });
+    assert.strictEqual(p, path.join(tempDir, 'output', 'FromCli.docx'));
+  });
+
+  it('absolute CLI path bypasses outputDir', () => {
+    const config = { ...DEFAULT_CONFIG, outputDir: 'output' };
+    const abs = path.resolve(tempDir, 'somewhere', 'else.docx');
+    const p = resolveOutputPath(tempDir, config, 'docx', { cliOverride: abs });
+    assert.strictEqual(p, abs);
+  });
+
+  it('absolute config.output path bypasses outputDir', () => {
+    const abs = path.resolve(tempDir, 'somewhere', 'else.docx');
+    const config = {
+      ...DEFAULT_CONFIG,
+      outputDir: 'output',
+      output: { docx: abs },
+    };
+    const p = resolveOutputPath(tempDir, config, 'docx');
+    assert.strictEqual(p, abs);
+  });
+
+  it('relative CLI path resolves under outputDir', () => {
+    const config = { ...DEFAULT_CONFIG, outputDir: 'output' };
+    const p = resolveOutputPath(tempDir, config, 'docx', { cliOverride: 'cli-out.docx' });
+    assert.strictEqual(p, path.join(tempDir, 'output', 'cli-out.docx'));
+  });
+
+  it('appends suffix before extension (e.g. -changes)', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      outputDir: 'output',
+      output: { docx: 'Report.docx' },
+    };
+    const p = resolveOutputPath(tempDir, config, 'docx', { suffix: '-changes' });
+    assert.strictEqual(p, path.join(tempDir, 'output', 'Report-changes.docx'));
+  });
+
+  it('appends suffix to slug fallback', () => {
+    const config = { ...DEFAULT_CONFIG, title: 'My Paper', outputDir: 'output' };
+    const p = resolveOutputPath(tempDir, config, 'beamer', { suffix: '-slides' });
+    assert.strictEqual(p, path.join(tempDir, 'output', 'my-paper-slides.pdf'));
+  });
+
+  it('respects outputDir: null (writes alongside paper.md)', () => {
+    const config = { ...DEFAULT_CONFIG, title: 'My Paper', outputDir: null };
+    const p = resolveOutputPath(tempDir, config, 'docx');
+    assert.strictEqual(p, path.join(tempDir, 'my-paper.docx'));
+  });
+
+  it('long ADAPT-style title produces full slug at 80-char cap', () => {
+    // Regression for the original bug: blind 50-char slice cut "communities" → "communitie".
+    const config = {
+      ...DEFAULT_CONFIG,
+      title: 'ADAPT: Alien dark diversity across plant communities',
+      outputDir: 'output',
+    };
+    const p = resolveOutputPath(tempDir, config, 'docx');
+    assert.strictEqual(p, path.join(tempDir, 'output', 'adapt-alien-dark-diversity-across-plant-communities.docx'));
+  });
+});
+
+describe('loadConfig output mapping', () => {
+  it('reads output: { docx, pdf } per-format map', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), `
+title: "X"
+output:
+  docx: Custom_Name.docx
+  pdf: Custom_Name.pdf
+`);
+    const config = loadConfig(tempDir);
+    assert.strictEqual(config.output.docx, 'Custom_Name.docx');
+    assert.strictEqual(config.output.pdf, 'Custom_Name.pdf');
+  });
+});
+
 describe('hasPandoc', () => {
   it('should return boolean', () => {
     const result = hasPandoc();
@@ -442,5 +728,240 @@ describe('processTablesForFormat', () => {
 
     // Should match the column (no conversion needed for numbers)
     assert.ok(result.includes('1.01'));
+  });
+});
+
+describe('detectRawLatexFigures', () => {
+  it('finds a single \\begin{figure} block and reports line/file', () => {
+    const content = [
+      '# Intro',
+      '',
+      'Some text here.',
+      '',
+      '\\begin{figure}[H]',
+      '\\centering',
+      '\\includegraphics[width=0.8\\textwidth]{figures/map.pdf}',
+      '\\caption{Map of study sites.}',
+      '\\label{fig:map}',
+      '\\end{figure}',
+      '',
+      'More text.',
+    ].join('\n');
+
+    const figs = detectRawLatexFigures(content, 'intro.md');
+    assert.strictEqual(figs.length, 1);
+    assert.strictEqual(figs[0].file, 'intro.md');
+    assert.strictEqual(figs[0].line, 5); // 1-based line of \begin{figure}
+    assert.strictEqual(figs[0].exotic, false);
+    assert.ok(figs[0].block.includes('\\includegraphics'));
+  });
+
+  it('counts multiple blocks correctly', () => {
+    const content = `\\begin{figure}\\includegraphics{a.pdf}\\end{figure}
+
+\\begin{figure}\\includegraphics{b.pdf}\\end{figure}
+
+\\begin{figure}\\includegraphics{c.pdf}\\end{figure}`;
+    const figs = detectRawLatexFigures(content);
+    assert.strictEqual(figs.length, 3);
+  });
+
+  it('skips \\begin{figure} blocks without \\includegraphics', () => {
+    const content = `\\begin{figure}
+\\caption{Empty figure}
+\\end{figure}`;
+    const figs = detectRawLatexFigures(content);
+    assert.strictEqual(figs.length, 0);
+  });
+
+  it('flags exotic shapes (\\subfloat, \\rotatebox, multi-include)', () => {
+    const subfloat = `\\begin{figure}\\subfloat{\\includegraphics{a.pdf}}\\end{figure}`;
+    const rotate = `\\begin{figure}\\rotatebox{90}{\\includegraphics{b.pdf}}\\end{figure}`;
+    const multi = `\\begin{figure}\\includegraphics{a.pdf}\\includegraphics{b.pdf}\\end{figure}`;
+    for (const block of [subfloat, rotate, multi]) {
+      const figs = detectRawLatexFigures(block);
+      assert.strictEqual(figs.length, 1, `expected one detection in: ${block}`);
+      assert.strictEqual(figs[0].exotic, true, `expected exotic for: ${block}`);
+    }
+  });
+
+  it('handles figure* (two-column) environment', () => {
+    const content = `\\begin{figure*}\\includegraphics{a.pdf}\\caption{X}\\end{figure*}`;
+    const figs = detectRawLatexFigures(content);
+    assert.strictEqual(figs.length, 1);
+    assert.strictEqual(figs[0].exotic, false);
+  });
+});
+
+describe('translateRawLatexFigures', () => {
+  it('translates bare \\includegraphics{path} with no caption/label', () => {
+    const input = `Before.
+
+\\begin{figure}
+\\includegraphics{figures/map.pdf}
+\\end{figure}
+
+After.`;
+    const { translated, translatedCount } = translateRawLatexFigures(input);
+    assert.strictEqual(translatedCount, 1);
+    assert.ok(translated.includes('![](figures/map.pdf)'));
+    assert.ok(!translated.includes('\\begin{figure}'));
+  });
+
+  it('translates the canonical caption+label+width block', () => {
+    const input = `\\begin{figure}[H]
+\\centering
+\\includegraphics[width=0.8\\textwidth]{figures/map.pdf}
+\\caption{Map of study sites.}
+\\label{fig:map}
+\\end{figure}`;
+    const { translated, translatedCount } = translateRawLatexFigures(input);
+    assert.strictEqual(translatedCount, 1);
+    assert.ok(
+      translated.includes('![Map of study sites.](figures/map.pdf) {#fig:map width=80%}'),
+      `got: ${translated}`
+    );
+  });
+
+  it('converts \\linewidth to 100% and 0.5\\textwidth to 50%', () => {
+    const half = `\\begin{figure}\\includegraphics[width=0.5\\textwidth]{a.pdf}\\caption{C}\\label{fig:a}\\end{figure}`;
+    const full = `\\begin{figure}\\includegraphics[width=\\linewidth]{b.pdf}\\caption{C}\\label{fig:b}\\end{figure}`;
+    assert.ok(translateRawLatexFigures(half).translated.includes('width=50%'));
+    assert.ok(translateRawLatexFigures(full).translated.includes('width=100%'));
+  });
+
+  it('keeps absolute units (8cm) verbatim', () => {
+    const input = `\\begin{figure}\\includegraphics[width=8cm]{a.pdf}\\label{fig:a}\\end{figure}`;
+    const { translated } = translateRawLatexFigures(input);
+    assert.ok(translated.includes('width=8cm'), `got: ${translated}`);
+  });
+
+  it('auto-prefixes label with fig: when missing', () => {
+    const input = `\\begin{figure}\\includegraphics{a.pdf}\\label{map}\\end{figure}`;
+    const { translated } = translateRawLatexFigures(input);
+    assert.ok(translated.includes('#fig:map'), `got: ${translated}`);
+  });
+
+  it('preserves an explicit fig: label prefix', () => {
+    const input = `\\begin{figure}\\includegraphics{a.pdf}\\label{fig:map}\\end{figure}`;
+    const { translated } = translateRawLatexFigures(input);
+    assert.ok(translated.includes('#fig:map'));
+    assert.ok(!translated.includes('#fig:fig:'));
+  });
+
+  it('leaves exotic blocks alone (\\subfloat, multi-include)', () => {
+    const subfloat = `\\begin{figure}\\subfloat{\\includegraphics{a.pdf}}\\caption{C}\\end{figure}`;
+    const multi = `\\begin{figure}\\includegraphics{a.pdf}\\includegraphics{b.pdf}\\caption{C}\\end{figure}`;
+    for (const block of [subfloat, multi]) {
+      const { translated, translatedCount } = translateRawLatexFigures(block);
+      assert.strictEqual(translatedCount, 0);
+      assert.strictEqual(translated, block);
+    }
+  });
+
+  it('leaves unrecognised width units alone', () => {
+    const input = `\\begin{figure}\\includegraphics[width=0.5\\paperheight]{a.pdf}\\caption{C}\\label{fig:a}\\end{figure}`;
+    const { translated, translatedCount } = translateRawLatexFigures(input);
+    assert.strictEqual(translatedCount, 0);
+    assert.strictEqual(translated, input);
+  });
+
+  it('handles captions with balanced braces (\\textbf{...})', () => {
+    const input = `\\begin{figure}\\includegraphics{a.pdf}\\caption{See \\textbf{Map} for details.}\\label{fig:a}\\end{figure}`;
+    const { translated, translatedCount } = translateRawLatexFigures(input);
+    assert.strictEqual(translatedCount, 1);
+    assert.ok(translated.includes('See \\textbf{Map} for details.'), `got: ${translated}`);
+  });
+
+  it('translates multiple blocks in one pass', () => {
+    const input = `\\begin{figure}\\includegraphics{a.pdf}\\caption{A}\\label{fig:a}\\end{figure}
+
+text
+
+\\begin{figure}\\includegraphics{b.pdf}\\caption{B}\\label{fig:b}\\end{figure}`;
+    const { translated, translatedCount } = translateRawLatexFigures(input);
+    assert.strictEqual(translatedCount, 2);
+    assert.ok(translated.includes('![A](a.pdf)'));
+    assert.ok(translated.includes('![B](b.pdf)'));
+  });
+
+  it('returns content unchanged when there are no figure blocks', () => {
+    const input = `# Heading
+
+Just prose with no figures.`;
+    const { translated, translatedCount } = translateRawLatexFigures(input);
+    assert.strictEqual(translatedCount, 0);
+    assert.strictEqual(translated, input);
+  });
+});
+
+describe('collectRawLatexFigureWarning', () => {
+  it('returns null when there are no raw LaTeX figure blocks', () => {
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), '# Intro\n\nJust prose, no figures.\n');
+    const config = { ...DEFAULT_CONFIG, title: 'X', sections: ['intro.md'] };
+    assert.strictEqual(collectRawLatexFigureWarning(tempDir, config), null);
+  });
+
+  it('omits non-exotic blocks when translateRawFigures defaults to true', () => {
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), `# Intro
+
+\\begin{figure}
+\\subfloat{\\includegraphics{a.pdf}}
+\\caption{Exotic block}
+\\end{figure}
+
+\\begin{figure}
+\\includegraphics{b.pdf}
+\\caption{Clean block}
+\\end{figure}
+`);
+    const config = { ...DEFAULT_CONFIG, title: 'X', sections: ['intro.md'] };
+    const w = collectRawLatexFigureWarning(tempDir, config);
+    assert.ok(w, 'expected a warning');
+    assert.ok(w.includes('intro.md:'), 'warning should cite file:line');
+    assert.ok(w.includes('too complex to auto-translate'));
+    assert.ok(w.includes('a.pdf'), 'exotic block path should appear');
+    assert.ok(!w.includes('b.pdf'), 'clean block should be translated, not warned');
+  });
+
+  it('warns about every block when translateRawFigures is false', () => {
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), `# Intro
+
+\\begin{figure}
+\\includegraphics{a.pdf}
+\\caption{Clean A}
+\\end{figure}
+
+\\begin{figure}
+\\includegraphics{b.pdf}
+\\caption{Clean B}
+\\end{figure}
+`);
+    const config = {
+      ...DEFAULT_CONFIG,
+      title: 'X',
+      sections: ['intro.md'],
+      docx: { ...DEFAULT_CONFIG.docx, translateRawFigures: false },
+    };
+    const w = collectRawLatexFigureWarning(tempDir, config);
+    assert.ok(w, 'expected a warning');
+    assert.ok(w.includes('translateRawFigures: false'));
+    assert.ok(w.includes('a.pdf'));
+    assert.ok(w.includes('b.pdf'));
+  });
+
+  it('reports correct line numbers in source files', () => {
+    fs.writeFileSync(path.join(tempDir, 'methods.md'), `# Methods
+
+Some prose.
+
+\\begin{figure}
+\\subfloat{\\includegraphics{x.pdf}}
+\\end{figure}
+`);
+    const config = { ...DEFAULT_CONFIG, title: 'X', sections: ['methods.md'] };
+    const w = collectRawLatexFigureWarning(tempDir, config);
+    assert.ok(w);
+    assert.ok(w.includes('methods.md:5'), `expected methods.md:5, got:\n${w}`);
   });
 });

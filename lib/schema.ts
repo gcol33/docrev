@@ -91,6 +91,23 @@ export const revYamlSchema: Schema = {
       type: 'string',
       description: 'Journal profile name for formatting defaults and validation',
     },
+    'pandoc-args': {
+      type: 'array',
+      description: 'Extra pandoc args applied to every format build (e.g. --lua-filter=...). Format-specific lists are appended after these; --pandoc-arg CLI values are appended last.',
+      items: { type: 'string' },
+    },
+    output: {
+      type: 'object',
+      description: 'Per-format output filenames. Keys are format names (pdf, docx, tex, beamer, pptx); values are paths. Relative paths resolve under outputDir; absolute paths are honored as-is. Extension auto-added if missing. CLI `-o` overrides this map.',
+      properties: {
+        pdf: { type: 'string' },
+        docx: { type: 'string' },
+        tex: { type: 'string' },
+        beamer: { type: 'string' },
+        pptx: { type: 'string' },
+      },
+      additionalProperties: false,
+    },
     sections: {
       type: 'array',
       description: 'Ordered list of section files to include',
@@ -160,6 +177,11 @@ export const revYamlSchema: Schema = {
         toc: { type: 'boolean', default: false },
         header: { type: 'string' },
         footer: { type: 'string' },
+        'pandoc-args': {
+          type: 'array',
+          description: 'Extra pandoc args for PDF builds. Appended after the top-level pandoc-args list.',
+          items: { type: 'string' },
+        },
       },
       additionalProperties: true,
     },
@@ -170,6 +192,16 @@ export const revYamlSchema: Schema = {
         reference: { type: 'string', description: 'Reference document for styling' },
         keepComments: { type: 'boolean', default: true },
         toc: { type: 'boolean', default: false },
+        translateRawFigures: {
+          type: 'boolean',
+          default: true,
+          description: 'Auto-translate the common \\begin{figure}...\\end{figure} shape to portable ![](){#fig: ...} markdown so figures render in docx. Pandoc strips raw LaTeX in docx output silently otherwise.',
+        },
+        'pandoc-args': {
+          type: 'array',
+          description: 'Extra pandoc args for DOCX builds. Appended after the top-level pandoc-args list.',
+          items: { type: 'string' },
+        },
       },
       additionalProperties: true,
     },
@@ -178,6 +210,11 @@ export const revYamlSchema: Schema = {
       description: 'LaTeX output settings',
       properties: {
         standalone: { type: 'boolean', default: true },
+        'pandoc-args': {
+          type: 'array',
+          description: 'Extra pandoc args for TeX builds. Appended after the top-level pandoc-args list.',
+          items: { type: 'string' },
+        },
       },
       additionalProperties: true,
     },

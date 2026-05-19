@@ -32,8 +32,13 @@ import { resolveCSL } from './csl.js';
 /** Supported output formats */
 const SUPPORTED_FORMATS = ['pdf', 'docx', 'tex', 'beamer', 'pptx'] as const;
 
-/** Maximum title length for output filename */
-const MAX_TITLE_FILENAME_LENGTH = 50;
+/**
+ * Maximum length for slugified-title output filenames. Only used when no
+ * explicit `output:` filename is configured. Long titles are truncated at the
+ * last `-` boundary at-or-before this length so words stay intact (the old
+ * blind `.slice(0, 50)` cut mid-word).
+ */
+const MAX_TITLE_FILENAME_LENGTH = 80;
 
 // =============================================================================
 // Interfaces
@@ -69,6 +74,8 @@ export interface PdfConfig {
   sansfont?: string;
   /** Monospace font (xelatex/lualatex only). */
   monofont?: string;
+  /** Extra pandoc args appended for this format (after top-level pandocArgs). */
+  pandocArgs?: string[];
 }
 
 export interface DocxConfig {
@@ -76,10 +83,19 @@ export interface DocxConfig {
   keepComments?: boolean;
   affiliationNewline?: boolean;
   toc?: boolean;
+  pandocArgs?: string[];
+  /**
+   * Auto-translate the common-shape raw `\begin{figure}...\end{figure}` block
+   * to portable `![caption](path){#fig:label width=N%}` markdown so figures
+   * survive the docx build (pandoc otherwise drops raw LaTeX silently).
+   * Default true. Set false to opt out — blocks then warn and are left alone.
+   */
+  translateRawFigures?: boolean;
 }
 
 export interface TexConfig {
   standalone?: boolean;
+  pandocArgs?: string[];
 }
 
 export interface BeamerConfig {
@@ -91,6 +107,7 @@ export interface BeamerConfig {
   section?: boolean;
   notes?: string | false;
   fit_images?: boolean;
+  pandocArgs?: string[];
 }
 
 export interface PptxConfig {
@@ -106,6 +123,7 @@ export interface PptxConfig {
     accent?: string;
     enabled?: boolean;
   };
+  pandocArgs?: string[];
 }
 
 export interface TablesConfig {
@@ -143,6 +161,19 @@ export interface BuildConfig {
    * behavior).
    */
   outputDir?: string | null;
+  /**
+   * Per-format output filenames. Keys are format names (pdf/docx/tex/beamer/
+   * pptx); values are paths. Relative paths resolve under outputDir; absolute
+   * paths are honored as-is. Extension is added if missing. CLI `-o` wins
+   * over this map.
+   */
+  output?: Record<string, string>;
+  /**
+   * Extra pandoc args applied to every format. Format-specific args
+   * (e.g. docx.pandocArgs) are appended *after* these, and CLI --pandoc-arg
+   * values are appended last.
+   */
+  pandocArgs?: string[];
   _configPath?: string | null;
 }
 
@@ -156,8 +187,20 @@ export interface BuildResult {
 interface BuildOptions {
   verbose?: boolean;
   config?: BuildConfig;
+  /**
+   * Internal: forces the exact output path. Used by dual-mode/temp builds that
+   * route to specific temp files. Bypasses the `output:` resolver.
+   */
   outputPath?: string;
+  /**
+   * CLI override (`-o, --output <path>`). Beats `config.output[format]` but
+   * loses to `options.outputPath`. Relative paths resolve under outputDir;
+   * absolute paths bypass outputDir.
+   */
+  output?: string;
   crossref?: boolean;
+  /** Extra pandoc args from CLI (--pandoc-arg). Appended after config args. */
+  pandocArgs?: string[];
   _refsAutoInjected?: boolean;
   _forwardRefsResolved?: number;
 }
@@ -236,6 +279,7 @@ export const DEFAULT_CONFIG: BuildConfig = {
     keepComments: false,
     affiliationNewline: true,
     toc: false,
+    translateRawFigures: true,
   },
   tex: {
     standalone: true,
@@ -342,6 +386,20 @@ export function mergeJournalFormatting(config: BuildConfig, formatting: JournalF
 }
 
 /**
+ * In-place: copy `pandoc-args` → `pandocArgs` on an object (if not already set).
+ * Idempotent. Coerces a single string into a one-element array.
+ */
+function normalizePandocArgsKey(obj: Record<string, unknown>): void {
+  if (!obj || typeof obj !== 'object') return;
+  const hy = obj['pandoc-args'];
+  if (hy === undefined) return;
+  if (obj.pandocArgs === undefined) {
+    obj.pandocArgs = Array.isArray(hy) ? hy : [hy];
+  }
+  delete obj['pandoc-args'];
+}
+
+/**
  * Load rev.yaml config from directory
  * @param directory - Project directory path
  * @returns Merged config with defaults
@@ -362,6 +420,16 @@ export function loadConfig(directory: string): BuildConfig {
   try {
     const content = fs.readFileSync(configPath, 'utf-8');
     const userConfig = YAML.parse(content) || {};
+
+    // Accept hyphenated `pandoc-args` (the form pandoc itself uses) in addition
+    // to camelCase `pandocArgs`. Hyphenated is what we document; camelCase is
+    // accepted for users who already prefer that convention.
+    normalizePandocArgsKey(userConfig);
+    for (const fmt of ['pdf', 'docx', 'tex', 'beamer', 'pptx'] as const) {
+      if (userConfig[fmt] && typeof userConfig[fmt] === 'object') {
+        normalizePandocArgsKey(userConfig[fmt]);
+      }
+    }
 
     // Deep merge with defaults
     let config: BuildConfig = {
@@ -830,6 +898,14 @@ export function applyFormatTransforms(
   } else if (format === 'docx') {
     content = convertDynamicRefsToDisplay(content, registry);
 
+    // Pandoc strips raw LaTeX in docx output. Translate the common
+    // `\begin{figure}...\end{figure}` shape to portable markdown so figures
+    // actually appear; exotic blocks are left alone (warned about in build()).
+    if (config.docx?.translateRawFigures !== false) {
+      const { translated } = translateRawLatexFigures(content);
+      content = translated;
+    }
+
     if (hasNumberedAffiliations(config)) {
       const mdBlock = generateMarkdownAuthorBlock(config);
       content = content.replace(/^(---\r?\n[\s\S]*?---\r?\n)/, `$1\n${mdBlock}\n`);
@@ -897,8 +973,207 @@ function convertDynamicRefsToDisplay(text: string, registry: Registry): string {
   return result;
 }
 
+// =============================================================================
+// Raw LaTeX figure detection / translation (docx)
+// =============================================================================
+
 /**
- * Build pandoc arguments for format
+ * A raw LaTeX `\begin{figure}...\end{figure}` block found in source markdown.
+ * `exotic` blocks contain features we don't auto-translate (multiple
+ * `\includegraphics`, `\subfloat`, `\rotatebox`, unrecognised width units);
+ * pandoc strips raw LaTeX silently in docx output, so users get warned about
+ * anything that won't be translated.
+ */
+export interface RawLatexFigure {
+  file?: string;
+  line: number;
+  block: string;
+  exotic: boolean;
+}
+
+/** Match `\begin{figure}` / `\begin{figure*}` … `\end{figure}` blocks. */
+function makeRawFigureRegex(): RegExp {
+  return /\\begin\{figure\*?\}(?:\[[^\]]*\])?[\s\S]*?\\end\{figure\*?\}/g;
+}
+
+/**
+ * Convert a LaTeX width spec to a markdown image attribute value.
+ * - `0.8\textwidth` → `80%`
+ * - `\linewidth` → `100%`
+ * - `8cm`, `2in`, `12pt` → kept verbatim
+ * Returns null for anything we don't translate (block stays "exotic").
+ */
+function convertLatexWidth(raw: string): string | null {
+  const trimmed = raw.trim();
+  // Coefficient × relative length
+  const rel = trimmed.match(/^([\d.]+)\s*\\(textwidth|linewidth|columnwidth)$/);
+  if (rel) {
+    const pct = Math.round(parseFloat(rel[1]!) * 100);
+    if (!isFinite(pct) || pct <= 0) return null;
+    return `${pct}%`;
+  }
+  // Bare relative length
+  if (/^\\(textwidth|linewidth|columnwidth)$/.test(trimmed)) return '100%';
+  // Absolute units
+  if (/^[\d.]+\s*(cm|mm|in|pt|px|em|ex)$/.test(trimmed)) return trimmed.replace(/\s+/g, '');
+  return null;
+}
+
+/** Extract a balanced `{...}` argument that follows `command` in `text`. */
+function extractBracedArg(text: string, command: string): string | null {
+  const idx = text.indexOf(command);
+  if (idx === -1) return null;
+  let i = idx + command.length;
+  while (i < text.length && /\s/.test(text[i]!)) i++;
+  if (text[i] !== '{') return null;
+  i++;
+  const start = i;
+  let depth = 1;
+  while (i < text.length) {
+    const ch = text[i]!;
+    if (ch === '\\' && i + 1 < text.length) { i += 2; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i);
+    }
+    i++;
+  }
+  return null;
+}
+
+/** True if a `\begin{figure}` block contains features we don't auto-translate. */
+function isExoticFigureBlock(block: string): boolean {
+  if (/\\subfloat\b/.test(block)) return true;
+  if (/\\rotatebox\b/.test(block)) return true;
+  const includes = (block.match(/\\includegraphics\b/g) || []).length;
+  if (includes !== 1) return true;
+  const m = block.match(/\\includegraphics\s*(?:\[([^\]]*)\])?\s*\{([^}]+)\}/);
+  if (!m) return true;
+  const opts = m[1] || '';
+  const widthMatch = opts.match(/(?:^|,)\s*width\s*=\s*([^,]+)/);
+  if (widthMatch && !convertLatexWidth(widthMatch[1]!)) return true;
+  return false;
+}
+
+/**
+ * Find raw LaTeX figure blocks containing `\includegraphics` in markdown.
+ * `file`, if given, is attached to each result. `line` is 1-based within the
+ * supplied content (the line where `\begin{figure}` sits).
+ */
+export function detectRawLatexFigures(content: string, file?: string): RawLatexFigure[] {
+  const figures: RawLatexFigure[] = [];
+  const re = makeRawFigureRegex();
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    const block = m[0];
+    if (!block.includes('\\includegraphics')) continue;
+    const line = content.slice(0, m.index).split(/\r?\n/).length;
+    figures.push({ file, line, block, exotic: isExoticFigureBlock(block) });
+  }
+  return figures;
+}
+
+/**
+ * Translate the 80% case: single `\includegraphics` figure with optional
+ * `\caption{...}` and `\label{...}`, wrapped in `\begin{figure}...\end{figure}`,
+ * to portable `![caption](path){#fig:label width=N%}` markdown. Exotic blocks
+ * (see `isExoticFigureBlock`) are left untouched.
+ */
+export function translateRawLatexFigures(content: string): { translated: string; translatedCount: number } {
+  let translatedCount = 0;
+  const re = makeRawFigureRegex();
+  const translated = content.replace(re, (block) => {
+    if (!block.includes('\\includegraphics')) return block;
+    if (isExoticFigureBlock(block)) return block;
+
+    const inc = block.match(/\\includegraphics\s*(?:\[([^\]]*)\])?\s*\{([^}]+)\}/);
+    if (!inc) return block;
+    const optsStr = inc[1] || '';
+    const imgPath = inc[2]!.trim();
+
+    let width: string | undefined;
+    const widthMatch = optsStr.match(/(?:^|,)\s*width\s*=\s*([^,]+)/);
+    if (widthMatch) {
+      const w = convertLatexWidth(widthMatch[1]!);
+      if (!w) return block; // already filtered by isExoticFigureBlock, defensive
+      width = w;
+    }
+
+    const caption = (extractBracedArg(block, '\\caption') ?? '').trim();
+    const labelRaw = extractBracedArg(block, '\\label');
+
+    const attrs: string[] = [];
+    if (labelRaw) {
+      const label = labelRaw.trim();
+      const labelWithPrefix = /^[a-z]+:/i.test(label) ? label : `fig:${label}`;
+      attrs.push(`#${labelWithPrefix}`);
+    }
+    if (width) attrs.push(`width=${width}`);
+
+    translatedCount++;
+    const attrStr = attrs.length > 0 ? ` {${attrs.join(' ')}}` : '';
+    return `![${caption}](${imgPath})${attrStr}`;
+  });
+  return { translated, translatedCount };
+}
+
+/**
+ * Format the warning surfaced for raw LaTeX figure blocks that won't render
+ * in docx. `translateEnabled` reflects whether auto-translate ran (true = the
+ * listed blocks are exotic leftovers; false = no translation was attempted).
+ */
+function formatRawLatexFigureWarning(figs: RawLatexFigure[], translateEnabled: boolean): string {
+  const reason = translateEnabled ? 'too complex to auto-translate' : 'translateRawFigures: false';
+  const lines: string[] = [
+    `${figs.length} raw LaTeX figure block(s) won't render in docx (${reason}).`,
+  ];
+  for (const f of figs) {
+    const loc = f.file ? `${f.file}:${f.line}` : `line ${f.line}`;
+    const pathMatch = f.block.match(/\\includegraphics\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}/);
+    const pathInfo = pathMatch ? `  ${pathMatch[1]!.trim()}` : '';
+    lines.push(`  ${loc}${pathInfo}`);
+  }
+  lines.push('  Hint: use ![caption](path){#fig:label width=80%} for format-portable figures,');
+  lines.push('        or pass --pandoc-arg=--lua-filter=<your.lua> to translate them yourself.');
+  return lines.join('\n');
+}
+
+/**
+ * Walk section files and gather a warning for any raw LaTeX figure blocks that
+ * won't survive the docx build. Returns null when there's nothing to warn about.
+ */
+export function collectRawLatexFigureWarning(directory: string, config: BuildConfig): string | null {
+  const translateEnabled = config.docx?.translateRawFigures !== false;
+  const all: RawLatexFigure[] = [];
+  for (const section of findSections(directory, config.sections)) {
+    const sectionPath = path.join(directory, section);
+    if (!fs.existsSync(sectionPath)) continue;
+    try {
+      const content = fs.readFileSync(sectionPath, 'utf-8');
+      const figs = detectRawLatexFigures(content, section);
+      for (const f of figs) {
+        // When auto-translate is on, non-exotic blocks get rewritten cleanly —
+        // only the exotic leftovers need warning. When opted out, everything
+        // is at risk and we warn about every block.
+        if (translateEnabled && !f.exotic) continue;
+        all.push(f);
+      }
+    } catch {
+      // ignore unreadable sections
+    }
+  }
+  if (all.length === 0) return null;
+  return formatRawLatexFigureWarning(all, translateEnabled);
+}
+
+/**
+ * Build pandoc arguments for format.
+ *
+ * Returns only the built-in args derived from config. Passthrough args
+ * (config.pandocArgs, config[format].pandocArgs, CLI --pandoc-arg) are
+ * appended later in runPandoc so they win against pptx/crossref defaults
+ * added there.
  */
 export function buildPandocArgs(format: string, config: BuildConfig, outputPath: string): string[] {
   const args: string[] = [];
@@ -1017,6 +1292,30 @@ export function buildPandocArgs(format: string, config: BuildConfig, outputPath:
 }
 
 /**
+ * Collect passthrough pandoc args for a format in the canonical order:
+ * top-level config → format-specific config → CLI extras. Later wins for
+ * repeated flags.
+ */
+export function collectPandocPassthroughArgs(
+  format: string,
+  config: BuildConfig,
+  extraArgs: string[] = []
+): string[] {
+  const out: string[] = [];
+  if (config.pandocArgs && config.pandocArgs.length > 0) {
+    out.push(...config.pandocArgs);
+  }
+  const formatConfig = (config as unknown as Record<string, { pandocArgs?: string[] } | undefined>)[format];
+  if (formatConfig?.pandocArgs && formatConfig.pandocArgs.length > 0) {
+    out.push(...formatConfig.pandocArgs);
+  }
+  if (extraArgs.length > 0) {
+    out.push(...extraArgs);
+  }
+  return out;
+}
+
+/**
  * Write crossref.yaml if needed
  */
 function ensureCrossrefConfig(directory: string, config: BuildConfig): void {
@@ -1048,6 +1347,92 @@ export function resolveOutputDir(directory: string, config: BuildConfig): string
   return path.isAbsolute(out) ? out : path.join(directory, out);
 }
 
+/** File extension (with leading dot) for each supported pandoc format. */
+const FORMAT_EXTENSIONS: Record<string, string> = {
+  tex: '.tex',
+  pdf: '.pdf',
+  docx: '.docx',
+  beamer: '.pdf',
+  pptx: '.pptx',
+};
+
+/** Get file extension for a format, defaulting to `.pdf`. */
+export function getFormatExtension(format: string): string {
+  return FORMAT_EXTENSIONS[format] ?? '.pdf';
+}
+
+/**
+ * Slugify a title for use as a default output filename. Lowercases, replaces
+ * non-alphanumeric runs with `-`, and truncates at the last `-` boundary
+ * at-or-before MAX_TITLE_FILENAME_LENGTH so words stay whole (the old blind
+ * `.slice` cut mid-word).
+ */
+export function slugifyTitle(title: string): string {
+  if (!title) return 'paper';
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (!slug) return 'paper';
+  if (slug.length <= MAX_TITLE_FILENAME_LENGTH) return slug;
+  const cut = slug.slice(0, MAX_TITLE_FILENAME_LENGTH);
+  const lastDash = cut.lastIndexOf('-');
+  // Only truncate at a hyphen if it leaves a reasonable amount of content.
+  // Otherwise hard-cut (handles degenerate titles with no spaces at all).
+  if (lastDash >= MAX_TITLE_FILENAME_LENGTH / 2) {
+    return slug.slice(0, lastDash);
+  }
+  return cut;
+}
+
+/**
+ * Ensure `name` ends with `ext` (case-insensitive). If the user already supplied
+ * the correct extension, return unchanged; if they supplied none or a different
+ * one, append the format's canonical extension.
+ *
+ * Different-extension case (e.g. `output.docx` when building tex): we append
+ * rather than replace, since stripping looks like an unsafe guess. The result
+ * `output.docx.tex` is loud enough to flag the misconfiguration.
+ */
+function ensureExtension(name: string, ext: string): string {
+  if (name.toLowerCase().endsWith(ext.toLowerCase())) return name;
+  return name + ext;
+}
+
+/**
+ * Resolve the final output path for a build.
+ *
+ * Priority: `options.outputPath` (internal force) > `cliOverride` (-o flag) >
+ * `config.output[format]` > slugified title fallback.
+ *
+ * Relative paths from `cliOverride`/`config.output` resolve under outputDir;
+ * absolute paths bypass outputDir. The fallback path always lives under
+ * outputDir.
+ *
+ * @param suffix - Appended before the extension (e.g. "-changes", "-slides").
+ *                 Suppressed when user supplied an explicit name via CLI or
+ *                 config — they pick their own suffix.
+ */
+export function resolveOutputPath(
+  directory: string,
+  config: BuildConfig,
+  format: string,
+  options: { cliOverride?: string; suffix?: string } = {}
+): string {
+  const { cliOverride, suffix = '' } = options;
+  const ext = getFormatExtension(format);
+
+  const explicit = cliOverride ?? config.output?.[format];
+  if (explicit) {
+    const baseDir = path.isAbsolute(explicit)
+      ? path.dirname(explicit)
+      : resolveOutputDir(directory, config);
+    const baseName = path.basename(explicit);
+    const stem = baseName.replace(/\.[^./\\]+$/, '');
+    return path.join(baseDir, ensureExtension(`${stem}${suffix}`, ext));
+  }
+
+  const slug = slugifyTitle(config.title);
+  return path.join(resolveOutputDir(directory, config), `${slug}${suffix}${ext}`);
+}
+
 /**
  * Run pandoc build
  */
@@ -1058,28 +1443,16 @@ export async function runPandoc(
   options: BuildOptions = {}
 ): Promise<PandocResult> {
   const directory = path.dirname(inputPath);
-  const baseName = config.title
-    ? config.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)
-    : 'paper';
 
-  // Map format to file extension
-  const extMap: Record<string, string> = {
-    tex: '.tex',
-    pdf: '.pdf',
-    docx: '.docx',
-    beamer: '.pdf', // beamer outputs PDF
-    pptx: '.pptx',
-  };
-  const ext = extMap[format] || '.pdf';
-
-  // For beamer, use -slides suffix to distinguish from regular PDF
+  // outputPath (internal force) wins over the resolver. For beamer, we keep
+  // the `-slides` suffix on the slug fallback to distinguish from a regular
+  // PDF build; when the user supplies an explicit name, they pick their own.
   const suffix = format === 'beamer' ? '-slides' : '';
-  // Allow custom output path via options. Auto-named outputs go through the
-  // configured outputDir (default 'output/'); explicit paths are honored as-is
-  // so callers can route temp/intermediate artefacts where they want.
   const outputPath = options.outputPath
-    ? options.outputPath
-    : path.join(resolveOutputDir(directory, config), `${baseName}${suffix}${ext}`);
+    ?? resolveOutputPath(directory, config, format, {
+      cliOverride: options.output,
+      suffix,
+    });
 
   if (!options.outputPath) {
     const outDir = path.dirname(outputPath);
@@ -1146,8 +1519,17 @@ export async function runPandoc(
     }
   }
 
+  // Passthrough args go last so they win against built-in defaults.
+  args.push(...collectPandocPassthroughArgs(format, config, options.pandocArgs));
+
   // Input file (use basename since we set cwd to directory)
   args.push(path.basename(inputPath));
+
+  if (options.verbose) {
+    const quoted = args.map(a => /[\s"'$`]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a).join(' ');
+    console.error(`[pandoc ${format}] (cwd: ${directory})`);
+    console.error(`  pandoc ${quoted}`);
+  }
 
   return new Promise((resolve) => {
     const pandoc: ChildProcess = spawn('pandoc', args, {
@@ -1265,6 +1647,12 @@ export async function build(
     if ((imageReg as any).figures?.length > 0) {
       writeImageRegistry(directory, imageReg);
     }
+
+    // Warn about raw LaTeX figure blocks that won't render in docx (pandoc
+    // drops them silently). With auto-translate on (default), this surfaces
+    // only the exotic leftovers; with it off, every block.
+    const rawFigWarning = collectRawLatexFigureWarning(directory, config);
+    if (rawFigWarning) warnings.push(rawFigWarning);
   }
 
   const results: BuildResult[] = [];
