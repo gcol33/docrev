@@ -243,6 +243,31 @@ tables:
 Distribution notation in nowrap columns is auto-converted to LaTeX math:
 `Normal(0, 0.5)` → `$\mathcal{N}(0, 0.5)$`
 
+### Placeholder Macros
+
+Mark unfinished spots in a draft with `\tofill{X}` and they highlight as bold
+orange `[X]` in every output format:
+
+```markdown
+We collected data from \tofill{N sites} between \tofill{date range}.
+```
+
+The macro works in DOCX, PDF, TeX, Beamer, and HTML without any per-project
+filter setup. Add custom macros (e.g. `\note`, `\citeNeeded`) under `macros:`
+in `rev.yaml`:
+
+```yaml
+macros:
+  - name: note
+    default:
+      color: "1E40AF"      # 6-digit hex, no '#'
+      bold: true
+      prefix: "NOTE: "
+```
+
+See [docs/configuration.md](docs/configuration.md) for the full schema and
+per-format overrides.
+
 ### Postprocess Scripts
 
 Run custom scripts after output generation:

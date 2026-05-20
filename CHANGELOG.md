@@ -5,6 +5,21 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-05-20
+
+### Added
+- **Placeholder macros.** Built-in `\tofill{X}` renders as bold orange `[X]` across DOCX, PDF/TeX/Beamer, and HTML — drop the LaTeX-style command anywhere in a section file and the build expands it per format. No more copying a `tofill_filter.lua` + `\providecommand` boilerplate into each project. Users can add their own one-argument macros under `macros:` in `rev.yaml` (color, bold/italic, bracket wrap, prefix/suffix, per-format overrides). See `docs/configuration.md` for the schema.
+- **`lib/macros.ts` + `lib/macro-filter.lua`** — registry-style implementation. Built-ins and user macros merge by name; user entries override built-ins. The lua filter loads its macro list from a JSON sidecar via the `DOCREV_MACROS_FILE` env var.
+
+### Fixed
+- **Silent DOCX color drop.** Pandoc 3.x's docx writer does NOT honor `Span` with `style="color: #..."`, so a lua filter returning `pandoc.Span(pandoc.Strong(...), pandoc.Attr("", {}, {style="color: #C2410C"}))` produced zero `<w:color>` runs and the highlight vanished. The new filter emits raw OpenXML `<w:r>` nodes directly (the same pattern as the existing `pptx-color-filter.lua`), which produces real colored runs in Word.
+- **Silent DOCX paragraph drop.** Wrapping a `\tofill{X}` line in raw LaTeX like `\noindent \textit{\small ...}` made pandoc drop the entire paragraph from DOCX output, including the `\tofill` inside. The built-in `\providecommand` + lua-filter mechanism removes the need for any wrapper at all — placeholders survive every format.
+- **Filter path resolution on Windows paths with spaces.** `lib/build.ts` resolved `pptx-color-filter.lua` via `new URL(import.meta.url).pathname`, which returns URL-encoded `%20` for spaces, so `fs.existsSync` silently returned false on paths like `C:\Users\Gilles Colling\...`. Switched both pptx and macro filter resolution to `fileURLToPath`. PPTX color highlighting now actually works under default installs on user-named directories.
+- **Lua filter not shipped to runtime.** `scripts/postbuild.js` left `.lua` files in `lib/` only; the compiled `dist/lib/build.js` looked for them next to itself. PPTX colour filter (and now the macro filter) are now copied to `dist/lib/` during build.
+
+### Notes for `\tofill` migration
+Projects that ship their own `tofill_filter.lua` and `\providecommand{\tofill}{...}` in a custom header keep working — docrev's preamble uses `\providecommand`, so user `\renewcommand` (or pre-existing `\providecommand`) takes priority. To migrate, delete the local lua filter and any markdown wrappers like `\noindent \textit{\small ...}`; docrev's built-in covers all three formats. Override the color or style by adding the macro under `macros:` in `rev.yaml`.
+
 ## [0.9.11] - 2026-04-30
 
 ### Fixed

@@ -10,6 +10,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import { execSync, spawn, ChildProcess } from 'child_process';
 import YAML from 'yaml';
 import { stripAnnotations } from './annotations.js';
@@ -24,6 +25,13 @@ import { buildImageRegistry, writeImageRegistry } from './image-registry.js';
 import type { Author, JournalFormatting } from './types.js';
 import { getJournalProfile } from './journals.js';
 import { resolveCSL } from './csl.js';
+import {
+  type MacroDef,
+  mergeMacros,
+  generateLatexPreamble,
+  writeMacrosSidecar,
+  getMacroFilterPath,
+} from './macros.js';
 
 // =============================================================================
 // Constants
@@ -155,6 +163,13 @@ export interface BuildConfig {
   pptx: PptxConfig;
   tables: TablesConfig;
   postprocess: PostprocessConfig;
+  /**
+   * User-declared placeholder macros. Merged with the built-in macros
+   * (currently \tofill). Each entry overrides a built-in by name.
+   *
+   * See lib/macros.ts for the per-format rendering rules.
+   */
+  macros?: MacroDef[];
   /**
    * Directory (relative to the project) where final outputs land. Created on
    * demand. Set to null/empty to keep outputs alongside paper.md (legacy
@@ -313,6 +328,9 @@ export const DEFAULT_CONFIG: BuildConfig = {
     beamer: null,
     all: null, // Runs after any format
   },
+  // Placeholder/highlight macros. Defaults are the built-ins from
+  // lib/macros.ts; users append their own here.
+  macros: [],
   // Final outputs land here (created on demand). Set to null or '' to keep
   // outputs in the project root.
   outputDir: 'output',
@@ -1503,10 +1521,47 @@ export async function runPandoc(
       args.push('--reference-doc', referenceDoc);
     }
 
-    // Add color filter for PPTX (handles [text]{color=#RRGGBB} syntax)
-    const colorFilterPath = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'pptx-color-filter.lua');
+    // Add color filter for PPTX (handles [text]{color=#RRGGBB} syntax).
+    // fileURLToPath handles Windows paths with spaces — the old
+    // `new URL(...).pathname` returned URL-encoded `%20` and fs.existsSync
+    // silently failed.
+    const colorFilterPath = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'pptx-color-filter.lua'
+    );
     if (fs.existsSync(colorFilterPath)) {
       args.push('--lua-filter', colorFilterPath);
+    }
+  }
+
+  // Wire placeholder macros (built-in \tofill plus user-declared entries).
+  // - docx/html: lua filter expands \name{X} to format-specific raw runs.
+  // - pdf/tex/beamer: inject a \providecommand preamble so LaTeX renders it
+  //   directly. `\providecommand` is non-clobbering, so a user who already
+  //   has `\providecommand{\tofill}{...}` in their own header keeps theirs.
+  //
+  // Sidecar path is passed to the lua filter via DOCREV_MACROS_FILE in the
+  // child env (not pandoc metadata) because pandoc walks RawInline/RawBlock
+  // BEFORE Meta — by the time a Meta handler could read the path, the inline
+  // expansion has already happened.
+  const macroTempFiles: string[] = [];
+  let macroEnvFile: string | null = null;
+  const macros = mergeMacros((config as { macros?: unknown }).macros);
+  if (macros.length > 0) {
+    if (format === 'docx' || format === 'html' || format === 'html5' || format === 'html4') {
+      const sidecarPath = writeMacrosSidecar(directory, macros);
+      macroTempFiles.push(sidecarPath);
+      macroEnvFile = sidecarPath;
+      const filterPath = getMacroFilterPath();
+      if (fs.existsSync(filterPath)) {
+        args.push('--lua-filter', filterPath);
+      }
+    } else if (format === 'pdf' || format === 'tex' || format === 'beamer') {
+      const preamble = generateLatexPreamble(macros);
+      const preamblePath = path.join(directory, '.macros.tex');
+      fs.writeFileSync(preamblePath, preamble, 'utf-8');
+      macroTempFiles.push(preamblePath);
+      args.push('-H', path.basename(preamblePath));
     }
   }
 
@@ -1532,9 +1587,14 @@ export async function runPandoc(
   }
 
   return new Promise((resolve) => {
+    const pandocEnv: NodeJS.ProcessEnv = { ...process.env };
+    if (macroEnvFile) {
+      pandocEnv.DOCREV_MACROS_FILE = macroEnvFile;
+    }
     const pandoc: ChildProcess = spawn('pandoc', args, {
       cwd: directory,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: pandocEnv,
     });
 
     let stderr = '';
@@ -1542,7 +1602,18 @@ export async function runPandoc(
       stderr += data.toString();
     });
 
+    const cleanupMacroTempFiles = (): void => {
+      for (const tmp of macroTempFiles) {
+        try {
+          fs.unlinkSync(tmp);
+        } catch {
+          // ignore — best-effort cleanup
+        }
+      }
+    };
+
     pandoc.on('close', async (code) => {
+      cleanupMacroTempFiles();
       if (code === 0) {
         // For PPTX, post-process to add slide numbers, buildup colors, and logos
         if (format === 'pptx') {
@@ -1592,6 +1663,7 @@ export async function runPandoc(
     });
 
     pandoc.on('error', (err) => {
+      cleanupMacroTempFiles();
       resolve({ outputPath, success: false, error: err.message });
     });
   });

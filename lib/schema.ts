@@ -218,6 +218,40 @@ export const revYamlSchema: Schema = {
       },
       additionalProperties: true,
     },
+    macros: {
+      type: 'array',
+      description: 'Placeholder/highlight macros (e.g. \\tofill{X}). Built-in macros are merged automatically; entries here add new macros or override built-ins by name.',
+      items: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Macro command name without leading backslash, e.g. "tofill" for \\tofill{...}',
+            pattern: '^[A-Za-z][A-Za-z0-9]*$',
+          },
+          default: {
+            type: 'object',
+            description: 'Default rendering rules across formats',
+            properties: {
+              color: { type: 'string', pattern: '^[0-9A-Fa-f]{6}$' },
+              bold: { type: 'boolean' },
+              italic: { type: 'boolean' },
+              bracket: { type: 'boolean', default: true },
+              prefix: { type: 'string' },
+              suffix: { type: 'string' },
+            },
+            additionalProperties: false,
+          },
+          formats: {
+            type: 'object',
+            description: 'Per-format overrides (keys: docx, pdf, latex, html, ...)',
+            additionalProperties: true,
+          },
+        },
+        required: ['name'],
+        additionalProperties: false,
+      },
+    },
   },
   additionalProperties: true,
 };

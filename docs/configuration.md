@@ -49,6 +49,72 @@ docx:
   toc: false
 ```
 
+## Placeholder Macros
+
+Highlight gaps and notes in your draft with one-argument LaTeX-style macros.
+The built-in `\tofill{X}` renders as a bold orange `[X]` in DOCX, PDF, and HTML
+so reviewers spot every unfinished spot:
+
+```markdown
+We collected data from \tofill{N sites} between \tofill{date range}.
+```
+
+In the DOCX, that becomes a real Word run with `<w:color w:val="C2410C"/>` and
+bold — not a stripped span. Pandoc 3.x's docx writer ignores `Span` `style=`
+attributes silently, so docrev emits raw OpenXML to make the color stick.
+
+### Defining custom macros
+
+Add to `rev.yaml` under `macros:`. Each entry maps a LaTeX command name to its
+per-format style. Names without a leading backslash; the macro is invoked as
+`\<name>{argument}` in markdown.
+
+```yaml
+macros:
+  - name: note
+    default:
+      color: "1E40AF"      # 6-digit hex, no '#'
+      bold: true
+      prefix: "NOTE: "
+  - name: cite-needed
+    default:
+      color: "B91C1C"
+      bold: true
+      italic: false
+      bracket: true
+      suffix: " (cite)"
+    # Per-format overrides (optional) — replace the default entirely for
+    # the named format. Keys: docx, pdf, latex, html, ...
+    formats:
+      html:
+        color: "B91C1C"
+        bold: true
+        prefix: "[cite needed: "
+        suffix: "]"
+        bracket: false
+```
+
+Built-in macros (`\tofill`) merge automatically with your `macros:` entries.
+Declare an entry with the same name to override.
+
+### Per-format rendering
+
+| Format       | How macros render                                                  |
+|--------------|--------------------------------------------------------------------|
+| DOCX         | Raw `<w:r>` with `<w:color>` + `<w:b>`/`<w:i>` (Word renders color) |
+| PDF / TeX    | `\providecommand` injection → `\textcolor[HTML]{…}{\textbf{[X]}}`  |
+| Beamer       | Same as PDF                                                        |
+| HTML         | Inline-style `<span>`                                              |
+| Plain markdown / GFM | Bold `[X]` fallback (never silently dropped)               |
+
+### Backwards compatibility
+
+Projects that already ship their own `tofill_filter.lua` and
+`\providecommand{\tofill}` keep working: docrev's preamble uses
+`\providecommand` (not `\renewcommand`), so user-defined commands win. The
+docx lua filter only expands macros that pass the format check, so unrelated
+project-local filters layered alongside it are unaffected.
+
 ## Template Variables
 
 Use in section files (processed during build):
