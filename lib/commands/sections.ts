@@ -10,7 +10,7 @@ import {
   fs,
   path,
   countAnnotations,
-  loadConfig,
+  resolveSectionsConfig,
   splitAnnotatedPaper,
 } from './context.js';
 import type { Command } from 'commander';
@@ -400,16 +400,16 @@ export function register(program: Command): void {
         process.exit(1);
       }
 
-      const configPath = path.resolve(options.dir, options.config);
-      if (!fs.existsSync(configPath)) {
-        console.error(chalk.red(`Config not found: ${configPath}`));
-        console.error(chalk.dim('Run "rev init" first to generate sections.yaml'));
+      const resolved = resolveSectionsConfig(options.dir, options.config);
+      if (!resolved) {
+        console.error(chalk.red(`No section config found in ${path.resolve(options.dir)}`));
+        console.error(chalk.dim('Add a `sections:` list to rev.yaml, or run "rev init" to generate sections.yaml.'));
         process.exit(1);
       }
 
-      console.log(chalk.cyan(`Splitting ${file} using ${options.config}...`));
+      console.log(chalk.cyan(`Splitting ${file}...`));
 
-      const config = loadConfig(configPath);
+      const config = resolved.config;
       const paperContent = fs.readFileSync(file, 'utf-8');
       const sections = splitAnnotatedPaper(paperContent, config.sections);
 

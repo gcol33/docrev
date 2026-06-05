@@ -18,7 +18,7 @@ import {
   fs,
   path,
   fmt,
-  loadConfig,
+  resolveSectionsConfig,
   jsonMode,
   jsonOutput,
 } from './context.js';
@@ -58,14 +58,14 @@ export function register(program: Command): void {
         process.exit(1);
       }
 
-      const configPath = path.resolve(options.dir, options.config);
-      if (!fs.existsSync(configPath)) {
-        console.error(fmt.status('error', `Config not found: ${configPath}`));
-        console.error(chalk.dim('  Run "rev init" first to generate sections.yaml'));
+      const resolved = resolveSectionsConfig(options.dir, options.config);
+      if (!resolved) {
+        console.error(fmt.status('error', `No section config found in ${path.resolve(options.dir)}`));
+        console.error(chalk.dim('  Add a `sections:` list to rev.yaml, or run "rev init" to generate sections.yaml.'));
         process.exit(1);
       }
 
-      const config = loadConfig(configPath);
+      const config = resolved.config;
       const { extractWordComments, extractCommentAnchors, extractHeadings } = await import('../import.js');
 
       let comments;

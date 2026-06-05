@@ -48,6 +48,28 @@ export function extractHeader(filePath: string): string | null {
 }
 
 /**
+ * Extract the first markdown heading of ANY level (`#`–`######`) from a file.
+ *
+ * Unlike {@link extractHeader} (which is H1-only by contract), this is used to
+ * derive a section's header from files that lead with a subsection — e.g.
+ * `02_objectives.md` starting with `## 1.2 Objectives`. Using the real first
+ * heading lets the derived header match the corresponding docx heading.
+ */
+export function extractFirstHeading(filePath: string): string | null {
+  if (!fs.existsSync(filePath)) return null;
+
+  const content = fs.readFileSync(filePath, 'utf-8');
+  for (const line of content.split('\n')) {
+    const match = line.match(/^#{1,6}\s+(.+)$/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return null;
+}
+
+/**
  * Generate sections.yaml from existing .md files
  */
 export function generateConfig(
@@ -142,6 +164,74 @@ export function loadConfig(configPath: string): SectionsConfig {
 export function saveConfig(configPath: string, config: SectionsConfig): void {
   const yamlStr = YAML.stringify(config, { indent: 2, lineWidth: 100 });
   fs.writeFileSync(configPath, yamlStr, 'utf-8');
+}
+
+/**
+ * Derive a SectionsConfig from the `sections:` list in rev.yaml.
+ *
+ * Each listed file's header is its first markdown H1 (falling back to a
+ * title-cased file name); order follows the list order in rev.yaml. This is
+ * the same section list that `build` consumes, so a project that only has a
+ * `rev.yaml` needs no separate `sections.yaml`.
+ *
+ * Returns null when rev.yaml is absent, unparseable, or has no `sections` list.
+ */
+export function deriveSectionsFromRev(directory: string): SectionsConfig | null {
+  const revPath = path.join(directory, 'rev.yaml');
+  if (!fs.existsSync(revPath)) return null;
+
+  let parsed: { sections?: unknown };
+  try {
+    parsed = YAML.parse(fs.readFileSync(revPath, 'utf-8')) || {};
+  } catch {
+    return null;
+  }
+
+  const list = parsed.sections;
+  if (!Array.isArray(list) || list.length === 0) return null;
+
+  const sections: Record<string, SectionConfig> = {};
+  list.forEach((entry, index) => {
+    if (typeof entry !== 'string') return;
+    const header = extractFirstHeading(path.join(directory, entry)) || titleCase(path.basename(entry, '.md'));
+    sections[entry] = { header, aliases: [], order: index };
+  });
+
+  if (Object.keys(sections).length === 0) return null;
+
+  return {
+    version: 1,
+    description: 'Derived from rev.yaml sections list',
+    sections,
+  };
+}
+
+/**
+ * Resolve the effective sections config for a project directory.
+ *
+ * Precedence (single source of truth, with optional override):
+ *   1. An explicit sections config file (default `sections.yaml`) when it
+ *      exists — lets users override headers/aliases/order.
+ *   2. Otherwise the `sections:` list in `rev.yaml`, via {@link deriveSectionsFromRev}.
+ *
+ * Returns null only when neither source yields any sections; callers turn that
+ * into a user-facing error.
+ */
+export function resolveSectionsConfig(
+  directory: string,
+  configFileName = 'sections.yaml'
+): { config: SectionsConfig; source: string } | null {
+  const explicitPath = path.resolve(directory, configFileName);
+  if (fs.existsSync(explicitPath)) {
+    return { config: loadConfig(explicitPath), source: explicitPath };
+  }
+
+  const derived = deriveSectionsFromRev(directory);
+  if (derived) {
+    return { config: derived, source: path.resolve(directory, 'rev.yaml') };
+  }
+
+  return null;
 }
 
 /**

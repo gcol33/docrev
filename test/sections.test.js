@@ -12,6 +12,8 @@ import {
   generateConfig,
   loadConfig,
   saveConfig,
+  deriveSectionsFromRev,
+  resolveSectionsConfig,
   matchHeading,
   extractSectionsFromText,
   splitAnnotatedPaper,
@@ -269,5 +271,69 @@ describe('getOrderedSections', () => {
     assert.strictEqual(ordered[0], 'first.md');
     assert.strictEqual(ordered[1], 'second.md');
     assert.strictEqual(ordered[2], 'unknown.md');
+  });
+});
+
+describe('deriveSectionsFromRev', () => {
+  it('should derive a config from the rev.yaml sections list, using H1 headers', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'sections:\n  - intro.md\n  - methods.md\n');
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), '# Introduction\n\nText.');
+    fs.writeFileSync(path.join(tempDir, 'methods.md'), '## 2 Methods\n\nText.');
+
+    const config = deriveSectionsFromRev(tempDir);
+    assert.ok(config);
+    assert.strictEqual(config.sections['intro.md'].header, 'Introduction');
+    // subsection header (## 2 Methods) is preserved, not just H1
+    assert.strictEqual(config.sections['methods.md'].header, '2 Methods');
+    // order follows the list
+    assert.strictEqual(config.sections['intro.md'].order, 0);
+    assert.strictEqual(config.sections['methods.md'].order, 1);
+  });
+
+  it('should fall back to a title-cased file name when a section file has no header', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'sections:\n  - state_of_art.md\n');
+    fs.writeFileSync(path.join(tempDir, 'state_of_art.md'), 'No header here.');
+
+    const config = deriveSectionsFromRev(tempDir);
+    assert.strictEqual(config.sections['state_of_art.md'].header, 'State Of Art');
+  });
+
+  it('should return null when rev.yaml is absent', () => {
+    assert.strictEqual(deriveSectionsFromRev(tempDir), null);
+  });
+
+  it('should return null when rev.yaml has no sections list', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'title: Just a title\n');
+    assert.strictEqual(deriveSectionsFromRev(tempDir), null);
+  });
+});
+
+describe('resolveSectionsConfig', () => {
+  it('should prefer an explicit sections.yaml over rev.yaml', () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'sections.yaml'),
+      'sections:\n  intro.md:\n    header: Explicit Header\n'
+    );
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'sections:\n  - intro.md\n');
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), '# Derived Header\n\nText.');
+
+    const resolved = resolveSectionsConfig(tempDir);
+    assert.ok(resolved);
+    assert.strictEqual(resolved.config.sections['intro.md'].header, 'Explicit Header');
+    assert.ok(resolved.source.endsWith('sections.yaml'));
+  });
+
+  it('should derive from rev.yaml when no sections.yaml exists', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'sections:\n  - intro.md\n');
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), '# Introduction\n\nText.');
+
+    const resolved = resolveSectionsConfig(tempDir);
+    assert.ok(resolved);
+    assert.strictEqual(resolved.config.sections['intro.md'].header, 'Introduction');
+    assert.ok(resolved.source.endsWith('rev.yaml'));
+  });
+
+  it('should return null when neither config source is present', () => {
+    assert.strictEqual(resolveSectionsConfig(tempDir), null);
   });
 });

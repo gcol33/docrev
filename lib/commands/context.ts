@@ -65,6 +65,8 @@ export {
   generateConfig,
   loadConfig,
   saveConfig,
+  deriveSectionsFromRev,
+  resolveSectionsConfig,
   matchHeading,
   extractSectionsFromText,
   splitAnnotatedPaper,

@@ -10,7 +10,8 @@ import {
   path,
   fmt,
   findFiles,
-  loadConfig,
+  resolveSectionsConfig,
+  getOrderedSections,
   extractSectionsFromText,
   countAnnotations,
   buildRegistry,
@@ -18,6 +19,7 @@ import {
   inlineDiffPreview,
 } from './context.js';
 import type { Command } from 'commander';
+import type { SectionsConfig } from '../types.js';
 import * as readline from 'readline';
 
 interface ImportStats {
@@ -113,12 +115,11 @@ export function register(program: Command): void {
           console.log(chalk.dim(`Total: ${stats.total} comments from ${authorList}`));
           console.log();
 
-          const configPath = path.resolve(options.dir, options.config);
-          if (fs.existsSync(configPath) && !options.dryRun) {
-            const config = loadConfig(configPath);
-            const mainSection = config.sections?.[0];
+          const resolved = resolveSectionsConfig(options.dir, options.config);
+          if (resolved && !options.dryRun) {
+            const mainSection = getOrderedSections(resolved.config)[0];
 
-            if (mainSection && typeof mainSection === 'string') {
+            if (mainSection) {
               const mainPath = path.join(options.dir, mainSection);
               if (fs.existsSync(mainPath)) {
                 console.log(chalk.dim(`Use 'rev pdf-comments ${docx} --append ${mainSection}' to add comments to markdown.`));
@@ -135,18 +136,21 @@ export function register(program: Command): void {
         return;
       }
 
-      const configPath = path.resolve(options.dir, options.config);
-      if (!fs.existsSync(configPath)) {
-        console.error(fmt.status('error', `Config not found: ${configPath}`));
-        console.error(chalk.dim('  Run "rev init" first to generate sections.yaml'));
+      // Resolve the section config: an explicit sections.yaml if present,
+      // otherwise the `sections:` list in rev.yaml (single source of truth).
+      const resolved = resolveSectionsConfig(options.dir, options.config);
+      if (!resolved) {
+        console.error(fmt.status('error', `No section config found in ${path.resolve(options.dir)}`));
+        console.error(chalk.dim('  Add a `sections:` list to rev.yaml, or run "rev init" to generate sections.yaml.'));
         process.exit(1);
       }
+      const sectionsConfig = resolved.config;
 
       // --comments-only: import comments only, never modify existing prose.
       // Use this when the markdown has been revised since the docx was sent
       // out — track changes from a stale draft would clobber newer edits.
       if (options.commentsOnly) {
-        await syncCommentsOnly(docx, sections, options, configPath);
+        await syncCommentsOnly(docx, sections, options, sectionsConfig);
         return;
       }
 
@@ -161,7 +165,7 @@ export function register(program: Command): void {
       const spin = fmt.spinner(`Importing ${path.basename(docx)}...`).start();
 
       try {
-        const config = loadConfig(configPath);
+        const config = sectionsConfig;
         const { importFromWord, extractWordComments, extractCommentAnchors, insertCommentsIntoMarkdown, extractFromWord } = await import('../import.js');
 
         let registry = null;
@@ -560,9 +564,8 @@ async function syncCommentsOnly(
   docx: string,
   sectionFilter: string[] | undefined,
   options: SyncOptions,
-  configPath: string,
+  config: SectionsConfig,
 ): Promise<void> {
-  const config = loadConfig(configPath);
   const { extractWordComments, extractCommentAnchors, extractHeadings, insertCommentsIntoMarkdown } = await import('../import.js');
   const { computeSectionBoundaries } = await import('./section-boundaries.js');
 

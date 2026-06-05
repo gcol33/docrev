@@ -5,6 +5,15 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-06-05
+
+### Fixed
+- **`sync`/`verify-anchors`/`split` no longer require a separate `sections.yaml`.** `build` and `status` read the `sections:` list from `rev.yaml`, but the sync-side commands demanded a `sections.yaml` and aborted with `Config not found` on a perfectly valid `rev.yaml`-only project. They now resolve the section config from a single source of truth: an explicit `sections.yaml` is used when present (to override headers/aliases/order), otherwise the config is derived from `rev.yaml`'s `sections:` list. Running `rev init` first is no longer necessary.
+- **Derived section headers honor the file's first heading at any level.** A section file that leads with a subsection (e.g. `02_objectives.md` starting with `## 1.2 Objectives`) now derives the header `1.2 Objectives` (via the new `extractFirstHeading`), so it matches the corresponding docx heading and routes to its own file instead of being folded into the preceding section. `extractHeader` keeps its H1-only contract for existing callers.
+
+### Added
+- `resolveSectionsConfig(dir, configFile?)` and `deriveSectionsFromRev(dir)` in `lib/sections.ts`, with tests.
+
 ## [0.10.0] - 2026-05-20
 
 ### Added
