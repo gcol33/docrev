@@ -11,6 +11,8 @@ export type AnchorStrategy =
   | 'stripped'
   | 'partial-start'
   | 'partial-start-stripped'
+  | 'partial-window'
+  | 'partial-window-stripped'
   | 'context-both'
   | 'context-before'
   | 'context-after'
@@ -171,41 +173,69 @@ export function findAnchorInText(
     return { occurrences, matchedAnchor: anchor, strategy: 'stripped', stripped: true };
   }
 
-  // Strategy 4: first N words of anchor (long anchors)
+  // Strategy 4: word window from anchor (prefix or interior).
+  // Sliding the window across the anchor catches the case where the
+  // anchor's prefix has been edited but a chunk in the middle/end
+  // survived intact (e.g. "Sensitivity analyses were performed by
+  // perturbing the prior variance" → drifted "Sensitivity analyses
+  // perturbed the prior variance" still contains "the prior variance").
   const words = anchor.split(/\s+/);
   if (words.length > 3) {
     for (let n = Math.min(6, words.length); n >= 3; n--) {
-      const partialAnchor = words.slice(0, n).join(' ').toLowerCase();
-      if (partialAnchor.length >= 15) {
-        occurrences = findAllOccurrences(textLower, partialAnchor);
-        if (occurrences.length > 0) {
-          return { occurrences, matchedAnchor: words.slice(0, n).join(' '), strategy: 'partial-start' };
+      for (let start = 0; start + n <= words.length; start++) {
+        const window = words.slice(start, start + n).join(' ');
+        const windowLower = window.toLowerCase();
+        if (windowLower.length < 15) continue;
+
+        let occ = findAllOccurrences(textLower, windowLower);
+        if (occ.length > 0) {
+          const strategy: AnchorStrategy = start === 0 ? 'partial-start' : 'partial-window';
+          return { occurrences: occ, matchedAnchor: window, strategy };
         }
-        occurrences = findAllOccurrences(strippedLower, partialAnchor);
-        if (occurrences.length > 0) {
-          return {
-            occurrences,
-            matchedAnchor: words.slice(0, n).join(' '),
-            strategy: 'partial-start-stripped',
-            stripped: true,
-          };
+        occ = findAllOccurrences(strippedLower, windowLower);
+        if (occ.length > 0) {
+          const strategy: AnchorStrategy = start === 0 ? 'partial-start-stripped' : 'partial-window-stripped';
+          return { occurrences: occ, matchedAnchor: window, strategy, stripped: true };
         }
       }
     }
   }
 
-  // Strategy 5: context (before/after) only
+  // Strategy 5: context (before/after) only.
+  //
+  // For a non-empty anchor that already failed every text-based strategy
+  // above, we treat context as a degraded placement: classify it
+  // 'context-only' so callers can warn the user. We also reject
+  // implausible brackets — if both contexts match but the gap between
+  // them is far too small to contain the anchor (e.g. the anchored
+  // sentence was deleted), do not silently land the comment between
+  // the surviving sentences. Return 'failed' so the user is told to
+  // place it manually.
   if (before || after) {
     const beforeLower = before.toLowerCase();
     const afterLower = after.toLowerCase();
+    const anchorLen = anchor.length;
 
     if (before && after) {
       const beforeIdx = textLower.indexOf(beforeLower.slice(-50));
       if (beforeIdx !== -1) {
         const searchStart = beforeIdx + beforeLower.slice(-50).length;
         const afterIdx = textLower.indexOf(afterLower.slice(0, 50), searchStart);
-        if (afterIdx !== -1 && afterIdx - searchStart < 500) {
-          return { occurrences: [searchStart], matchedAnchor: null, strategy: 'context-both' };
+        if (afterIdx !== -1) {
+          const gap = afterIdx - searchStart;
+          // Require the bracket to plausibly contain a remnant of the anchor.
+          // Below 30% of anchor length: anchor was deleted — refuse to place.
+          // Above 2× anchor length + slack: brackets are too far apart, the
+          // matcher has latched onto unrelated repeats of common context.
+          const minGap = Math.floor(anchorLen * 0.3);
+          const maxGap = Math.min(500, anchorLen * 2 + 50);
+          if (gap >= minGap && gap <= maxGap) {
+            return { occurrences: [searchStart], matchedAnchor: null, strategy: 'context-both' };
+          }
+          // Both brackets found but gap implausible: anchor likely deleted.
+          // Don't fall back to single-side context — that would silently
+          // place the comment in the wrong location.
+          return { occurrences: [], matchedAnchor: null, strategy: 'failed' };
         }
       }
     }
@@ -262,6 +292,8 @@ export function classifyStrategy(strategy: AnchorStrategy, occurrences: number):
     case 'stripped':
     case 'partial-start':
     case 'partial-start-stripped':
+    case 'partial-window':
+    case 'partial-window-stripped':
     case 'split-match':
       return 'drift';
     case 'context-both':

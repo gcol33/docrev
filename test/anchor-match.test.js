@@ -61,10 +61,28 @@ test('partial-start match for long anchor with revised tail', () => {
   assert.equal(classifyStrategy(r.strategy, r.occurrences.length), 'drift');
 });
 
-test('context-only when anchor text is gone', () => {
+test('deleted anchor with implausibly tight bracket returns failed', () => {
+  // The 33-char anchor is gone and the surviving contexts butt up against
+  // each other (1-char gap). Old behavior placed the comment between
+  // them — silently mis-locating reviewer feedback. Strict behavior
+  // returns 'failed' so the user can place it manually.
   const r = findAnchorInText(
     'arable land cover dropped sharply',
     'across all sites we observed a clear pattern',
+    'across all sites',
+    'we observed a clear pattern'
+  );
+  assert.equal(r.strategy, 'failed');
+  assert.equal(r.occurrences.length, 0);
+});
+
+test('context-both fires when bracket plausibly contained anchor', () => {
+  // Anchor partially survived as paraphrased text. Bracket gap (~26 chars
+  // of "arable land plummeted abruptly") is comparable to anchorLen (33)
+  // so context-both is a legitimate placement.
+  const r = findAnchorInText(
+    'arable land cover dropped sharply',
+    'across all sites arable land plummeted abruptly we observed a clear pattern',
     'across all sites',
     'we observed a clear pattern'
   );
