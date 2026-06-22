@@ -1615,20 +1615,24 @@ export async function runPandoc(
     pandoc.on('close', async (code) => {
       cleanupMacroTempFiles();
       if (code === 0) {
-        // For PPTX, post-process to add slide numbers, buildup colors, and logos
+        // For PPTX, post-process to add slide numbers, buildup colors, and logos.
+        // These steps enhance an already-written deck; a failure degrades the
+        // output rather than aborting it, so each is reported as a warning
+        // instead of silently swallowed — otherwise the user gets a deck
+        // missing slide numbers / colors / logos with no indication why.
         if (format === 'pptx') {
+          const warn = (step: string, e: unknown) =>
+            console.warn(`Warning: PPTX ${step} failed; deck written without it (${(e as Error).message})`);
           try {
-            // Inject slide numbers into content slides only
             await injectSlideNumbers(outputPath);
           } catch (e) {
-            // Slide number injection failed but output was created
+            warn('slide numbering', e);
           }
           try {
             // Apply colors (default text color, title color, buildup greying)
             const pptxConfig = config.pptx || {};
             const colorsConfig = pptxConfig.colors || {};
             const buildupConfig = pptxConfig.buildup || {};
-            // Merge colors and buildup config for applyBuildupColors
             const colorConfig = {
               default: colorsConfig.default,
               title: colorsConfig.title,
@@ -1638,14 +1642,14 @@ export async function runPandoc(
             };
             await applyBuildupColors(outputPath, colorConfig);
           } catch (e) {
-            // Color application failed but output was created
+            warn('color application', e);
           }
           // Inject logos into cover slide (if media dir configured)
           if (pptxMediaDir) {
             try {
               await injectMediaIntoPptx(outputPath, pptxMediaDir);
             } catch (e) {
-              // Logo injection failed but output was created
+              warn('logo injection', e);
             }
           }
         }

@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { buildDocTextModel, buildCommentAnchorModel, extractComments, openDocx, readPartText } from './ooxml.js';
 
 const execAsync = promisify(exec);
 
@@ -99,130 +100,19 @@ export interface ExtractFromWordResult {
  * Extract comments directly from Word docx comments.xml
  */
 export async function extractWordComments(docxPath: string): Promise<WordComment[]> {
-  const AdmZip = (await import('adm-zip')).default;
-  const { parseStringPromise } = await import('xml2js');
-
-  const comments: WordComment[] = [];
-
-  // Validate file exists
   if (!fs.existsSync(docxPath)) {
     throw new Error(`File not found: ${docxPath}`);
   }
 
-  try {
-    let zip;
-    try {
-      zip = new AdmZip(docxPath);
-    } catch (err: any) {
-      throw new Error(`Invalid Word document (not a valid .docx file): ${err.message}`);
-    }
-
-    const commentsEntry = zip.getEntry('word/comments.xml');
-
-    if (!commentsEntry) {
-      return comments;
-    }
-
-    let commentsXml;
-    try {
-      commentsXml = commentsEntry.getData().toString('utf8');
-    } catch (err: any) {
-      throw new Error(`Failed to read comments from document: ${err.message}`);
-    }
-
-    const parsed = await parseStringPromise(commentsXml, { explicitArray: false });
-
-    const commentsRoot = parsed['w:comments'];
-    if (!commentsRoot || !commentsRoot['w:comment']) {
-      return comments;
-    }
-
-    // Ensure it's an array
-    const commentNodes = Array.isArray(commentsRoot['w:comment'])
-      ? commentsRoot['w:comment']
-      : [commentsRoot['w:comment']];
-
-    // Map every paraId that lives inside a comment back to that comment's id.
-    // Word's commentsExtended.xml expresses threading via w15:paraIdParent,
-    // which references the parent's first <w:p>. Replies use a secondary
-    // (often-empty) <w:p>, so each comment may contribute multiple paraIds.
-    const paraIdToCommentId = new Map<string, string>();
-
-    for (const comment of commentNodes) {
-      const id = comment.$?.['w:id'] || '';
-      const author = comment.$?.['w:author'] || 'Unknown';
-      const date = comment.$?.['w:date'] || '';
-
-      // Extract text from nested w:p/w:r/w:t elements and record paraIds.
-      let text = '';
-      const extractText = (node: any): void => {
-        if (!node) return;
-        if (typeof node === 'string') {
-          text += node;
-          return;
-        }
-        if (node['w:t']) {
-          const t = node['w:t'];
-          text += typeof t === 'string' ? t : (t._ || t);
-        }
-        if (node['w:r']) {
-          const runs = Array.isArray(node['w:r']) ? node['w:r'] : [node['w:r']];
-          runs.forEach(extractText);
-        }
-        if (node['w:p']) {
-          const paras = Array.isArray(node['w:p']) ? node['w:p'] : [node['w:p']];
-          for (const para of paras) {
-            const paraId = para?.$?.['w14:paraId'];
-            if (paraId && id) paraIdToCommentId.set(paraId, id);
-            extractText(para);
-          }
-        }
-      };
-      extractText(comment);
-
-      comments.push({ id, author, date: date.slice(0, 10), text: text.trim() });
-    }
-
-    // Resolve parent links from commentsExtended.xml. Missing entry just
-    // means the docx has no threading metadata (e.g. legacy/non-Word source).
-    const extendedEntry = zip.getEntry('word/commentsExtended.xml');
-    if (extendedEntry && paraIdToCommentId.size > 0) {
-      let extendedXml = '';
-      try {
-        extendedXml = extendedEntry.getData().toString('utf8');
-      } catch {
-        // Unreadable threading metadata is non-fatal; skip parent linking.
-      }
-      if (extendedXml) {
-        const parentByCommentId = new Map<string, string>();
-        const exPattern = /<w15:commentEx\b([^>]*?)\/>/g;
-        let m: RegExpExecArray | null;
-        while ((m = exPattern.exec(extendedXml)) !== null) {
-          const attrs = m[1] ?? '';
-          const paraIdMatch = attrs.match(/w15:paraId="([^"]+)"/);
-          const parentMatch = attrs.match(/w15:paraIdParent="([^"]+)"/);
-          if (!paraIdMatch || !parentMatch) continue;
-          const childCommentId = paraIdToCommentId.get(paraIdMatch[1]);
-          const parentCommentId = paraIdToCommentId.get(parentMatch[1]);
-          if (childCommentId && parentCommentId && childCommentId !== parentCommentId) {
-            parentByCommentId.set(childCommentId, parentCommentId);
-          }
-        }
-        for (const c of comments) {
-          const parent = parentByCommentId.get(c.id);
-          if (parent) c.parentId = parent;
-        }
-      }
-    }
-  } catch (err: any) {
-    // Re-throw with more context if it's already an Error we created
-    if (err.message.includes('Invalid Word document') || err.message.includes('File not found')) {
-      throw err;
-    }
-    throw new Error(`Error extracting comments from ${path.basename(docxPath)}: ${err.message}`);
-  }
-
-  return comments;
+  const zip = openDocx(docxPath);
+  // Word truncates the stored date to its day for display; keep that contract.
+  return extractComments(zip).map((c) => ({
+    id: c.id,
+    author: c.author,
+    date: c.date.slice(0, 10),
+    text: c.text,
+    parentId: c.parentId,
+  }));
 }
 
 /**
@@ -231,159 +121,41 @@ export async function extractWordComments(docxPath: string): Promise<WordComment
  * Also returns fullDocText for section boundary matching
  */
 export async function extractCommentAnchors(docxPath: string): Promise<CommentAnchorsResult> {
-  const AdmZip = (await import('adm-zip')).default;
   const anchors = new Map<string, CommentAnchorData>();
-  let fullDocText = '';
 
-  try {
-    const zip = new AdmZip(docxPath);
-    const docEntry = zip.getEntry('word/document.xml');
-
-    if (!docEntry) {
-      return { anchors, fullDocText };
-    }
-
-    const docXml = docEntry.getData().toString('utf8');
-
-    // ========================================
-    // STEP 1: Build text position mapping
-    // ========================================
-    const textNodePattern = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    const textNodes: TextNode[] = [];
-    let textPosition = 0;
-    let nodeMatch;
-
-    while ((nodeMatch = textNodePattern.exec(docXml)) !== null) {
-      const rawText = nodeMatch[1] ?? '';
-      const decodedText = decodeXmlEntities(rawText);
-      textNodes.push({
-        xmlStart: nodeMatch.index,
-        xmlEnd: nodeMatch.index + nodeMatch[0].length,
-        textStart: textPosition,
-        textEnd: textPosition + decodedText.length,
-        text: decodedText
-      });
-      textPosition += decodedText.length;
-    }
-
-    fullDocText = textNodes.map(n => n.text).join('');
-
-    // Helper: convert XML position to text position
-    function xmlPosToTextPos(xmlPos: number): number {
-      for (let i = 0; i < textNodes.length; i++) {
-        const node = textNodes[i];
-        if (!node) continue;
-        if (xmlPos >= node.xmlStart && xmlPos < node.xmlEnd) {
-          return node.textStart;
-        }
-        if (xmlPos < node.xmlStart) {
-          return node.textStart;
-        }
-      }
-      const lastNode = textNodes[textNodes.length - 1];
-      return lastNode ? lastNode.textEnd : 0;
-    }
-
-    // Helper: extract context before a position
-    function getContextBefore(position: number, maxLength: number = 150): string {
-      const beforeText = fullDocText.slice(Math.max(0, position - maxLength), position);
-      const sentenceStart = beforeText.search(/[.!?]\s+[A-Z][^.!?]*$/);
-      return sentenceStart >= 0
-        ? beforeText.slice(sentenceStart + 2).trim()
-        : beforeText.slice(-80).trim();
-    }
-
-    // Helper: extract context after a position
-    function getContextAfter(position: number, maxLength: number = 150): string {
-      const afterText = fullDocText.slice(position, position + maxLength);
-      const sentenceEnd = afterText.search(/[.!?]\s/);
-      return sentenceEnd >= 0
-        ? afterText.slice(0, sentenceEnd + 1).trim()
-        : afterText.slice(0, 80).trim();
-    }
-
-    // ========================================
-    // STEP 2: Collect all start/end markers separately
-    // ========================================
-    const startPattern = /<w:commentRangeStart[^>]*w:id="(\d+)"[^>]*\/?>/g;
-    const endPattern = /<w:commentRangeEnd[^>]*w:id="(\d+)"[^>]*\/?>/g;
-
-    const starts = new Map<string, number>();  // id -> position after start tag
-    const ends = new Map<string, number>();    // id -> position before end tag
-
-    let match;
-    while ((match = startPattern.exec(docXml)) !== null) {
-      const id = match[1];
-      if (!starts.has(id)) {
-        starts.set(id, match.index + match[0].length);
-      }
-    }
-
-    while ((match = endPattern.exec(docXml)) !== null) {
-      const id = match[1];
-      if (!ends.has(id)) {
-        ends.set(id, match.index);
-      }
-    }
-
-    // ========================================
-    // STEP 3: Process each comment range by ID
-    // ========================================
-    for (const [id, startXmlPos] of starts) {
-      const endXmlPos = ends.get(id);
-
-      // Missing end marker - skip with warning
-      if (endXmlPos === undefined) {
-        console.warn(`Comment ${id}: missing end marker`);
-        continue;
-      }
-
-      // Calculate text position
-      const docPosition = xmlPosToTextPos(startXmlPos);
-
-      // Handle empty or inverted ranges
-      if (endXmlPos <= startXmlPos) {
-        anchors.set(id, {
-          anchor: '',
-          before: getContextBefore(docPosition),
-          after: getContextAfter(docPosition),
-          docPosition,
-          docLength: fullDocText.length,
-          isEmpty: true
-        });
-        continue;
-      }
-
-      // Extract XML segment between markers
-      const segment = docXml.slice(startXmlPos, endXmlPos);
-
-      // Extract text from w:t (regular) AND w:delText (deleted text in track changes)
-      const textInRangePattern = /<w:t[^>]*>([^<]*)<\/w:t>|<w:delText[^>]*>([^<]*)<\/w:delText>/g;
-      let anchorText = '';
-      let tm;
-      while ((tm = textInRangePattern.exec(segment)) !== null) {
-        anchorText += tm[1] || tm[2] || '';
-      }
-      anchorText = decodeXmlEntities(anchorText);
-
-      // Get context
-      const anchorLength = anchorText.length;
-      const before = getContextBefore(docPosition);
-      const after = getContextAfter(docPosition + anchorLength);
-
-      // ALWAYS add entry (even if anchor is empty)
-      anchors.set(id, {
-        anchor: anchorText.trim(),
-        before,
-        after,
-        docPosition,
-        docLength: fullDocText.length,
-        isEmpty: !anchorText.trim()
-      });
-    }
-  } catch (err: any) {
-    console.error('Error extracting comment anchors:', err.message);
+  const zip = openDocx(docxPath);
+  const { fullDocText, comments } = buildCommentAnchorModel(zip);
+  if (!fullDocText && comments.length === 0) {
     return { anchors, fullDocText: '' };
+  }
+
+  // Context surrounding the anchor, taken from the same plain-text coordinate
+  // system as docPosition so the placement engine can compare like with like.
+  function getContextBefore(position: number, maxLength: number = 150): string {
+    const beforeText = fullDocText.slice(Math.max(0, position - maxLength), position);
+    const sentenceStart = beforeText.search(/[.!?]\s+[A-Z][^.!?]*$/);
+    return sentenceStart >= 0
+      ? beforeText.slice(sentenceStart + 2).trim()
+      : beforeText.slice(-80).trim();
+  }
+
+  function getContextAfter(position: number, maxLength: number = 150): string {
+    const afterText = fullDocText.slice(position, position + maxLength);
+    const sentenceEnd = afterText.search(/[.!?]\s/);
+    return sentenceEnd >= 0
+      ? afterText.slice(0, sentenceEnd + 1).trim()
+      : afterText.slice(0, 80).trim();
+  }
+
+  for (const range of comments) {
+    anchors.set(range.id, {
+      anchor: range.anchor,
+      before: getContextBefore(range.start),
+      after: getContextAfter(range.end),
+      docPosition: range.start,
+      docLength: fullDocText.length,
+      isEmpty: range.isEmpty,
+    });
   }
 
   return { anchors, fullDocText };
@@ -402,73 +174,20 @@ export async function extractCommentAnchors(docxPath: string): Promise<CommentAn
  * concatenated.
  */
 export async function extractHeadings(docxPath: string): Promise<DocxHeading[]> {
-  const AdmZip = (await import('adm-zip')).default;
-
   if (!fs.existsSync(docxPath)) {
     throw new Error(`File not found: ${docxPath}`);
   }
 
-  const zip = new AdmZip(docxPath);
-  const docEntry = zip.getEntry('word/document.xml');
-  if (!docEntry) return [];
-  const xml = docEntry.getData().toString('utf8');
+  const zip = openDocx(docxPath);
+  const docXml = readPartText(zip, 'word/document.xml');
+  if (docXml === null) return [];
 
-  // Build the same xml-pos → text-pos mapping that extractCommentAnchors does
-  const textNodePattern = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-  const nodes: Array<{ xmlStart: number; xmlEnd: number; textStart: number; textEnd: number }> = [];
-  let textPos = 0;
-  let m;
-  while ((m = textNodePattern.exec(xml)) !== null) {
-    const decoded = decodeXmlEntities(m[1] ?? '');
-    nodes.push({
-      xmlStart: m.index,
-      xmlEnd: m.index + m[0].length,
-      textStart: textPos,
-      textEnd: textPos + decoded.length,
-    });
-    textPos += decoded.length;
-  }
-
-  function xmlToTextPos(xmlPos: number): number {
-    for (const n of nodes) {
-      if (xmlPos >= n.xmlStart && xmlPos < n.xmlEnd) return n.textStart;
-      if (xmlPos < n.xmlStart) return n.textStart;
-    }
-    return nodes.length ? nodes[nodes.length - 1].textEnd : 0;
-  }
-
-  const headings: DocxHeading[] = [];
-  const paraPattern = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
-  let pm;
-  while ((pm = paraPattern.exec(xml)) !== null) {
-    const inner = pm[1];
-    const styleMatch = inner.match(/<w:pStyle[^>]*w:val="([^"]+)"/);
-    if (!styleMatch) continue;
-    const style = styleMatch[1];
-    if (!/heading/i.test(style)) continue;
-
-    // Concatenate text runs; include w:delText so a heading inside a tracked
-    // deletion is still surfaced (verifying anchors against an original draft)
-    const textInRange = /<w:t[^>]*>([^<]*)<\/w:t>|<w:delText[^>]*>([^<]*)<\/w:delText>/g;
-    let txt = '';
-    let tm;
-    while ((tm = textInRange.exec(inner)) !== null) {
-      txt += decodeXmlEntities(tm[1] || tm[2] || '');
-    }
-    const trimmed = txt.trim();
-    if (!trimmed) continue;
-
-    const levelMatch = style.match(/(\d+)/);
-    const level = levelMatch ? parseInt(levelMatch[1], 10) : 0;
-    headings.push({
-      style,
-      level,
-      text: trimmed,
-      docPosition: xmlToTextPos(pm.index),
-    });
-  }
-
-  return headings;
+  return buildDocTextModel(docXml).headings.map((h) => ({
+    style: h.style,
+    level: h.level,
+    text: h.text,
+    docPosition: h.position,
+  }));
 }
 
 /**

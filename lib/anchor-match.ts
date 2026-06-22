@@ -5,6 +5,8 @@
  * a target text using progressively looser strategies.
  */
 
+import { stripAnnotations } from './annotations.js';
+
 export type AnchorStrategy =
   | 'direct'
   | 'normalized'
@@ -30,15 +32,12 @@ export interface AnchorSearchResult {
 /**
  * Strip CriticMarkup so the matcher sees plain prose instead of
  * `{++inserted++}`/`{--deleted--}`/etc. Used when an anchor lives
- * underneath previously imported track changes.
+ * underneath previously imported track changes. Delegates to the single
+ * annotation stripper so the matcher and the build path resolve markup the
+ * same way — a payload containing `+`, `-`, or `~` is handled correctly.
  */
 export function stripCriticMarkup(text: string): string {
-  return text
-    .replace(/\{\+\+([^+]*)\+\+\}/g, '$1')        // insertions: keep new text
-    .replace(/\{--([^-]*)--\}/g, '')              // deletions: remove old text
-    .replace(/\{~~([^~]*)~>([^~]*)~~\}/g, '$2')   // substitutions: keep new text
-    .replace(/\{>>[\s\S]*?<<\}/g, '')             // comments: remove (non-greedy; comment text may contain '<')
-    .replace(/\[([^\]]*)\]\{\.mark\}/g, '$1');    // marked text: keep text
+  return stripAnnotations(text);
 }
 
 /**

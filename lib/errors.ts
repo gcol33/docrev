@@ -44,7 +44,11 @@ export function getFileNotFoundSuggestions(filePath: string): string[] {
   // Check if directory exists
   if (!fs.existsSync(dir)) {
     suggestions.push(`Directory does not exist: ${dir}`);
-    suggestions.push(`Create it with: mkdir -p "${dir}"`);
+    suggestions.push(
+      process.platform === 'win32'
+        ? `Create it with: New-Item -ItemType Directory -Force "${dir}"`
+        : `Create it with: mkdir -p "${dir}"`,
+    );
     return suggestions;
   }
 

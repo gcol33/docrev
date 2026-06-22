@@ -22,6 +22,16 @@ const NO_DOI_TYPES = new Set([
   'booklet',
 ]);
 
+// Thresholds for the heuristic DOI-match score (title + author + year +
+// journal). `high` auto-accepts, `medium` asks the user, below `medium` is a
+// weak guess. `runnerUpMargin` is how far the best must beat the second-best
+// to count as high — guards against picking the wrong one of two near-ties.
+const DOI_CONFIDENCE = {
+  high: 120,
+  medium: 70,
+  runnerUpMargin: 30,
+};
+
 // Entry types that should have DOIs
 const EXPECT_DOI_TYPES = new Set([
   'article',        // Journal articles should have DOIs
@@ -142,52 +152,6 @@ export function isValidDoiFormat(doi: string): boolean {
   return /^10\.\d{4,}\/[^\s]+$/.test(doi);
 }
 
-/**
- * Check if DOI resolves via DataCite (for Zenodo, Figshare, etc.)
- */
-async function checkDoiDataCite(doi: string): Promise<DoiCheckResult> {
-  try {
-    const response = await dataciteLimiter.fetchWithRetry(
-      `https://api.datacite.org/dois/${encodeURIComponent(doi)}`,
-      {
-        headers: {
-          'Accept': 'application/vnd.api+json',
-          'User-Agent': 'docrev/0.6.0 (https://github.com/gcol33/docrev)',
-        },
-      }
-    );
-
-    if (response.status === 404) {
-      return { valid: false, error: 'DOI not found in DataCite' };
-    }
-
-    if (!response.ok) {
-      return { valid: false, error: `HTTP ${response.status}` };
-    }
-
-    const data = await response.json() as any;
-    const attrs = data.data?.attributes;
-
-    if (!attrs) {
-      return { valid: false, error: 'Invalid DataCite response' };
-    }
-
-    return {
-      valid: true,
-      source: 'datacite',
-      metadata: {
-        title: attrs.titles?.[0]?.title || '',
-        authors: attrs.creators?.map((c: any) => `${c.givenName || ''} ${c.familyName || ''}`.trim()) || [],
-        year: attrs.publicationYear,
-        journal: attrs.publisher || '',
-        type: attrs.types?.resourceTypeGeneral || '',
-      },
-    };
-  } catch (err) {
-    return { valid: false, error: (err as Error).message };
-  }
-}
-
 interface CheckDoiOptions {
   skipCache?: boolean;
 }
@@ -209,70 +173,78 @@ export async function checkDoi(doi: string, options: CheckDoiOptions = {}): Prom
     }
   }
 
-  // Zenodo DOIs start with 10.5281 - check DataCite first
-  const isZenodo = doi.startsWith('10.5281/');
-  const isFigshare = doi.startsWith('10.6084/');
-  const isDataCiteLikely = isZenodo || isFigshare;
-
-  if (isDataCiteLikely) {
-    const dataciteResult = await checkDoiDataCite(doi);
-    if (dataciteResult.valid) {
-      cacheDoi(doi, dataciteResult);
-      return dataciteResult;
-    }
-  }
-
+  // One resolution path: doi.org content negotiation returns CSL-JSON and
+  // federates every registration agency (Crossref, DataCite, mEDRA, ...), so
+  // there is no registrar to guess and no Crossref-then-DataCite fallback.
   try {
-    // Use Crossref API to check DOI
-    const response = await crossrefLimiter.fetchWithRetry(
-      `https://api.crossref.org/works/${encodeURIComponent(doi)}`,
+    const response = await doiOrgLimiter.fetchWithRetry(
+      `https://doi.org/${encodeURIComponent(doi)}`,
       {
         headers: {
-          'User-Agent': 'docrev/0.6.0 (https://github.com/gcol33/docrev; mailto:docrev@example.com)',
+          'Accept': 'application/vnd.citationstyles.csl+json',
+          'User-Agent': 'docrev (https://github.com/gcol33/docrev)',
         },
-      }
+        redirect: 'follow',
+      },
     );
 
-    if (response.status === 404) {
-      // Try DataCite as fallback (if not already tried)
-      if (!isDataCiteLikely) {
-        const dataciteResult = await checkDoiDataCite(doi);
-        if (dataciteResult.valid) {
-          cacheDoi(doi, dataciteResult);
-          return dataciteResult;
-        }
-      }
-      const result = { valid: false, error: 'DOI not found' };
+    if (response.status === 404 || response.status === 410) {
+      // Definitive: the registry resolved and the DOI is not registered.
+      const result: DoiCheckResult = { valid: false, error: 'DOI not found' };
       cacheDoi(doi, result);
       return result;
     }
 
     if (!response.ok) {
-      // Don't cache transient errors
-      return { valid: false, error: `HTTP ${response.status}` };
+      // 5xx or unexpected: the registry is reachable but not answering — the
+      // DOI's status is unknown, so do not declare it invalid or cache it.
+      return { valid: false, unreachable: true, error: `HTTP ${response.status}` };
     }
 
-    const data = await response.json() as any;
-    const work = data.message;
-
+    const work = await response.json() as any;
     const result: DoiCheckResult = {
       valid: true,
-      source: 'crossref',
-      metadata: {
-        title: work.title?.[0] || '',
-        authors: work.author?.map((a: any) => `${a.given || ''} ${a.family || ''}`.trim()) || [],
-        year: work.published?.['date-parts']?.[0]?.[0] || work.created?.['date-parts']?.[0]?.[0],
-        journal: work['container-title']?.[0] || '',
-        type: work.type,
-      },
+      source: 'doi.org',
+      metadata: metadataFromCsl(work),
     };
 
     cacheDoi(doi, result);
     return result;
   } catch (err) {
-    // Don't cache network errors
-    return { valid: false, error: (err as Error).message };
+    // Network failure / timeout: cannot reach the resolver. Unknown, not invalid.
+    return { valid: false, unreachable: true, error: (err as Error).message };
   }
+}
+
+/**
+ * Extract docrev's metadata fields from a CSL-JSON record — the shape doi.org
+ * content negotiation returns for any registrar.
+ */
+function metadataFromCsl(work: any): DoiCheckResult['metadata'] {
+  const dateParts =
+    work?.issued?.['date-parts']?.[0] ||
+    work?.published?.['date-parts']?.[0] ||
+    work?.created?.['date-parts']?.[0];
+  const year = Array.isArray(dateParts) ? dateParts[0] : undefined;
+
+  const authors = Array.isArray(work?.author)
+    ? work.author
+        .map((a: any) => `${a.given || a.givenName || ''} ${a.family || a.familyName || ''}`.trim())
+        .filter((s: string) => s.length > 0)
+    : [];
+
+  const title = Array.isArray(work?.title) ? work.title[0] : work?.title;
+  const journal = Array.isArray(work?.['container-title'])
+    ? work['container-title'][0]
+    : work?.['container-title'] || work?.publisher;
+
+  return {
+    title: title || '',
+    authors,
+    year: year || 0,
+    journal: journal || '',
+    type: work?.type,
+  };
 }
 
 /**
@@ -330,6 +302,7 @@ export async function checkBibDois(bibPath: string, options: CheckBibDoisOptions
 
   let valid = 0;
   let invalid = 0;
+  let unreachable = 0;
   let missing = 0;
   let skipped = 0;
 
@@ -372,6 +345,11 @@ export async function checkBibDois(bibPath: string, options: CheckBibDoisOptions
         if (check.valid) {
           valid++;
           return { ...entry, status: 'valid', metadata: check.metadata };
+        } else if (check.unreachable) {
+          // Registry unreachable — the DOI may be perfectly valid; don't
+          // condemn it. Offline runs report unreachable, not a wall of invalid.
+          unreachable++;
+          return { ...entry, status: 'unreachable', message: check.error };
         } else {
           invalid++;
           return { ...entry, status: 'invalid', message: check.error };
@@ -387,7 +365,7 @@ export async function checkBibDois(bibPath: string, options: CheckBibDoisOptions
     }
   }
 
-  return { entries: results, valid, invalid, missing, skipped };
+  return { entries: results, valid, invalid, unreachable, missing, skipped };
 }
 
 interface DataCiteItem {
@@ -725,10 +703,14 @@ export async function lookupDoi(
       return { found: false, error: 'No valid results found' };
     }
 
-    // Confidence thresholds
+    // Confidence: a "high" pick must clear the high threshold AND beat the
+    // runner-up by a margin, so two near-identical candidates are reported as
+    // "medium" (needs review) instead of one being auto-written as if certain.
+    const runnerUp = (mainPapers.length > 0 ? mainPapers : scored).find(s => s.doi !== best.doi);
+    const margin = runnerUp ? best.score - runnerUp.score : Infinity;
     let confidence: 'low' | 'medium' | 'high' = 'low';
-    if (best.score >= 120) confidence = 'high';
-    else if (best.score >= 70) confidence = 'medium';
+    if (best.score >= DOI_CONFIDENCE.high && margin >= DOI_CONFIDENCE.runnerUpMargin) confidence = 'high';
+    else if (best.score >= DOI_CONFIDENCE.medium) confidence = 'medium';
 
     // === NEW: Try DataCite if Crossref confidence is low ===
     if (confidence === 'low' && !likelyZenodo) {
@@ -758,7 +740,7 @@ export async function lookupDoi(
             return {
               found: true,
               doi: dcItem.DOI,
-              confidence: dcScore >= 120 ? 'high' : dcScore >= 70 ? 'medium' : 'low',
+              confidence: dcScore >= DOI_CONFIDENCE.high ? 'high' : dcScore >= DOI_CONFIDENCE.medium ? 'medium' : 'low',
               score: dcScore,
               metadata: {
                 title: dcTitle,

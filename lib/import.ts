@@ -53,6 +53,7 @@ function pickBestOccurrence(
   after: string,
   anchorLen: number,
   usedPositions: Set<number>,
+  nearPos?: number,
 ): number {
   if (occurrences.length === 0) return -1;
   if (occurrences.length === 1) {
@@ -62,6 +63,13 @@ function pickBestOccurrence(
   let bestIdx = occurrences.find(p => !usedPositions.has(p)) ?? -1;
   if (bestIdx < 0) return -1;
   let bestScore = -1;
+
+  // Tie-break by context score first; when scores tie, prefer the occurrence
+  // nearest `nearPos` (a section-position estimate) if given, else the
+  // leftmost. The estimate only orders equally-scored candidates — it is never
+  // the returned position.
+  const closer = (pos: number, incumbent: number) =>
+    nearPos === undefined ? pos < incumbent : Math.abs(pos - nearPos) < Math.abs(incumbent - nearPos);
 
   for (const pos of occurrences) {
     if (usedPositions.has(pos)) continue;
@@ -87,7 +95,7 @@ function pickBestOccurrence(
       if (contextAfter.includes(afterLower.slice(0, 30))) score += 5;
     }
 
-    if (score > bestScore || (score === bestScore && pos < bestIdx)) {
+    if (score > bestScore || (score === bestScore && closer(pos, bestIdx))) {
       bestScore = score;
       bestIdx = pos;
     }
@@ -160,12 +168,24 @@ export interface InsertCommentsOptions {
   wrapAnchor?: boolean;
   /**
    * Mutable output: when provided, the function fills in counters so callers
-   * can distinguish placement outcomes in their summary. `placed` counts new
-   * insertions, `deduped` counts comments that were already present at their
-   * anchor (skipped to avoid duplication on re-sync), `unmatched` counts
-   * comments whose anchor couldn't be located.
+   * can distinguish placement outcomes in their summary. `placed` counts
+   * insertions made at a matched anchor or context, `lowConfidence` counts
+   * insertions made at an approximate (proportional / context-only) position
+   * that should be reviewed with `rev verify-anchors`, `deduped` counts
+   * comments already present at their anchor (skipped on re-sync), and
+   * `unmatched` counts comments that could not be placed at all.
    */
-  outStats?: { placed: number; deduped: number; unmatched: number };
+  outStats?: { placed: number; deduped: number; unmatched: number; lowConfidence?: number };
+}
+
+/**
+ * Whether a resolved placement landed on matched anchor/context text (high) or
+ * on an approximate position the user should review (low). Low-confidence
+ * strategies place the comment without matching the anchor word itself.
+ */
+function placementConfidence(strategy: string | undefined): 'high' | 'low' {
+  if (!strategy) return 'high';
+  return /proportional|position-only|context/.test(strategy) ? 'low' : 'high';
 }
 
 export interface CommentWithPos {
@@ -319,6 +339,7 @@ export function insertCommentsIntoMarkdown(
   let result = markdown;
   let unmatchedCount = 0;
   let placedCount = 0;
+  let lowConfidenceCount = 0;
   const duplicateWarnings: string[] = [];
   const usedPositions = new Set<number>(); // For tie-breaking: track used positions
 
@@ -370,24 +391,19 @@ export function insertCommentsIntoMarkdown(
     const isEmpty = typeof anchorData === 'object' && anchorData.isEmpty;
     const docPosition = typeof anchorData === 'object' ? anchorData.docPosition : undefined;
 
-    // Position-based insertion (most reliable)
+    // Section-scoped insertion. The comment is known to belong to this
+    // section (the caller already filtered by docPosition); place it by
+    // matching its anchor text within the section, never by mapping a length
+    // ratio across the docx and markdown coordinate systems. The section
+    // estimate only seeds duplicate tie-breaking and the final fallback.
     if (sectionBoundary && docPosition !== undefined) {
       const sectionLength = sectionBoundary.end - sectionBoundary.start;
       if (sectionLength > 0) {
-        let relativePos;
-        if (docPosition < sectionBoundary.start) {
-          relativePos = 0;
-        } else {
-          relativePos = docPosition - sectionBoundary.start;
-        }
-
+        const relativePos = docPosition < sectionBoundary.start ? 0 : docPosition - sectionBoundary.start;
         const proportion = Math.min(relativePos / sectionLength, 1.0);
-        const markdownPos = Math.floor(proportion * result.length);
+        const estimatedPos = Math.floor(proportion * result.length);
 
-        // For empty anchors, before/after context is the only signal that
-        // pinpoints the original split — without it, proportional placement
-        // can land mid-word or split unrelated phrases. Try context match
-        // first; only fall through to proportional when context is gone.
+        // Empty anchor: before/after context is the only text signal.
         if ((!anchor || isEmpty) && (before || after)) {
           const ctx = findAnchorInText('', result, before, after);
           if (ctx.occurrences.length > 0) {
@@ -396,62 +412,32 @@ export function insertCommentsIntoMarkdown(
           }
         }
 
-        let insertPos = markdownPos;
-
-        // Look for nearby word boundary
-        const searchWindow = result.slice(Math.max(0, markdownPos - 25), Math.min(result.length, markdownPos + 25));
-        const spaceIdx = searchWindow.indexOf(' ', 25);
-        if (spaceIdx !== -1 && spaceIdx < 50) {
-          insertPos = Math.max(0, markdownPos - 25) + spaceIdx;
-        }
-
-        // If we have anchor text, try to find it near this position.
-        // Collect ALL occurrences in the local window, then disambiguate
-        // via before/after context + usedPositions — otherwise two
-        // comments sharing the same anchor word would both collide at
-        // the leftmost match. The context-scoring helper handles the
-        // "repeated formulaic prose" case using docx-side context, which
-        // is a stronger signal than raw distance to the proportional
-        // insertPos (insertPos is itself an approximation).
+        // Non-empty anchor: locate it anywhere in the section text. Duplicates
+        // are disambiguated by before/after context and, only as a tie-break,
+        // by proximity to the section estimate.
         if (anchor && !isEmpty) {
-          const searchStart = Math.max(0, insertPos - 200);
-          const searchEnd = Math.min(result.length, insertPos + 200);
-          const localSearch = result.slice(searchStart, searchEnd).toLowerCase();
-          const anchorLower = anchor.toLowerCase();
-
-          const localHits = findAllOccurrences(localSearch, anchorLower).map(i => searchStart + i);
-          if (localHits.length > 0) {
-            const chosen = pickBestOccurrence(localHits, result, before, after, anchor.length, usedPositions);
-            if (chosen >= 0) {
-              if (localHits.length > 1) {
-                duplicateWarnings.push(`"${anchor.slice(0, 40)}${anchor.length > 40 ? '...' : ''}" appears ${localHits.length} times in section window`);
-              }
-              usedPositions.add(chosen);
-              return { ...c, pos: chosen, anchorText: anchor, anchorEnd: chosen + anchor.length, strategy: 'position+text' };
+          const { occurrences, matchedAnchor, strategy } = findAnchorInText(anchor, result, before, after);
+          if (occurrences.length > 0) {
+            const anchorLen = matchedAnchor ? matchedAnchor.length : 0;
+            const chosen = pickBestOccurrence(occurrences, result, before, after, anchorLen, usedPositions, estimatedPos);
+            const finalIdx = chosen >= 0 ? chosen : occurrences[0];
+            if (occurrences.length > 1 && matchedAnchor) {
+              duplicateWarnings.push(`"${matchedAnchor.slice(0, 40)}${matchedAnchor.length > 40 ? '...' : ''}" appears ${occurrences.length} times in section`);
             }
-          }
-
-          // Try first few words
-          const words = anchor.split(/\s+/).slice(0, 4).join(' ').toLowerCase();
-          if (words.length >= 10) {
-            const partialHits = findAllOccurrences(localSearch, words).map(i => searchStart + i);
-            if (partialHits.length > 0) {
-              const chosen = pickBestOccurrence(partialHits, result, before, after, words.length, usedPositions);
-              if (chosen >= 0) {
-                usedPositions.add(chosen);
-                return { ...c, pos: chosen, anchorText: words, anchorEnd: chosen + words.length, strategy: 'position+partial' };
-              }
+            usedPositions.add(finalIdx);
+            if (matchedAnchor) {
+              return { ...c, pos: finalIdx, anchorText: matchedAnchor, anchorEnd: finalIdx + anchorLen, strategy: `section:${strategy}` };
             }
+            return { ...c, pos: finalIdx, anchorText: null, strategy: `section:${strategy}` };
           }
         }
 
-        // A docPosition at the very start of a section maps to markdownPos=0,
-        // which sits before the file's `# Heading` line and gets rendered in
-        // the previous section. Push past the heading line so the comment
-        // stays inside the section it was authored in.
-        insertPos = pushPastSectionHeading(result, insertPos);
-
-        return { ...c, pos: insertPos, anchorText: null, strategy: 'position-only' };
+        // Anchor text and context are both gone from the section. The docx
+        // marker's offset is the only remaining signal: map it proportionally
+        // and snap to a word boundary. This is an approximate placement, not a
+        // match — flagged low-confidence so the summary surfaces it.
+        const insertPos = pushPastSectionHeading(result, snapToWordBoundary(result, estimatedPos));
+        return { ...c, pos: insertPos, anchorText: null, strategy: 'proportional-fallback' };
       }
     }
 
@@ -599,11 +585,17 @@ export function insertCommentsIntoMarkdown(
     } else {
       result = result.slice(0, c.pos) + combined + result.slice(c.pos);
     }
-    placedCount += 1 + replies.length;
+    // Replies inherit the root's confidence — they ride the same position.
+    if (placementConfidence(c.strategy) === 'low') {
+      lowConfidenceCount += 1 + replies.length;
+    } else {
+      placedCount += 1 + replies.length;
+    }
   }
 
   if (outStats) {
     outStats.placed = placedCount;
+    outStats.lowConfidence = lowConfidenceCount;
     outStats.deduped = dedupedCount;
     outStats.unmatched = unmatchedCount;
   }
@@ -612,6 +604,9 @@ export function insertCommentsIntoMarkdown(
   if (!quiet) {
     if (unmatchedCount > 0) {
       console.warn(`Warning: ${unmatchedCount} comment(s) could not be matched to anchor text`);
+    }
+    if (lowConfidenceCount > 0) {
+      console.warn(`Note: ${lowConfidenceCount} comment(s) placed approximately — run \`rev verify-anchors\` to review`);
     }
     if (dedupedCount > 0) {
       console.warn(`Note: ${dedupedCount} comment(s) already present at anchor — skipped to avoid duplication`);

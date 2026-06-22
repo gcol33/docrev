@@ -218,7 +218,13 @@ export interface BibEntry {
 
 export interface DoiCheckResult {
   valid: boolean;
-  source?: 'crossref' | 'datacite';
+  source?: 'crossref' | 'datacite' | 'doi.org';
+  /**
+   * True when the registry could not be reached (network error, timeout, or
+   * 5xx) — the DOI's validity is unknown, distinct from a definitive "not
+   * found". Callers must not report an unreachable DOI as invalid.
+   */
+  unreachable?: boolean;
   metadata?: {
     title: string;
     authors: string[];
@@ -258,6 +264,8 @@ export interface BibCheckResult {
   entries: Array<BibEntry & { status: string; message?: string; metadata?: object }>;
   valid: number;
   invalid: number;
+  /** DOIs whose registry could not be reached (network/timeout) — not invalid. */
+  unreachable: number;
   missing: number;
   skipped: number;
 }

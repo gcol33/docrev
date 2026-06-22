@@ -7,6 +7,7 @@
  */
 
 import { strict as assert } from 'assert';
+import { test } from 'node:test';
 
 // Import functions from import.js
 const importModule = await import('../lib/import.js');
@@ -15,24 +16,6 @@ const {
   cleanupAnnotations,
   insertCommentsIntoMarkdown,
 } = importModule;
-
-// Test results tracking
-let passed = 0;
-let failed = 0;
-const failures = [];
-
-function test(name, fn) {
-  try {
-    fn();
-    passed++;
-    console.log(`  ✓ ${name}`);
-  } catch (err) {
-    failed++;
-    failures.push({ name, error: err.message });
-    console.log(`  ✗ ${name}`);
-    console.log(`    ${err.message}`);
-  }
-}
 
 function assertContains(text, substring, msg = '') {
   if (!text.includes(substring)) {
@@ -937,19 +920,3 @@ Another paragraph.`;
   assertNotContains(result, 'TABLEBLOCK', 'no table placeholder leaked');
 });
 
-// ============================================================================
-// SUMMARY
-// ============================================================================
-
-console.log('\n' + '='.repeat(60));
-console.log(`\n📊 Test Results: ${passed} passed, ${failed} failed\n`);
-
-if (failures.length > 0) {
-  console.log('Failed tests:');
-  for (const f of failures) {
-    console.log(`  - ${f.name}: ${f.error}`);
-  }
-  process.exit(1);
-}
-
-console.log('✅ All tests passed!\n');

@@ -6,11 +6,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import AdmZip from 'adm-zip';
-import { parseString } from 'xml2js';
-import { promisify } from 'util';
 import type { WordComment, CommentAnchor, WordMetadata, TrackChangesResult } from './types.js';
-
-const parseXml = promisify(parseString);
+import {
+  openDocx,
+  readPartText,
+  buildCommentAnchorModel,
+  extractComments,
+  walkBody,
+  type FlowItem,
+} from './ooxml.js';
 
 // =============================================================================
 // Constants
@@ -41,52 +45,10 @@ export async function extractWordComments(docxPath: string): Promise<WordComment
     throw new Error(`File not found: ${docxPath}`);
   }
 
-  const zip = new AdmZip(docxPath);
-  const commentsEntry = zip.getEntry('word/comments.xml');
-
-  if (!commentsEntry) {
-    return []; // No comments in document
-  }
-
-  const commentsXml = zip.readAsText(commentsEntry);
-  const parsed = await parseXml(commentsXml) as any;
-
-  if (!parsed?.['w:comments'] || !parsed['w:comments']['w:comment']) {
-    return [];
-  }
-
-  const comments: WordComment[] = [];
-  const rawComments = parsed['w:comments']['w:comment'];
-
-  for (const comment of rawComments) {
-    const id = comment.$?.['w:id'];
-    const author = comment.$?.['w:author'] || 'Unknown';
-    const date = comment.$?.['w:date'];
-
-    // Extract text from all paragraphs in comment
-    let text = '';
-    const paragraphs = comment['w:p'] || [];
-    for (const para of paragraphs) {
-      const runs = para['w:r'] || [];
-      for (const run of runs) {
-        const texts = run['w:t'] || [];
-        for (const t of texts) {
-          text += typeof t === 'string' ? t : (t._ || '');
-        }
-      }
-    }
-
-    if (id && text.trim()) {
-      comments.push({
-        id,
-        author,
-        date,
-        text: text.trim(),
-      });
-    }
-  }
-
-  return comments;
+  const zip = openDocx(docxPath);
+  return extractComments(zip)
+    .filter((c) => c.id && c.text)
+    .map((c) => ({ id: c.id, author: c.author, date: c.date, text: c.text }));
 }
 
 /**
@@ -102,63 +64,18 @@ export async function extractCommentAnchors(docxPath: string): Promise<Map<strin
     throw new TypeError(`docxPath must be a string, got ${typeof docxPath}`);
   }
 
-  const zip = new AdmZip(docxPath);
-  const documentEntry = zip.getEntry('word/document.xml');
-
-  if (!documentEntry) {
+  const zip = openDocx(docxPath);
+  if (!zip.getEntry('word/document.xml')) {
     throw new Error('Invalid docx: no document.xml');
   }
 
-  const documentXml = zip.readAsText(documentEntry);
+  const { fullDocText, comments } = buildCommentAnchorModel(zip);
   const anchors = new Map<string, CommentAnchor>();
 
-  // Find commentRangeStart and commentRangeEnd pairs
-  // The text between them is what the comment is anchored to
-  const startPattern = /<w:commentRangeStart w:id="(\d+)"\/>/g;
-  const endPattern = /<w:commentRangeEnd w:id="(\d+)"\/>/g;
-
-  let match: RegExpExecArray | null;
-  const starts = new Map<string, number>();
-  const ends = new Map<string, number>();
-
-  while ((match = startPattern.exec(documentXml)) !== null) {
-    if (match[1]) {
-      starts.set(match[1], match.index);
-    }
-  }
-
-  while ((match = endPattern.exec(documentXml)) !== null) {
-    if (match[1]) {
-      ends.set(match[1], match.index);
-    }
-  }
-
-  // For each comment, extract the text between start and end
-  for (const [id, startPos] of starts) {
-    const endPos = ends.get(id);
-    if (!endPos) continue;
-
-    const segment = documentXml.slice(startPos, endPos);
-
-    // Extract all text content from the segment
-    const textPattern = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    let text = '';
-    let textMatch: RegExpExecArray | null;
-    while ((textMatch = textPattern.exec(segment)) !== null) {
-      text += textMatch[1] ?? '';
-    }
-
-    // Get surrounding context (text before the anchor)
-    const contextStart = Math.max(0, startPos - CONTEXT_BEFORE_SIZE);
-    const contextSegment = documentXml.slice(contextStart, startPos);
-    let context = '';
-    while ((textMatch = textPattern.exec(contextSegment)) !== null) {
-      context += textMatch[1] ?? '';
-    }
-
-    anchors.set(id, {
-      text: text.trim(),
-      context: context.slice(-ANCHOR_CONTEXT_SIZE),
+  for (const range of comments) {
+    anchors.set(range.id, {
+      text: range.anchor,
+      context: fullDocText.slice(Math.max(0, range.start - CONTEXT_BEFORE_SIZE), range.start).slice(-ANCHOR_CONTEXT_SIZE),
     });
   }
 
@@ -443,118 +360,84 @@ export async function extractPlainTextWithTrackChanges(docxPath: string): Promis
     throw new Error(`File not found: ${docxPath}`);
   }
 
-  const zip = new AdmZip(docxPath);
-  const docEntry = zip.getEntry('word/document.xml');
-
-  if (!docEntry) {
+  const zip = openDocx(docxPath);
+  const docXml = readPartText(zip, 'word/document.xml');
+  if (docXml === null) {
     throw new Error('Invalid docx: no document.xml');
   }
 
-  let xml = docEntry.getData().toString('utf8');
   let insertions = 0;
   let deletions = 0;
-
-  // Use unique markers (null bytes) that won't appear in normal text
-  const INS_S = '\x00IS\x00';
-  const INS_E = '\x00IE\x00';
-  const DEL_S = '\x00DS\x00';
-  const DEL_E = '\x00DE\x00';
-
-  // Step 1: Replace <w:ins> with marker-wrapped text injected as <w:t>
-  // Whitespace-only insertions are kept as plain text (not markers) to preserve spacing.
-  xml = xml.replace(/<w:ins\b[^>]*>([\s\S]*?)<\/w:ins>/g, (_match, content: string) => {
-    const texts: string[] = [];
-    const tPat = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    let m: RegExpExecArray | null;
-    while ((m = tPat.exec(content)) !== null) {
-      texts.push(m[1] || '');
-    }
-    const text = texts.join('');
-    if (text.trim()) {
-      insertions++;
-      return `<w:r><w:t>${INS_S}${text}${INS_E}</w:t></w:r>`;
-    }
-    // Whitespace-only: preserve as plain text for spacing
-    if (text.length > 0) {
-      return `<w:r><w:t>${text}</w:t></w:r>`;
-    }
-    return '';
-  });
-
-  // Step 2: Replace <w:del> similarly (uses w:delText inside)
-  // Whitespace-only deletions are kept as plain text to preserve spacing.
-  xml = xml.replace(/<w:del\b[^>]*>([\s\S]*?)<\/w:del>/g, (_match, content: string) => {
-    const texts: string[] = [];
-    const tPat = /<w:delText[^>]*>([^<]*)<\/w:delText>|<w:t[^>]*>([^<]*)<\/w:t>/g;
-    let m: RegExpExecArray | null;
-    while ((m = tPat.exec(content)) !== null) {
-      texts.push(m[1] || m[2] || '');
-    }
-    const text = texts.join('');
-    if (text.trim()) {
-      deletions++;
-      return `<w:r><w:t>${DEL_S}${text}${DEL_E}</w:t></w:r>`;
-    }
-    // Whitespace-only: preserve as plain text for spacing
-    if (text.length > 0) {
-      return `<w:r><w:t>${text}</w:t></w:r>`;
-    }
-    return '';
-  });
-
-  // Step 3: Extract text paragraph by paragraph
   const paragraphs: string[] = [];
-  const paraPattern = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g;
-  let pm: RegExpExecArray | null;
 
-  while ((pm = paraPattern.exec(xml)) !== null) {
-    const paraXml = pm[1];
+  // One ordered walk drives everything: paragraph and heading boundaries,
+  // run text (entities already decoded, tabs/breaks rendered), and the
+  // track-change spans that become CriticMarkup. Field codes (w:instrText)
+  // never reach the text because the walker only reads w:t / w:delText.
+  let paraOut = '';
+  let headingLevel = 0;
+  let mode: 'normal' | 'ins' | 'del' = 'normal';
+  let buffer = '';
 
-    // Detect heading level from paragraph style
-    let headingLevel = 0;
-    const styleMatch = paraXml.match(/<w:pStyle\s+w:val="Heading(\d)"/i);
-    if (styleMatch && styleMatch[1]) {
-      headingLevel = parseInt(styleMatch[1], 10);
+  const flushSpan = (open: string, close: string, isIns: boolean) => {
+    if (buffer.trim()) {
+      if (isIns) insertions++;
+      else deletions++;
+      paraOut += `${open}${buffer}${close}`;
+    } else if (buffer.length > 0) {
+      // Whitespace-only edits are kept as plain text to preserve spacing.
+      paraOut += buffer;
     }
+    buffer = '';
+  };
 
-    // Extract all <w:t> text in order
-    const texts: string[] = [];
-    const tPat = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-    let tm: RegExpExecArray | null;
-    while ((tm = tPat.exec(paraXml)) !== null) {
-      texts.push(tm[1] || '');
+  const endParagraph = () => {
+    let text = mergeAdjacentMarkers(paraOut);
+    text = text.replace(/ {2,}/g, ' ');
+    if (text.trim()) {
+      paragraphs.push(
+        headingLevel >= 1 && headingLevel <= 6 ? '#'.repeat(headingLevel) + ' ' + text.trim() : text,
+      );
     }
+    paraOut = '';
+    headingLevel = 0;
+    mode = 'normal';
+    buffer = '';
+  };
 
-    let paraText = texts.join('');
-
-    // Decode XML entities
-    paraText = paraText
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'");
-
-    // Convert markers to CriticMarkup
-    paraText = paraText
-      .split(INS_S).join('{++')
-      .split(INS_E).join('++}')
-      .split(DEL_S).join('{--')
-      .split(DEL_E).join('--}');
-
-    // Merge adjacent del+ins (or ins+del) into substitutions.
-    // Uses a scanner instead of regex to avoid backtracking across marker boundaries.
-    paraText = mergeAdjacentMarkers(paraText);
-
-    // Collapse runs of multiple spaces into single space
-    paraText = paraText.replace(/ {2,}/g, ' ');
-
-    if (paraText.trim()) {
-      if (headingLevel > 0 && headingLevel <= 6) {
-        paragraphs.push('#'.repeat(headingLevel) + ' ' + paraText.trim());
-      } else {
-        paragraphs.push(paraText);
-      }
+  for (const item of walkBody(docXml) as FlowItem[]) {
+    switch (item.kind) {
+      case 'paraStart':
+        paraOut = '';
+        headingLevel = item.level;
+        mode = 'normal';
+        buffer = '';
+        break;
+      case 'paraEnd':
+        endParagraph();
+        break;
+      case 'text':
+        if (mode === 'normal') paraOut += item.text;
+        else buffer += item.text;
+        break;
+      case 'insStart':
+        mode = 'ins';
+        buffer = '';
+        break;
+      case 'insEnd':
+        flushSpan('{++', '++}', true);
+        mode = 'normal';
+        break;
+      case 'delStart':
+        mode = 'del';
+        buffer = '';
+        break;
+      case 'delEnd':
+        flushSpan('{--', '--}', false);
+        mode = 'normal';
+        break;
+      default:
+        break;
     }
   }
 

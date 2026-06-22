@@ -2,39 +2,68 @@
  * Dependency checking utilities for pandoc, LaTeX, and related tools
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 /**
- * Check if a command is available by running it silently
+ * Run `<file> --version` without a shell and return its stdout, or null when
+ * the binary is absent (ENOENT) or exits non-zero (present but broken). Using
+ * execFileSync avoids shell quoting and treats both failure modes uniformly.
  */
-function commandExists(cmd: string): boolean {
+function runVersion(file: string, args: string[] = ['--version']): string | null {
   try {
-    execSync(cmd, { stdio: 'ignore' });
-    return true;
+    return execFileSync(file, args, { stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf-8' });
   } catch {
-    return false;
+    return null;
   }
+}
+
+function commandExists(file: string, args: string[] = ['--version']): boolean {
+  return runVersion(file, args) !== null;
 }
 
 /**
  * Check if pandoc-crossref is available
  */
 export function hasPandocCrossref(): boolean {
-  return commandExists('pandoc-crossref --version');
+  return commandExists('pandoc-crossref');
 }
 
 /**
  * Check if pandoc is available
  */
 export function hasPandoc(): boolean {
-  return commandExists('pandoc --version');
+  return commandExists('pandoc');
+}
+
+/**
+ * Parsed pandoc version (e.g. "3.9"), or null when pandoc is unavailable.
+ */
+export function getPandocVersion(): string | null {
+  const out = runVersion('pandoc');
+  if (!out) return null;
+  const m = out.match(/pandoc(?:\.exe)?\s+(\d+\.\d+(?:\.\d+)?)/i);
+  return m ? m[1]! : null;
+}
+
+/**
+ * Whether pandoc bundles citeproc and accepts `--citeproc`. That flag and the
+ * built-in citeproc arrived in pandoc 2.11; earlier versions need the separate
+ * pandoc-citeproc filter.
+ */
+export function pandocSupportsCiteproc(): boolean {
+  const v = getPandocVersion();
+  if (!v) return false;
+  const parts = v.split('.').map((n) => parseInt(n, 10));
+  const major = parts[0] ?? 0;
+  const minor = parts[1] ?? 0;
+  return major > 2 || (major === 2 && minor >= 11);
 }
 
 /**
  * Check if LaTeX is available (for PDF generation)
  */
 export function hasLatex(): boolean {
-  return commandExists('pdflatex --version') || commandExists('xelatex --version');
+  return commandExists('pdflatex') || commandExists('xelatex');
 }
 
 /**
@@ -86,6 +115,11 @@ export function checkDependencies(): DependencyStatus {
 
   if (!status.pandoc) {
     status.messages.push(`Pandoc not found. Install with: ${getInstallInstructions('pandoc')}`);
+  } else if (!pandocSupportsCiteproc()) {
+    const version = getPandocVersion();
+    status.messages.push(
+      `Pandoc ${version ?? '(unknown version)'} is older than 2.11; citation processing (--citeproc) needs 2.11+. Upgrade with: ${getInstallInstructions('pandoc')}`,
+    );
   }
   if (!status.latex) {
     status.messages.push(`LaTeX not found (required for PDF). Install with: ${getInstallInstructions('latex')}`);

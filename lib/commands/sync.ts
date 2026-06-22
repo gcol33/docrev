@@ -305,6 +305,7 @@ export function register(program: Command): void {
         // reports placements rather than the raw extracted count.
         const routedCommentIds = new Set<string>();
         let totalCommentsPlaced = 0;
+        let totalCommentsLowConfidence = 0;
         let totalCommentsDeduped = 0;
         let totalCommentsUnmatched = 0;
 
@@ -375,19 +376,23 @@ export function register(program: Command): void {
 
             if (sectionComments.length > 0) {
               for (const c of sectionComments) routedCommentIds.add(c.id);
-              const cstats = { placed: 0, deduped: 0, unmatched: 0 };
+              const cstats = { placed: 0, lowConfidence: 0, deduped: 0, unmatched: 0 };
               annotated = insertCommentsIntoMarkdown(annotated, sectionComments, anchors, {
                 quiet: !process.env.DEBUG,
                 sectionBoundary: boundary,
                 outStats: cstats,
               });
-              stats.comments = (stats.comments || 0) + cstats.placed;
-              totalCommentsPlaced += cstats.placed;
+              // Both confident and approximate placements are written to the
+              // file; count both as placed, but track the approximate ones so
+              // the summary can flag them for review.
+              stats.comments = (stats.comments || 0) + cstats.placed + cstats.lowConfidence;
+              totalCommentsPlaced += cstats.placed + cstats.lowConfidence;
+              totalCommentsLowConfidence += cstats.lowConfidence;
               totalCommentsDeduped += cstats.deduped;
               totalCommentsUnmatched += cstats.unmatched;
 
               if (process.env.DEBUG) {
-                console.log(`[DEBUG] ${section.file}: placed ${cstats.placed}, deduped ${cstats.deduped}, unmatched ${cstats.unmatched} of ${sectionComments.length}`);
+                console.log(`[DEBUG] ${section.file}: placed ${cstats.placed}, approx ${cstats.lowConfidence}, deduped ${cstats.deduped}, unmatched ${cstats.unmatched} of ${sectionComments.length}`);
               }
             }
           }
@@ -484,6 +489,9 @@ export function register(program: Command): void {
           if (totalChanges > 0) summaryLines.push(`${chalk.bold(totalChanges)} annotations imported`);
           if (totalCommentsPlaced > 0) {
             summaryLines.push(`${chalk.bold(totalCommentsPlaced)} of ${comments.length} comments placed`);
+          }
+          if (totalCommentsLowConfidence > 0) {
+            summaryLines.push(`${chalk.yellow(totalCommentsLowConfidence)} placed approximately (review with verify-anchors)`);
           }
           if (totalCommentsDeduped > 0) {
             summaryLines.push(`${chalk.cyan(totalCommentsDeduped)} already present (skipped)`);
@@ -587,12 +595,12 @@ async function syncCommentsOnly(
   }
 
   const firstBoundaryStart = boundaries[0].start;
-  const results: Array<{ file: string; placed: number; deduped: number; unmatched: number; skipped: boolean }> = [];
+  const results: Array<{ file: string; placed: number; lowConfidence: number; deduped: number; unmatched: number; skipped: boolean }> = [];
 
   for (const boundary of activeBoundaries) {
     const sectionPath = path.join(options.dir, boundary.file);
     if (!fs.existsSync(sectionPath)) {
-      results.push({ file: boundary.file, placed: 0, deduped: 0, unmatched: 0, skipped: true });
+      results.push({ file: boundary.file, placed: 0, lowConfidence: 0, deduped: 0, unmatched: 0, skipped: true });
       continue;
     }
 
@@ -607,13 +615,13 @@ async function syncCommentsOnly(
     });
 
     if (sectionComments.length === 0) {
-      results.push({ file: boundary.file, placed: 0, deduped: 0, unmatched: 0, skipped: false });
+      results.push({ file: boundary.file, placed: 0, lowConfidence: 0, deduped: 0, unmatched: 0, skipped: false });
       continue;
     }
 
     const original = fs.readFileSync(sectionPath, 'utf-8');
 
-    const stats = { placed: 0, deduped: 0, unmatched: 0 };
+    const stats = { placed: 0, lowConfidence: 0, deduped: 0, unmatched: 0 };
     const annotated = insertCommentsIntoMarkdown(original, sectionComments, anchors, {
       quiet: !process.env.DEBUG,
       sectionBoundary: { start: boundary.start, end: boundary.end },
@@ -621,7 +629,7 @@ async function syncCommentsOnly(
       outStats: stats,
     });
 
-    if (!options.dryRun && stats.placed > 0) {
+    if (!options.dryRun && (stats.placed > 0 || stats.lowConfidence > 0)) {
       fs.writeFileSync(sectionPath, annotated, 'utf-8');
     }
     results.push({ file: boundary.file, ...stats, skipped: false });
@@ -634,6 +642,7 @@ async function syncCommentsOnly(
     return [
       chalk.bold(r.file),
       chalk.green(`${r.placed}`),
+      r.lowConfidence > 0 ? chalk.yellow(`${r.lowConfidence}`) : chalk.dim('-'),
       r.deduped > 0 ? chalk.cyan(`${r.deduped}`) : chalk.dim('-'),
       r.unmatched > 0 ? chalk.yellow(`${r.unmatched}`) : chalk.dim('-'),
       chalk.dim('comments only'),
@@ -641,13 +650,14 @@ async function syncCommentsOnly(
   });
 
   console.log(fmt.table(
-    ['File', 'Placed', 'Already', 'Unmatched', 'Mode'],
+    ['File', 'Placed', 'Approx', 'Already', 'Unmatched', 'Mode'],
     tableRows,
-    { align: ['left', 'right', 'right', 'right', 'left'] },
+    { align: ['left', 'right', 'right', 'right', 'right', 'left'] },
   ));
   console.log();
 
   const totalPlaced = results.reduce((s, r) => s + r.placed, 0);
+  const totalLowConfidence = results.reduce((s, r) => s + r.lowConfidence, 0);
   const totalDeduped = results.reduce((s, r) => s + r.deduped, 0);
   const totalUnmatched = results.reduce((s, r) => s + r.unmatched, 0);
 
@@ -655,6 +665,9 @@ async function syncCommentsOnly(
   lines.push(`${chalk.bold(comments.length)} comments in document`);
   if (totalPlaced > 0) {
     lines.push(`${chalk.bold(totalPlaced)} placed at anchors`);
+  }
+  if (totalLowConfidence > 0) {
+    lines.push(`${chalk.yellow(totalLowConfidence)} placed approximately (review with verify-anchors)`);
   }
   if (totalDeduped > 0) {
     lines.push(`${chalk.cyan(totalDeduped)} already present (skipped to avoid duplication)`);
@@ -664,12 +677,12 @@ async function syncCommentsOnly(
   }
   if (options.dryRun) {
     lines.push(chalk.yellow('Dry run — no files written'));
-  } else if (totalPlaced > 0) {
+  } else if (totalPlaced > 0 || totalLowConfidence > 0) {
     lines.push(chalk.dim('Existing prose unchanged.'));
   }
   console.log(fmt.box(lines.join('\n'), { title: 'Summary', padding: 0 }));
 
-  if (totalUnmatched > 0) {
+  if (totalUnmatched > 0 || totalLowConfidence > 0) {
     console.log();
     console.log(chalk.dim('Tip: run "rev verify-anchors" to see which comments drifted.'));
   }

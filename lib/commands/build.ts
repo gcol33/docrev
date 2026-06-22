@@ -25,6 +25,7 @@ import {
 } from './context.js';
 import type { Command } from 'commander';
 import * as readline from 'readline';
+import { getBuildSuggestions } from '../errors.js';
 
 interface RefsOptions {
   dir: string;
@@ -673,6 +674,10 @@ export function register(program: Command, pkg?: { version?: string }): void {
           console.log('');
           for (const f of failed) {
             console.error(chalk.red(`\n${f.format} error:\n${f.error}`));
+            const issue = f.format === 'pdf' || f.format === 'beamer' ? 'latex_error' : 'pandoc_failed';
+            for (const suggestion of getBuildSuggestions(issue, { format: f.format })) {
+              console.error(chalk.dim(`  ${suggestion}`));
+            }
           }
           process.exit(1);
         }

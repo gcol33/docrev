@@ -412,16 +412,36 @@ export function stripToSingleSpace(text: string): string {
  * @returns True if text contains any annotations
  * @throws TypeError If text is not a string
  */
+// Non-global copies for membership tests. `.test()` on a global regex advances
+// its lastIndex, so reusing PATTERNS here would make the result depend on prior
+// calls and intermittently miss real annotations.
+const ANNOTATION_TESTERS = [
+  PATTERNS.insert,
+  PATTERNS.delete,
+  PATTERNS.substitute,
+  PATTERNS.comment,
+  PATTERNS.highlight,
+].map((re) => new RegExp(re.source, re.flags.replace('g', '')));
+
 export function hasAnnotations(text: string): boolean {
   if (typeof text !== 'string') {
     throw new TypeError(`text must be a string, got ${typeof text}`);
   }
 
-  return PATTERNS.insert.test(text) ||
-         PATTERNS.delete.test(text) ||
-         PATTERNS.substitute.test(text) ||
-         PATTERNS.comment.test(text) ||
-         PATTERNS.highlight.test(text);
+  return ANNOTATION_TESTERS.some((re) => re.test(text));
+}
+
+/**
+ * Replace the specific annotation occurrence at `position` rather than the
+ * first textual match. Two identical annotations (e.g. the same `{++the++}`
+ * twice) would otherwise have the wrong one edited. Falls back to a
+ * first-occurrence replace only if the recorded position no longer lines up.
+ */
+function replaceAnnotationAt(text: string, match: string, position: number, replacement: string): string {
+  if (position >= 0 && text.startsWith(match, position)) {
+    return text.slice(0, position) + replacement + text.slice(position + match.length);
+  }
+  return text.replace(match, replacement);
 }
 
 /**
@@ -480,7 +500,7 @@ export function applyDecision(text: string, annotation: Annotation, accept: bool
       return text;
   }
 
-  return text.replace(annotation.match, replacement);
+  return replaceAnnotationAt(text, annotation.match, annotation.position, replacement);
 }
 
 /**
@@ -549,11 +569,11 @@ export function setCommentStatus(text: string, comment: Annotation, resolved: bo
   if (resolved) {
     // Add [RESOLVED] marker before the closing <<
     const newMatch = originalMatch.replace(/<<\}$/, ' [RESOLVED]<<}');
-    return text.replace(originalMatch, newMatch);
+    return replaceAnnotationAt(text, originalMatch, comment.position, newMatch);
   } else {
     // Remove resolved markers
     const newMatch = originalMatch.replace(/\s*\[(RESOLVED|✓)\]<<\}$/, '<<}');
-    return text.replace(originalMatch, newMatch);
+    return replaceAnnotationAt(text, originalMatch, comment.position, newMatch);
   }
 }
 

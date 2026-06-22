@@ -67,6 +67,7 @@ export function register(program: Command): void {
           // Group results by status
           const valid = results.entries.filter(e => e.status === 'valid');
           const invalid = results.entries.filter(e => e.status === 'invalid');
+          const unreachable = results.entries.filter(e => e.status === 'unreachable');
           const missing = results.entries.filter(e => e.status === 'missing');
           const skipped = results.entries.filter(e => e.status === 'skipped');
 
@@ -74,9 +75,14 @@ export function register(program: Command): void {
           const summaryRows: string[][] = [
             [chalk.green('Valid'), chalk.green(valid.length.toString())],
             [invalid.length > 0 ? chalk.red('Invalid') : 'Invalid', invalid.length > 0 ? chalk.red(invalid.length.toString()) : '0'],
+          ];
+          if (unreachable.length > 0) {
+            summaryRows.push([chalk.yellow('Unreachable'), chalk.yellow(unreachable.length.toString())]);
+          }
+          summaryRows.push(
             [missing.length > 0 ? chalk.yellow('Missing (articles)') : 'Missing', missing.length > 0 ? chalk.yellow(missing.length.toString()) : '0'],
             [chalk.dim('Skipped'), chalk.dim(skipped.length.toString())],
-          ];
+          );
           console.log(fmt.table(['Status', 'Count'], summaryRows));
           console.log();
 
@@ -84,6 +90,16 @@ export function register(program: Command): void {
           if (invalid.length > 0) {
             console.log(chalk.red('Invalid DOIs:'));
             for (const e of invalid) {
+              console.log(`  ${chalk.bold(e.key)}: ${e.doi || 'N/A'}`);
+              console.log(chalk.dim(`    ${e.message}`));
+            }
+            console.log();
+          }
+
+          // Show unreachable DOIs (network issue — not necessarily invalid)
+          if (unreachable.length > 0) {
+            console.log(chalk.yellow('Unreachable (could not contact registry — DOI may be fine):'));
+            for (const e of unreachable) {
               console.log(`  ${chalk.bold(e.key)}: ${e.doi || 'N/A'}`);
               console.log(chalk.dim(`    ${e.message}`));
             }

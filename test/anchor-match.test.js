@@ -6,26 +6,10 @@
  */
 
 import { strict as assert } from 'assert';
+import { test } from 'node:test';
 
 const { findAnchorInText, findAllOccurrences, stripCriticMarkup, classifyStrategy } =
   await import('../lib/anchor-match.js');
-
-let passed = 0;
-let failed = 0;
-
-function test(name, fn) {
-  try {
-    fn();
-    passed++;
-    console.log(`  ✓ ${name}`);
-  } catch (err) {
-    failed++;
-    console.log(`  ✗ ${name}`);
-    console.log(`    ${err.message}`);
-  }
-}
-
-console.log('\n🔧 anchor-match unit tests\n');
 
 test('direct match returns clean strategy', () => {
   const r = findAnchorInText('quick brown fox', 'the quick brown fox jumps');
@@ -131,6 +115,3 @@ test('stripCriticMarkup non-greedy across two adjacent comments', () => {
   const t = 'pre {>>A: one<<} mid {>>B: two<<} post';
   assert.equal(stripCriticMarkup(t), 'pre  mid  post');
 });
-
-console.log(`\n📊 Results: ${passed} passed, ${failed} failed\n`);
-if (failed > 0) process.exit(1);

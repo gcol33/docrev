@@ -10,25 +10,9 @@
  */
 
 import { strict as assert } from 'assert';
+import { test } from 'node:test';
 
 const { insertCommentsIntoMarkdown } = await import('../lib/import.js');
-
-let passed = 0;
-let failed = 0;
-
-function test(name, fn) {
-  try {
-    fn();
-    passed++;
-    console.log(`  ✓ ${name}`);
-  } catch (err) {
-    failed++;
-    console.log(`  ✗ ${name}`);
-    console.log(`    ${err.message}`);
-  }
-}
-
-console.log('\n🐛 Comment Placement Bug Tests\n');
 
 // Test 1: Simple case - phrase appears once
 test('Comment placed correctly when anchor is unique', () => {
@@ -134,10 +118,3 @@ We discuss overrepresentation patterns.`;
   assert(comment3Pos > discussionPos,
     'Hanno comment should be in Discussion');
 });
-
-console.log(`\n📊 Results: ${passed} passed, ${failed} failed\n`);
-
-if (failed > 0) {
-  console.log('⚠️  Some tests failed - this confirms the bug exists');
-  process.exit(0); // Don't fail CI, this documents known bug
-}

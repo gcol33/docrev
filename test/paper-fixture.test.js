@@ -25,6 +25,10 @@ import { prepareMarkdownWithMarkers } from '../lib/wordcomments.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DOCX = path.join(__dirname, 'fixtures', 'paper-niche-expansion.docx');
+const HAS_FIXTURE = fs.existsSync(DOCX);
+const SKIP = HAS_FIXTURE
+  ? false
+  : 'fixture missing; restore from Drive 1L1TcYwqV3Bp4tnposkPz5eTMkl_AmFR5';
 
 function countCritic(t) {
   return (t.match(/\{>>/g) || []).length;
@@ -36,7 +40,7 @@ function norm(t) {
   return t.replace(/\s+/g, ' ').trim();
 }
 
-describe('real paper fixture (298 comments)', () => {
+describe('real paper fixture (298 comments)', { skip: SKIP }, () => {
   let extracted;
   let anchors;
   let baseText;
@@ -44,12 +48,6 @@ describe('real paper fixture (298 comments)', () => {
   let replyCount;
 
   before(async () => {
-    if (!fs.existsSync(DOCX)) {
-      throw new Error(
-        `Fixture missing: ${DOCX}\n` +
-          `Restore from Drive: 1L1TcYwqV3Bp4tnposkPz5eTMkl_AmFR5`,
-      );
-    }
     extracted = await extractWordComments(DOCX);
     const anchorResult = await extractCommentAnchors(DOCX);
     anchors = anchorResult.anchors;
