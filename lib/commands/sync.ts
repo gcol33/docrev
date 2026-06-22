@@ -166,7 +166,8 @@ export function register(program: Command): void {
 
       try {
         const config = sectionsConfig;
-        const { importFromWord, extractWordComments, extractCommentAnchors, insertCommentsIntoMarkdown, extractFromWord } = await import('../import.js');
+        const { importFromWord, extractWordComments, extractCommentAnchors, insertCommentsIntoMarkdown, extractFromWord, extractHeadings } = await import('../import.js');
+        const { computeSectionBoundaries } = await import('./section-boundaries.js');
 
         let registry = null;
         let totalRefConversions = 0;
@@ -287,82 +288,25 @@ export function register(program: Command): void {
         }> = [];
         let totalChanges = 0;
 
-        // Calculate section boundaries in the XML document text for comment filtering
-        // Comment positions (docPosition) are relative to xmlDocText, NOT wordText
-        // So we must find section headers in xmlDocText to get matching boundaries
-        const sectionBoundaries: Array<{ file: string; start: number; end: number }> = [];
-        const xmlLower = xmlDocText.toLowerCase();
+        // Route comments to sections using boundaries from the document's real
+        // heading paragraphs. docPosition (from extractCommentAnchors) and each
+        // heading's docPosition share one coordinate system over xmlDocText, so
+        // every configured section gets a boundary — not only the handful that
+        // matched a hardcoded keyword list. Sections named "Objectives" or
+        // "Annex 2" used to get no boundary, so their comments were silently
+        // dropped while the summary still claimed every comment was placed.
+        // This is the same routing path as `sync --comments-only`.
+        const headings = await extractHeadings(docx);
+        const sectionBoundaries = computeSectionBoundaries(config.sections, headings, xmlDocText.length);
+        const firstBoundaryStart = sectionBoundaries.length > 0 ? sectionBoundaries[0].start : 0;
 
-        // Standard section header keywords to search for in XML
-        // Map from file name pattern to search terms
-        const sectionKeywords: Record<string, string[]> = {
-          'abstract': ['abstract', 'summary'],
-          'introduction': ['introduction', 'background'],
-          'methods': ['methods', 'materials and methods', 'methodology'],
-          'results': ['results'],
-          'discussion': ['discussion'],
-          'conclusion': ['conclusion', 'conclusions'],
-        };
-
-        // Helper: find section header (skip labels like "Methods:" in structured abstracts)
-        // Real section headers are NOT followed by ":" immediately
-        function findSectionHeader(text: string, keyword: string, startFrom: number = 0): number {
-          const lower = text.toLowerCase();
-          let idx = startFrom;
-          while ((idx = lower.indexOf(keyword, idx)) !== -1) {
-            // Check what follows the keyword
-            const afterKeyword = text.slice(idx + keyword.length, idx + keyword.length + 5);
-            // Skip if followed by ":" (this is a label, not a section header)
-            // Real headers are followed by text content, a newline, or a subheading
-            if (!afterKeyword.startsWith(':') && !afterKeyword.startsWith(' :')) {
-              return idx;
-            }
-            idx++;
-          }
-          return -1;
-        }
-
-        for (const section of wordSections) {
-          const fileBase = section.file.replace(/\.md$/i, '').toLowerCase();
-
-          // Get keywords for this section
-          const keywords = sectionKeywords[fileBase] || [fileBase];
-
-          // Find the first valid keyword that exists in XML (not a label)
-          let headerIdx = -1;
-          for (const kw of keywords) {
-            const idx = findSectionHeader(xmlDocText, kw, 0);
-            if (idx >= 0 && (headerIdx < 0 || idx < headerIdx)) {
-              headerIdx = idx;
-            }
-          }
-
-          if (headerIdx >= 0) {
-            // Find the next section's start to determine end boundary
-            let nextHeaderIdx = xmlDocText.length;
-            const sectionIdx = wordSections.indexOf(section);
-            if (sectionIdx < wordSections.length - 1) {
-              const nextFileBase = wordSections[sectionIdx + 1].file.replace(/\.md$/i, '').toLowerCase();
-              const nextKeywords = sectionKeywords[nextFileBase] || [nextFileBase];
-              for (const nkw of nextKeywords) {
-                const foundNext = findSectionHeader(xmlDocText, nkw, headerIdx + 10);
-                if (foundNext >= 0 && foundNext < nextHeaderIdx) {
-                  nextHeaderIdx = foundNext;
-                }
-              }
-            }
-
-            sectionBoundaries.push({
-              file: section.file,
-              start: headerIdx,
-              end: nextHeaderIdx
-            });
-
-          }
-        }
-
-        // Document length is the XML text length (same coordinate system as docPosition)
-        const docLength = xmlDocText.length;
+        // Truthful comment accounting: track which comments were routed to a
+        // synced section and how many were actually written, so the summary
+        // reports placements rather than the raw extracted count.
+        const routedCommentIds = new Set<string>();
+        let totalCommentsPlaced = 0;
+        let totalCommentsDeduped = 0;
+        let totalCommentsUnmatched = 0;
 
         for (const section of wordSections) {
           const sectionPath = path.join(options.dir, section.file);
@@ -372,6 +316,22 @@ export function register(program: Command): void {
               file: section.file,
               header: section.header,
               status: 'skipped',
+              stats: undefined,
+            });
+            continue;
+          }
+
+          // A section that appears in the reviewed document as a bare heading
+          // with no body was not really part of this build (e.g. a "no-annex"
+          // export synced against the full project). Importing it would diff
+          // real prose against an empty body and rewrite the file to near-empty.
+          // Leave it untouched.
+          const bodyEmpty = section.content.trim() === section.header.trim();
+          if (bodyEmpty) {
+            sectionResults.push({
+              file: section.file,
+              header: section.header,
+              status: 'untouched',
               stats: undefined,
             });
             continue;
@@ -393,31 +353,19 @@ export function register(program: Command): void {
             totalRefConversions += refConversions.length;
           }
 
-          let commentsInserted = 0;
           if (comments.length > 0 && anchors.size > 0) {
-            // Filter comments to only those that belong to this section
-            // Use exact position matching: docPosition is in xmlDocText coordinates,
-            // and sectionBoundaries are also in xmlDocText coordinates (same source!)
+            // Filter comments to those whose docPosition falls in this section's
+            // boundary (docPosition and boundaries share xmlDocText coordinates).
+            // The section owning the first boundary also catches comments placed
+            // before any heading.
             const boundary = sectionBoundaries.find(b => b.file === section.file);
-            const isFirstSection = wordSections.indexOf(section) === 0;
-            const firstBoundaryStart = sectionBoundaries.length > 0 ? Math.min(...sectionBoundaries.map(b => b.start)) : 0;
+            const ownsFirstBoundary = !!boundary && boundary.start === firstBoundaryStart;
 
-            const sectionComments = comments.filter((c: any) => {
+            const sectionComments = comments.filter((c: { id: string }) => {
               const anchorData = anchors.get(c.id);
-              if (!anchorData) return false;
-
-              // Use exact position - no scaling needed since both are in xmlDocText coordinates
-              if (anchorData.docPosition !== undefined && boundary) {
-                // Include comments within section boundaries
-                if (anchorData.docPosition >= boundary.start && anchorData.docPosition < boundary.end) {
-                  return true;
-                }
-                // Also include "outside" comments (before first section) in the first section file
-                if (isFirstSection && anchorData.docPosition < firstBoundaryStart) {
-                  return true;
-                }
-              }
-
+              if (!anchorData || anchorData.docPosition === undefined || !boundary) return false;
+              if (anchorData.docPosition >= boundary.start && anchorData.docPosition < boundary.end) return true;
+              if (ownsFirstBoundary && anchorData.docPosition < firstBoundaryStart) return true;
               return false;
             });
 
@@ -426,22 +374,20 @@ export function register(program: Command): void {
             }
 
             if (sectionComments.length > 0) {
-              // Use a more robust pattern that handles < in comment text
-              const commentPattern = /\{>>.*?<<\}/gs;
-              const beforeCount = (annotated.match(commentPattern) || []).length;
+              for (const c of sectionComments) routedCommentIds.add(c.id);
+              const cstats = { placed: 0, deduped: 0, unmatched: 0 };
               annotated = insertCommentsIntoMarkdown(annotated, sectionComments, anchors, {
                 quiet: !process.env.DEBUG,
-                sectionBoundary: boundary  // Pass section boundary for position-based insertion
+                sectionBoundary: boundary,
+                outStats: cstats,
               });
-              const afterCount = (annotated.match(commentPattern) || []).length;
-              commentsInserted = afterCount - beforeCount;
+              stats.comments = (stats.comments || 0) + cstats.placed;
+              totalCommentsPlaced += cstats.placed;
+              totalCommentsDeduped += cstats.deduped;
+              totalCommentsUnmatched += cstats.unmatched;
 
               if (process.env.DEBUG) {
-                console.log(`[DEBUG] ${section.file}: inserted ${commentsInserted} of ${sectionComments.length} comments`);
-              }
-
-              if (commentsInserted > 0) {
-                stats.comments = (stats.comments || 0) + commentsInserted;
+                console.log(`[DEBUG] ${section.file}: placed ${cstats.placed}, deduped ${cstats.deduped}, unmatched ${cstats.unmatched} of ${sectionComments.length}`);
               }
             }
           }
@@ -475,11 +421,11 @@ export function register(program: Command): void {
         }
 
         const tableRows = sectionResults.map((r) => {
-          if (r.status === 'skipped') {
+          if (r.status === 'skipped' || r.status === 'untouched') {
             return [
               chalk.dim(r.file),
               chalk.dim(r.header.slice(0, 25)),
-              chalk.yellow('skipped'),
+              chalk.yellow(r.status),
               '',
               '',
               '',
@@ -524,17 +470,38 @@ export function register(program: Command): void {
           }
         }
 
+        // Comments carried by the document but never routed to a synced section
+        // (they fell in a skipped/untouched/absent section). Surfacing these
+        // keeps the summary honest instead of reporting every extracted comment
+        // as placed.
+        const unroutedComments = comments.length - routedCommentIds.size;
+
         if (options.dryRun) {
           console.log(fmt.box(chalk.yellow('Dry run - no files written'), { padding: 0 }));
         } else if (totalChanges > 0 || totalRefConversions > 0 || comments.length > 0) {
           const summaryLines: string[] = [];
           summaryLines.push(`${chalk.bold(wordSections.length)} sections processed`);
           if (totalChanges > 0) summaryLines.push(`${chalk.bold(totalChanges)} annotations imported`);
-          if (comments.length > 0) summaryLines.push(`${chalk.bold(comments.length)} comments placed`);
+          if (totalCommentsPlaced > 0) {
+            summaryLines.push(`${chalk.bold(totalCommentsPlaced)} of ${comments.length} comments placed`);
+          }
+          if (totalCommentsDeduped > 0) {
+            summaryLines.push(`${chalk.cyan(totalCommentsDeduped)} already present (skipped)`);
+          }
+          if (totalCommentsUnmatched > 0) {
+            summaryLines.push(`${chalk.yellow(totalCommentsUnmatched)} unmatched (anchor not in current prose)`);
+          }
+          if (unroutedComments > 0) {
+            summaryLines.push(`${chalk.yellow(unroutedComments)} not routed to any synced section`);
+          }
           if (totalRefConversions > 0) summaryLines.push(`${chalk.bold(totalRefConversions)} refs converted to @-syntax`);
 
           console.log(fmt.box(summaryLines.join('\n'), { title: 'Summary', padding: 0 }));
           console.log();
+          if (totalCommentsUnmatched > 0 || unroutedComments > 0) {
+            console.log(chalk.yellow(`  ${totalCommentsUnmatched + unroutedComments} comment(s) were not written. Run "rev verify-anchors" or re-sync with the full document.`));
+            console.log();
+          }
           console.log(chalk.dim('Next steps:'));
           console.log(chalk.dim('  1. rev review <section.md>  - Accept/reject changes'));
           console.log(chalk.dim('  2. rev comments <section.md> - View/address comments'));

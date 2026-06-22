@@ -86,7 +86,10 @@ export function generateConfig(
 
   for (const file of files) {
     const filePath = path.join(directory, file);
-    const header = extractHeader(filePath);
+    // Use the first heading at any level: a section file may be headed by a
+    // subsection (## 1.2 Objectives). H1-only extraction left such files with a
+    // filename-derived header that never matched the reviewed document.
+    const header = extractFirstHeading(filePath);
     const baseName = path.basename(file, '.md').toLowerCase();
 
     // Determine order based on common patterns
@@ -376,7 +379,7 @@ export function splitAnnotatedPaper(
     let currentContent: string[] = [];
 
     for (const line of lines) {
-      const headerMatch = line.match(/^#\s+(.+)$/);
+      const headerMatch = line.match(/^#{1,6}\s+(.+)$/);
 
       if (headerMatch && headerMatch[1]) {
         // Save previous section

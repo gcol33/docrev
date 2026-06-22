@@ -5,6 +5,17 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-06-22
+
+### Fixed
+- **`rev init` now derives subsection headers too (#5 Bug B).** 0.10.1 fixed first-heading-at-any-level only for the `rev.yaml`-derived path; `generateConfig` (the `rev init` -> `sections.yaml` path) still used H1-only extraction, so a project initialised with `rev init` left a `## 1.2 Objectives` file headed `Sec2` and folded its content into the preceding section on sync. `generateConfig` and `splitAnnotatedPaper` now use the first heading at any level.
+- **Comments routed to non-keyword sections are no longer silently dropped (#5 Bug C).** The main `sync` flow routed comments with a hardcoded keyword list (abstract/intro/methods/results/discussion/conclusion); sections named e.g. `Objectives` or `Annex 2` got no boundary and their comments were discarded while the summary still reported every comment as placed. Comment routing now uses the same heading-based `computeSectionBoundaries` as `sync --comments-only`.
+- **Sections absent (as prose) from the reviewed document are left untouched (#5 Bug C).** A section that appears only as a bare heading with no body — e.g. when a "no-annex" export is synced against the full project — was diffed against empty content and rewritten to near-empty. Such sections are now reported as `untouched` and left on disk unchanged.
+
+### Changed
+- **Truthful sync summary (#5 Bug C).** The summary now reports `N of M comments placed`, plus `already present`, `unmatched`, and `not routed to any synced section` counts (from `insertCommentsIntoMarkdown`'s `outStats`), instead of asserting that the raw extracted count was placed.
+- The main `sync` flow and `sync --comments-only` now share one comment-routing path, removing the divergent keyword-search boundary logic.
+
 ## [0.10.1] - 2026-06-05
 
 ### Fixed
