@@ -14,6 +14,8 @@ import { fileURLToPath } from 'url';
 import { execSync, spawn, ChildProcess } from 'child_process';
 import YAML from 'yaml';
 import { stripAnnotations } from './annotations.js';
+import { criticToNativeTrackChanges, enableTrackRevisions, type NativeTrackChangeStats } from './trackchanges.js';
+import { prepareMarkdownWithMarkers, injectCommentsAtMarkers } from './wordcomments.js';
 import { buildRegistry, labelToDisplay, detectDynamicRefs, resolveForwardRefs, resolveSupplementaryRefs } from './crossref.js';
 import { processVariables, hasVariables } from './variables.js';
 import { processSlideMarkdown, hasSlideSyntax } from './slides.js';
@@ -968,6 +970,190 @@ export function prepareForFormat(
   fs.writeFileSync(preparedPath, content, 'utf-8');
 
   return preparedPath;
+}
+
+// =============================================================================
+// Reviewed DOCX (track changes + threaded comments in one file)
+// =============================================================================
+
+export interface ReviewedDocxOptions {
+  /** Final output path for the reviewed docx. */
+  outputPath: string;
+  /** Author name attached to the tracked revisions. */
+  author?: string;
+  /**
+   * Thread `{>>...<<}` comments into the same file (parent + reply via
+   * commentsExtended.xml). When false, comments are stripped and only tracked
+   * changes are emitted.
+   */
+  includeComments?: boolean;
+  /**
+   * Optional reference docx: realign comment anchors against its text before
+   * injecting, matching the `--reference` behaviour of `--dual`. Only used
+   * when includeComments is true.
+   */
+  referencePath?: string | null;
+  /** Extra pandoc args (CLI --pandoc-arg), applied to the single pandoc pass. */
+  pandocArgs?: string[];
+  verbose?: boolean;
+}
+
+export interface ReviewedDocxResult {
+  success: boolean;
+  error?: string;
+  outputPath: string;
+  stats: NativeTrackChangeStats;
+  /** Number of parent comments threaded (0 when includeComments is false). */
+  commentCount: number;
+  replyCount: number;
+  /** Comments that could not be anchored (markers not found in the docx). */
+  skippedComments: number;
+  /** Realigned comment count when a reference docx was supplied. */
+  realigned?: number;
+}
+
+/**
+ * Build a single reviewed docx containing pandoc-native tracked changes and,
+ * optionally, threaded Word comments.
+ *
+ * One pandoc pass through the full rev filter chain (crossref, citeproc,
+ * reference-doc, macros) emits the `w:ins`/`w:del` revisions from native
+ * `.insertion`/`.deletion` spans; the same file is then post-processed to
+ * thread `{>>...<<}` comments (parent + reply). This is the `--dual
+ * --show-changes` artifact: my edits as tracked changes *and* the reviewer's
+ * comments with my replies, in the one file a supervisor opens and hands back.
+ *
+ * @param directory - Project directory
+ * @param paperPath - Combined paper.md (from combineSections)
+ * @param config - Build config
+ * @param options - Output path, author, comment handling
+ */
+export async function buildReviewedDocx(
+  directory: string,
+  paperPath: string,
+  config: BuildConfig,
+  options: ReviewedDocxOptions
+): Promise<ReviewedDocxResult> {
+  const {
+    outputPath,
+    author = 'Author',
+    includeComments = false,
+    referencePath = null,
+    pandocArgs,
+    verbose,
+  } = options;
+
+  const emptyStats: NativeTrackChangeStats = { insertions: 0, deletions: 0, substitutions: 0 };
+
+  let markdown = fs.readFileSync(paperPath, 'utf-8');
+  let realigned: number | undefined;
+
+  // Realign comment anchors from a reference docx (parity with --dual).
+  if (includeComments && referencePath && fs.existsSync(referencePath)) {
+    try {
+      const { realignMarkdown } = await import('./comment-realign.js');
+      const res = await realignMarkdown(referencePath, markdown);
+      if (res.success) {
+        markdown = res.markdown;
+        realigned = res.insertions;
+      }
+    } catch {
+      // Non-fatal — fall back to the anchors already in the markdown.
+    }
+  }
+
+  // 1. CriticMarkup ins/del/subst → pandoc-native track-change spans.
+  const { text: withSpans, stats } = criticToNativeTrackChanges(markdown, { author });
+
+  // 2. Strip remaining annotations (highlights, and comments unless threading
+  //    them). The native spans are inert to stripAnnotations — it only touches
+  //    CriticMarkup and `.mark` spans, which are gone or preserved as needed.
+  let content = stripAnnotations(withSpans, { keepComments: includeComments });
+
+  // 3. Shared DOCX transforms (author block, @fig: → "Figure 1", raw figures).
+  const registry = buildRegistry(directory, config.sections);
+  content = applyFormatTransforms(content, 'docx', config, registry);
+
+  // 4. Comment markers (parents get ⟦CMS⟧ ranges; replies drop out for later
+  //    threading). No-op when not including comments.
+  let comments: ReturnType<typeof prepareMarkdownWithMarkers>['comments'] = [];
+  if (includeComments) {
+    const prepared = prepareMarkdownWithMarkers(content);
+    content = prepared.markedMarkdown;
+    comments = prepared.comments;
+  }
+
+  const preparedPath = path.join(directory, '.paper-reviewed.md');
+  const tempDocx = path.join(directory, '.paper-reviewed.docx');
+
+  try {
+    fs.writeFileSync(preparedPath, content, 'utf-8');
+
+    // 5. Single pandoc pass — emits native tracked changes with full filter chain.
+    const pandocResult = await runPandoc(preparedPath, 'docx', config, {
+      outputPath: tempDocx,
+      pandocArgs,
+      verbose,
+    });
+    if (!pandocResult.success) {
+      return {
+        success: false,
+        error: pandocResult.error,
+        outputPath,
+        stats: emptyStats,
+        commentCount: 0,
+        replyCount: 0,
+        skippedComments: 0,
+        realigned,
+      };
+    }
+
+    const hasTrackChanges = stats.insertions + stats.deletions + stats.substitutions > 0;
+    if (hasTrackChanges) enableTrackRevisions(tempDocx);
+
+    // 6. Thread comments into the same file (or just move it into place).
+    if (comments.length > 0) {
+      const injection = await injectCommentsAtMarkers(tempDocx, comments, outputPath);
+      if (!injection.success) {
+        return {
+          success: false,
+          error: injection.error,
+          outputPath,
+          stats,
+          commentCount: 0,
+          replyCount: 0,
+          skippedComments: 0,
+          realigned,
+        };
+      }
+      return {
+        success: true,
+        outputPath,
+        stats,
+        commentCount: injection.commentCount,
+        replyCount: injection.replyCount ?? 0,
+        skippedComments: injection.skippedComments,
+        realigned,
+      };
+    }
+
+    fs.copyFileSync(tempDocx, outputPath);
+    return {
+      success: true,
+      outputPath,
+      stats,
+      commentCount: 0,
+      replyCount: 0,
+      skippedComments: 0,
+      realigned,
+    };
+  } finally {
+    if (!process.env.DEBUG) {
+      for (const tmp of [preparedPath, tempDocx]) {
+        try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
+      }
+    }
+  }
 }
 
 /**

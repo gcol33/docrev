@@ -490,18 +490,6 @@ export interface TrackChangesResult {
 }
 
 // ============================================
-// TrackChanges
-// ============================================
-
-export interface TrackChangeMarker {
-  id: number;
-  type: 'insert' | 'delete' | 'substitute' | 'comment';
-  content: string;
-  author: string;
-  replacement?: string;
-}
-
-// ============================================
 // Spelling
 // ============================================
 

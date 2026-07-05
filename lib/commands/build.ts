@@ -484,8 +484,8 @@ export function register(program: Command, pkg?: { version?: string }): void {
     .option('-j, --journal <name>', 'Use journal profile for build formatting defaults')
     .option('--no-crossref', 'Skip pandoc-crossref filter')
     .option('--toc', 'Include table of contents')
-    .option('--show-changes', 'Export DOCX with visible track changes (audit mode)')
-    .option('--dual', 'Output both clean version and annotated version (with comments)')
+    .option('--show-changes', 'Export DOCX with visible track changes. Add --dual to thread comments into the same file.')
+    .option('--dual', 'Output both clean version and annotated version (with comments). With --show-changes, emits one DOCX with tracked changes AND threaded comments.')
     .option('--reference <docx>', 'Reference DOCX for comment position alignment (use with --dual)')
     .option('--theme <name>', 'Beamer theme (default, metropolis, etc.)')
     .option('--colortheme <name>', 'Beamer color theme')
@@ -551,8 +551,13 @@ export function register(program: Command, pkg?: { version?: string }): void {
       console.log(chalk.dim(`  Formats: ${targetFormats.join(', ')}`));
       console.log(chalk.dim(`  Crossref: ${hasPandocCrossref() && options.crossref !== false ? 'enabled' : 'disabled'}`));
       if (tocEnabled) console.log(chalk.dim(`  TOC: enabled`));
-      if (options.showChanges) console.log(chalk.dim(`  Track changes: visible`));
-      if (options.dual) console.log(chalk.dim(`  Dual output: clean + with comments`));
+      if (options.showChanges && options.dual) {
+        console.log(chalk.dim(`  Reviewed output: tracked changes + threaded comments (one file)`));
+      } else if (options.showChanges) {
+        console.log(chalk.dim(`  Track changes: visible`));
+      } else if (options.dual) {
+        console.log(chalk.dim(`  Dual output: clean + with comments`));
+      }
       console.log('');
 
       if (options.toc) {
@@ -587,8 +592,13 @@ export function register(program: Command, pkg?: { version?: string }): void {
           process.exit(1);
         }
 
-        const { combineSections, resolveOutputPath } = await import('../build.js');
-        const { buildWithTrackChanges } = await import('../trackchanges.js');
+        // --show-changes           → tracked changes only.
+        // --show-changes --dual    → tracked changes AND threaded comments in
+        //                            the one file (issue #6). Both write the
+        //                            `<name>-changes.docx` deliverable.
+        const includeComments = !!options.dual;
+
+        const { combineSections, resolveOutputPath, buildReviewedDocx } = await import('../build.js');
 
         const spin = fmt.spinner('Building with track changes...').start();
 
@@ -605,21 +615,36 @@ export function register(program: Command, pkg?: { version?: string }): void {
           const outDir = path.dirname(outputPath);
           if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 
-          const spinTc = fmt.spinner('Applying track changes...').start();
-          const result = await buildWithTrackChanges(paperPath, outputPath, {
+          const spinTc = fmt.spinner(
+            includeComments ? 'Applying track changes and comments...' : 'Applying track changes...'
+          ).start();
+          const result = await buildReviewedDocx(dir, paperPath, config, {
+            outputPath,
             author: getUserName() || 'Author',
+            includeComments,
+            referencePath: options.reference ? path.resolve(dir, options.reference) : null,
+            pandocArgs: options.pandocArg,
+            verbose: options.verbose,
           });
           spinTc.stop();
 
           if (result.success) {
-            console.log(chalk.cyan('Output (with track changes):'));
+            const label = includeComments ? 'track changes + comments' : 'track changes';
+            console.log(chalk.cyan(`Output (${label}):`));
             console.log(`  DOCX: ${path.basename(outputPath)}`);
-            if (result.stats) {
-              console.log(chalk.dim(`    ${result.stats.insertions} insertions, ${result.stats.deletions} deletions, ${result.stats.substitutions} substitutions`));
+            console.log(chalk.dim(`    ${result.stats.insertions} insertions, ${result.stats.deletions} deletions, ${result.stats.substitutions} substitutions`));
+            if (includeComments) {
+              console.log(chalk.dim(`    ${result.commentCount} comments, ${result.replyCount} replies`));
+              if (result.realigned !== undefined) {
+                console.log(chalk.dim(`    ${result.realigned} comments realigned from reference`));
+              }
+              if (result.skippedComments > 0) {
+                console.log(chalk.yellow(`    Warning: ${result.skippedComments} comments could not be anchored`));
+              }
             }
             console.log(chalk.green('\nBuild complete!'));
           } else {
-            console.error(fmt.status('error', result.message));
+            console.error(fmt.status('error', result.error || 'Build failed'));
             process.exit(1);
           }
         } catch (err) {

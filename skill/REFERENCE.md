@@ -62,6 +62,7 @@ rev build docx               # DOCX only
 rev build --toc              # Include table of contents
 rev build docx --dual        # Clean + annotated versions
 rev build docx --show-changes  # DOCX with visible track changes (audit)
+rev build docx --dual --show-changes  # One DOCX: tracked changes + threaded comments
 rev build docx --pandoc-arg=--lua-filter=tofill.lua   # Pass extra args to pandoc
 rev build -o Final_Report     # Override output filename (extension auto-added)
 rev build pdf --verbose      # Echo the pandoc invocation (useful for filter debugging)
@@ -138,9 +139,19 @@ The `--dual` flag produces:
 - `output/<title>_comments.docx` — includes comment threads as Word comments
 
 The `--show-changes` flag (DOCX only) produces a single audit document
-where every accepted/rejected revision and substitution is exported as a
-visible Word track change, attributed to the configured user. Useful when
-a co-author wants to see what changed since the last shared version.
+(`output/<title>-changes.docx`) where every insertion/deletion/substitution is
+exported as a visible Word track change, attributed to the configured user.
+Useful when a co-author wants to see what changed since the last shared
+version. The revisions are emitted by pandoc as native run-level `w:ins`/`w:del`
+elements through the full filter chain (crossref, citeproc, reference-doc,
+macros) — not post-processed markers.
+
+Combine `--dual --show-changes` to get one `output/<title>-changes.docx` with
+tracked changes AND threaded comments: your `{++..++}`/`{--..--}` edits as
+track changes alongside the reviewer's `{>>..<<}` comments and your threaded
+replies. This is the standard "return to senior author" artifact. Add
+`--reference <docx>` to realign comment anchors against a reviewer's copy
+before injecting.
 
 ### rev preview
 Build and open document in default app.

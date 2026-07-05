@@ -1,247 +1,166 @@
 /**
  * Track changes module - Apply markdown annotations as Word track changes
  *
- * Converts CriticMarkup annotations to Word OOXML track changes format.
+ * Converts CriticMarkup insertions/deletions/substitutions to pandoc-native
+ * track-change spans (`[text]{.insertion}` / `[text]{.deletion}`). Pandoc's
+ * docx writer emits well-formed `w:ins`/`w:del` run-level revisions from these
+ * spans in a single pass, so the output is valid OOXML that Word accepts and
+ * that composes with comment injection (see lib/wordcomments.ts).
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import AdmZip from 'adm-zip';
-import type { TrackChangeMarker } from './types.js';
-import { escapeXml } from './utils.js';
 
-interface PrepareOptions {
+interface NativeTrackChangeOptions {
   author?: string;
+  /** ISO-8601 timestamp for the revisions. Defaults to now (no milliseconds). */
+  date?: string;
 }
 
-interface PrepareResult {
+export interface NativeTrackChangeStats {
+  insertions: number;
+  deletions: number;
+  substitutions: number;
+}
+
+interface ConvertResult {
   text: string;
-  markers: TrackChangeMarker[];
+  stats: NativeTrackChangeStats;
 }
 
 interface ApplyResult {
   success: boolean;
   message: string;
-  stats?: {
-    insertions: number;
-    deletions: number;
-    substitutions: number;
-  };
+  stats?: NativeTrackChangeStats;
+}
+
+/** Word/pandoc want revision dates without milliseconds: 2026-07-05T08:33:00Z */
+function isoDateNoMillis(): string {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 /**
- * Prepare text with CriticMarkup annotations for track changes
- * Replaces annotations with markers that can be processed in DOCX
- *
- * @param text - Text with CriticMarkup annotations
- * @param options - Options
- * @returns Processed text and marker info
+ * Escape a value for use inside a pandoc span attribute (`author="..."`).
+ * Pandoc attribute values are double-quoted; a literal `"` or `\` would break
+ * the attribute, so both are backslash-escaped.
  */
-export function prepareForTrackChanges(text: string, options: PrepareOptions = {}): PrepareResult {
-  const { author = 'Reviewer' } = options;
-  const markers: TrackChangeMarker[] = [];
-  let markerId = 0;
+function escapeSpanAttr(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
 
+/**
+ * Convert CriticMarkup insertions/deletions/substitutions to pandoc-native
+ * track-change spans. Comments (`{>>...<<}`) and highlights (`{==...==}`) are
+ * left untouched — the caller decides how to handle those (strip, or thread
+ * them via wordcomments.ts).
+ *
+ * A single pandoc pass over the result emits valid `w:ins`/`w:del` revisions,
+ * so this composes with the full rev filter chain (crossref, citeproc,
+ * reference-doc, macros) instead of post-processing document.xml by hand.
+ *
+ * @param text - Markdown with CriticMarkup annotations
+ * @param options - Author/date for the revisions
+ * @returns Converted markdown plus per-type counts
+ */
+export function criticToNativeTrackChanges(
+  text: string,
+  options: NativeTrackChangeOptions = {}
+): ConvertResult {
+  const author = escapeSpanAttr(options.author ?? 'Author');
+  const date = escapeSpanAttr(options.date ?? isoDateNoMillis());
+  const insAttr = `{.insertion author="${author}" date="${date}"}`;
+  const delAttr = `{.deletion author="${author}" date="${date}"}`;
+
+  const stats: NativeTrackChangeStats = { insertions: 0, deletions: 0, substitutions: 0 };
   let result = text;
 
-  // Process insertions: {++text++}
-  result = result.replace(/\{\+\+(.+?)\+\+\}/gs, (match, content) => {
-    const id = markerId++;
-    markers.push({
-      id,
-      type: 'insert',
-      content,
-      author,
-    });
-    return `{{TC_${id}}}`;
+  // Substitutions first so `{~~old~>new~~}` is consumed before the insertion/
+  // deletion passes could see its inner delimiters. Emit delete-then-insert so
+  // Word shows the struck-through original followed by the replacement.
+  result = result.replace(/\{~~([\s\S]+?)~>([\s\S]+?)~~\}/g, (_m, oldText, newText) => {
+    stats.substitutions++;
+    return `[${oldText}]${delAttr}[${newText}]${insAttr}`;
   });
 
-  // Process deletions: {--text--}
-  result = result.replace(/\{--(.+?)--\}/gs, (match, content) => {
-    const id = markerId++;
-    markers.push({
-      id,
-      type: 'delete',
-      content,
-      author,
-    });
-    return `{{TC_${id}}}`;
+  // Insertions: {++text++}
+  result = result.replace(/\{\+\+([\s\S]+?)\+\+\}/g, (_m, content) => {
+    stats.insertions++;
+    return `[${content}]${insAttr}`;
   });
 
-  // Process substitutions: {~~old~>new~~}
-  result = result.replace(/\{~~(.+?)~>(.+?)~~\}/gs, (match, old, replacement) => {
-    const id = markerId++;
-    markers.push({
-      id,
-      type: 'substitute',
-      content: old,
-      replacement,
-      author,
-    });
-    return `{{TC_${id}}}`;
+  // Deletions: {--text--}
+  result = result.replace(/\{--([\s\S]+?)--\}/g, (_m, content) => {
+    stats.deletions++;
+    return `[${content}]${delAttr}`;
   });
 
-  // Process comments: {>>Author: comment<<}
-  result = result.replace(/\{>>(.+?)<<\}/gs, (match, content) => {
-    const id = markerId++;
-    // Extract author if present (format: "Author: comment")
-    const colonIdx = content.indexOf(':');
-    let commentAuthor = author;
-    let commentText = content;
-    if (colonIdx > 0 && colonIdx < 30) {
-      commentAuthor = content.slice(0, colonIdx).trim();
-      commentText = content.slice(colonIdx + 1).trim();
-    }
-    markers.push({
-      id,
-      type: 'comment',
-      content: commentText,
-      author: commentAuthor,
-    });
-    return `{{TC_${id}}}`;
-  });
-
-  return { text: result, markers };
+  return { text: result, stats };
 }
 
 /**
- * Apply track changes markers to a Word document
+ * Enable tracked-revision display in a docx's settings.xml (in place).
  *
- * @param docxPath - Path to input DOCX file
- * @param markers - Markers from prepareForTrackChanges
- * @param outputPath - Path for output DOCX file
- * @returns Result with success status and message
+ * The `w:ins`/`w:del` elements already render as tracked changes without this,
+ * but `w:trackRevisions` tells Word to keep tracking the author's further
+ * edits — the expected state for a "return to author" review document.
  */
-export async function applyTrackChangesToDocx(
-  docxPath: string,
-  markers: TrackChangeMarker[],
-  outputPath: string
-): Promise<ApplyResult> {
-  if (!fs.existsSync(docxPath)) {
-    return { success: false, message: `File not found: ${docxPath}` };
-  }
-
-  let zip: AdmZip;
-  try {
-    zip = new AdmZip(docxPath);
-  } catch (err) {
-    const error = err as Error;
-    return { success: false, message: `Invalid DOCX file: ${error.message}` };
-  }
-
-  // Read document.xml
-  const docEntry = zip.getEntry('word/document.xml');
-  if (!docEntry) {
-    return { success: false, message: 'Invalid DOCX: no document.xml' };
-  }
-
-  let documentXml = zip.readAsText(docEntry);
-
-  // Generate ISO date for track changes
-  const now = new Date().toISOString();
-
-  // Replace markers with track change XML
-  for (const marker of markers) {
-    const placeholder = `{{TC_${marker.id}}}`;
-    let replacement = '';
-
-    const escapedContent = escapeXml(marker.content);
-    const escapedAuthor = escapeXml(marker.author);
-
-    if (marker.type === 'insert') {
-      replacement = `<w:ins w:id="${marker.id}" w:author="${escapedAuthor}" w:date="${now}"><w:r><w:t>${escapedContent}</w:t></w:r></w:ins>`;
-    } else if (marker.type === 'delete') {
-      replacement = `<w:del w:id="${marker.id}" w:author="${escapedAuthor}" w:date="${now}"><w:r><w:delText>${escapedContent}</w:delText></w:r></w:del>`;
-    } else if (marker.type === 'substitute') {
-      const escapedReplacement = escapeXml(marker.replacement || '');
-      replacement = `<w:del w:id="${marker.id}" w:author="${escapedAuthor}" w:date="${now}"><w:r><w:delText>${escapedContent}</w:delText></w:r></w:del><w:ins w:id="${marker.id + 1000}" w:author="${escapedAuthor}" w:date="${now}"><w:r><w:t>${escapedReplacement}</w:t></w:r></w:ins>`;
-    }
-
-    documentXml = documentXml.replace(placeholder, replacement);
-  }
-
-  // Update document.xml
-  zip.updateFile('word/document.xml', Buffer.from(documentXml));
-
-  // Enable track revisions in settings.xml
+export function enableTrackRevisions(docxPath: string): void {
+  const zip = new AdmZip(docxPath);
   const settingsEntry = zip.getEntry('word/settings.xml');
-  if (settingsEntry) {
-    let settingsXml = zip.readAsText(settingsEntry);
-    if (!settingsXml.includes('w:trackRevisions')) {
-      settingsXml = settingsXml.replace(
-        '</w:settings>',
-        '<w:trackRevisions/></w:settings>'
-      );
-      zip.updateFile('word/settings.xml', Buffer.from(settingsXml));
-    }
+  if (!settingsEntry) return;
+  let settingsXml = zip.readAsText(settingsEntry);
+  if (settingsXml.includes('w:trackRevisions')) return;
+  // trackRevisions must appear early in the ordered settings sequence; placing
+  // it right after the opening tag keeps Word from rejecting the schema order.
+  settingsXml = settingsXml.replace(/(<w:settings[^>]*>)/, '$1<w:trackRevisions/>');
+  if (!settingsXml.includes('<w:trackRevisions/>')) {
+    // No opening tag matched (unexpected) — fall back to before the close tag.
+    settingsXml = settingsXml.replace('</w:settings>', '<w:trackRevisions/></w:settings>');
   }
-
-  // Write output
-  zip.writeZip(outputPath);
-
-  return { success: true, message: `Created ${outputPath} with track changes` };
+  zip.updateFile('word/settings.xml', Buffer.from(settingsXml, 'utf-8'));
+  zip.writeZip(docxPath);
 }
 
 /**
- * Build a Word document with track changes from annotated markdown
+ * Build a standalone Word document with track changes from annotated markdown.
+ *
+ * Used by `rev apply <md> <docx>` for a single markdown file outside a rev
+ * project (no crossref/citeproc/reference-doc). Comments are dropped — use the
+ * project build (`rev build docx --show-changes`) for the full filter chain and
+ * threaded comments.
  *
  * @param mdPath - Path to markdown file with CriticMarkup
  * @param docxPath - Output path for Word document
- * @param options - Options
+ * @param options - Author name for the revisions
  * @returns Result with success status and message
  */
 export async function buildWithTrackChanges(
   mdPath: string,
   docxPath: string,
-  options: PrepareOptions = {}
+  options: NativeTrackChangeOptions = {}
 ): Promise<ApplyResult> {
-  const { author = 'Author' } = options;
-
   if (!fs.existsSync(mdPath)) {
     return { success: false, message: `File not found: ${mdPath}` };
   }
 
+  const { author = 'Author' } = options;
   const content = fs.readFileSync(mdPath, 'utf-8');
+  const { text: converted, stats } = criticToNativeTrackChanges(content, { author });
 
-  // Prepare for track changes
-  const { text: prepared, markers } = prepareForTrackChanges(content, { author });
-
-  // If no annotations, just build normally
-  if (markers.length === 0) {
-    try {
-      execSync(`pandoc "${mdPath}" -o "${docxPath}"`, { encoding: 'utf-8' });
-      return { success: true, message: `Created ${docxPath}` };
-    } catch (err) {
-      const error = err as Error;
-      return { success: false, message: error.message };
-    }
-  }
-
-  // Write prepared content to temp file
-  const tempDir = path.dirname(mdPath);
-  const tempMd = path.join(tempDir, `.temp-${Date.now()}.md`);
-  const tempDocx = path.join(tempDir, `.temp-${Date.now()}.docx`);
+  const total = stats.insertions + stats.deletions + stats.substitutions;
+  const tempMd = path.join(path.dirname(mdPath), `.temp-tc-${process.pid}.md`);
 
   try {
-    fs.writeFileSync(tempMd, prepared, 'utf-8');
-
-    // Build with pandoc
-    execSync(`pandoc "${tempMd}" -o "${tempDocx}"`, { encoding: 'utf-8' });
-
-    // Apply track changes
-    const result = await applyTrackChangesToDocx(tempDocx, markers, docxPath);
-
-    // Clean up temp files
-    fs.unlinkSync(tempMd);
-    fs.unlinkSync(tempDocx);
-
-    return result;
+    fs.writeFileSync(tempMd, converted, 'utf-8');
+    execSync(`pandoc "${tempMd}" -o "${docxPath}"`, { encoding: 'utf-8' });
+    if (total > 0) enableTrackRevisions(docxPath);
+    return { success: true, message: `Created ${docxPath} with track changes`, stats };
   } catch (err) {
-    // Clean up on error
-    if (fs.existsSync(tempMd)) fs.unlinkSync(tempMd);
-    if (fs.existsSync(tempDocx)) fs.unlinkSync(tempDocx);
     const error = err as Error;
     return { success: false, message: error.message };
+  } finally {
+    try { fs.unlinkSync(tempMd); } catch { /* best-effort cleanup */ }
   }
 }

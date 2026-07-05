@@ -14,6 +14,7 @@ Complete list of `rev` commands.
 | `rev build --toc` | Include table of contents |
 | `rev build --dual` | Output clean + comments DOCX (with threaded comments) |
 | `rev build --show-changes` | Export DOCX with visible track changes |
+| `rev build docx --dual --show-changes` | One DOCX with tracked changes AND threaded comments |
 | `rev new <name>` | Create new project (prompts for sections) |
 | `rev new <name> -s intro,methods,results` | Create with specified sections |
 | `rev new --list` | List available templates |
@@ -62,6 +63,17 @@ Complete list of `rev` commands.
 
 **Text Extraction:**
 Use `--with-text` to extract the actual text that was highlighted, underlined, or struck through. This is slower but shows exactly what the reviewer marked.
+
+**DOCX Export Modes:**
+
+| Flags | Output |
+|-------|--------|
+| `rev build docx` | Clean `paper.docx` (annotations applied) |
+| `rev build docx --dual` | `paper.docx` + `paper_comments.docx` (threaded comments) |
+| `rev build docx --show-changes` | `paper-changes.docx` with visible tracked changes |
+| `rev build docx --dual --show-changes` | `paper-changes.docx` with tracked changes **and** threaded comments in one file |
+
+`--dual --show-changes` is the "return to senior author" artifact: your `{++..++}`/`{--..--}` edits as Word tracked changes alongside the reviewer's `{>>..<<}` comments with your threaded replies. Add `--reference <docx>` to realign comment anchors against a reviewer's copy first.
 
 **PDF Dual Export:**
 When building with `--dual`, produces:

@@ -84,17 +84,24 @@ rev resolve methods.md -n 1  # Mark comment #1 as resolved
 ### 7. Rebuild with comment threads
 
 ```bash
-rev build docx --dual            # Produces clean + annotated versions
-rev build docx --show-changes    # Single DOCX with visible track changes
+rev build docx --dual                 # Produces clean + annotated versions
+rev build docx --show-changes         # Single DOCX with visible track changes
+rev build docx --dual --show-changes  # One DOCX: tracked changes + threaded comments
 ```
 
 `--dual` produces:
 - `output/<title>.docx` — clean, for submission
 - `output/<title>_comments.docx` — comment threads as Word comments
 
-`--show-changes` produces a single audit DOCX where every accepted/rejected
-revision is rendered as a visible Word track change. Useful when a co-author
-wants to see what changed since the last shared version.
+`--show-changes` produces a single audit DOCX (`<title>-changes.docx`) where
+every accepted/rejected revision is rendered as a visible Word track change.
+Useful when a co-author wants to see what changed since the last shared version.
+
+`--dual --show-changes` combines both into one `<title>-changes.docx`: my
+`{++..++}`/`{--..--}` edits as tracked changes *and* the reviewer's `{>>..<<}`
+comments with my threaded replies. This is the file a supervisor opens,
+reviews next to each other, and hands back. Add `--reference <docx>` to
+realign comment anchors against a reviewer's copy first.
 
 Outputs land in `output/` by default; set `outputDir: null` in `rev.yaml`
 to keep them alongside `paper.md` (legacy layout). The basename is derived

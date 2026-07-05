@@ -133,6 +133,7 @@ rev comments                      # list all comments
 rev reply methods.md -n 1 -m "Added clarification"
 rev resolve methods.md -n 1       # mark as resolved
 rev build docx --dual             # clean + annotated versions
+rev build docx --dual --show-changes  # one file: tracked changes + threaded comments
 ```
 
 PDF annotations work the same way:
@@ -361,6 +362,7 @@ Cross-references: `@fig:label`, `@tbl:label`, `@eq:label` → "Figure 1", "Table
 | Build PDF | `rev build pdf` |
 | Build clean + annotated | `rev build docx --dual` |
 | Build with visible track changes | `rev build docx --show-changes` |
+| Build tracked changes + comments in one file | `rev build docx --dual --show-changes` |
 | Sync Word feedback | `rev sync reviewed.docx` |
 | Sync PDF comments | `rev sync annotated.pdf` |
 | Extract PDF comments | `rev pdf-comments annotated.pdf` |

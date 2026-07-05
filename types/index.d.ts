@@ -482,16 +482,22 @@ export function isWordDocument(filePath: string): boolean;
 // TrackChanges (lib/trackchanges.js)
 // ============================================
 
-export interface TrackChangeMarker {
-  type: 'insert' | 'delete';
-  start: number;
-  end: number;
-  content: string;
+export interface NativeTrackChangeStats {
+  insertions: number;
+  deletions: number;
+  substitutions: number;
 }
 
-export function prepareForTrackChanges(text: string): { text: string; markers: TrackChangeMarker[] };
-export function applyTrackChangesToDocx(docxPath: string, markers: TrackChangeMarker[], author?: string): Promise<void>;
-export function buildWithTrackChanges(markdownPath: string, outputPath: string, options?: object): Promise<{ success: boolean; message: string }>;
+export function criticToNativeTrackChanges(
+  text: string,
+  options?: { author?: string; date?: string }
+): { text: string; stats: NativeTrackChangeStats };
+export function enableTrackRevisions(docxPath: string): void;
+export function buildWithTrackChanges(
+  markdownPath: string,
+  outputPath: string,
+  options?: { author?: string; date?: string }
+): Promise<{ success: boolean; message: string; stats?: NativeTrackChangeStats }>;
 
 // ============================================
 // Spelling (lib/spelling.js)

@@ -1,6 +1,10 @@
 /**
- * Tests for trackchanges.js
- * Tests XML generation for Word track changes
+ * Tests for trackchanges.js — pandoc-native track-change conversion.
+ *
+ * CriticMarkup insertions/deletions/substitutions are converted to pandoc
+ * `.insertion`/`.deletion` spans; pandoc's docx writer then emits well-formed
+ * run-level `w:ins`/`w:del` revisions in a single pass. Unlike the old
+ * marker-injection approach, the revisions are NOT nested inside `<w:t>`.
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
@@ -8,10 +12,12 @@ import assert from 'node:assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { spawnSync } from 'child_process';
 import AdmZip from 'adm-zip';
 import {
-  prepareForTrackChanges,
-  applyTrackChangesToDocx,
+  criticToNativeTrackChanges,
+  enableTrackRevisions,
+  buildWithTrackChanges,
 } from '../lib/trackchanges.js';
 
 let tempDir;
@@ -24,231 +30,139 @@ afterEach(() => {
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
-/**
- * Create a minimal valid DOCX for testing
- */
-function createTestDocx(content = 'Test content') {
-  const zip = new AdmZip();
-
-  zip.addFile('[Content_Types].xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
-</Types>`));
-
-  zip.addFile('_rels/.rels', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
-</Relationships>`));
-
-  zip.addFile('word/document.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-  <w:body>
-    <w:p><w:r><w:t>${content}</w:t></w:r></w:p>
-  </w:body>
-</w:document>`));
-
-  zip.addFile('word/settings.xml', Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
-<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-</w:settings>`));
-
-  const docxPath = path.join(tempDir, 'test.docx');
-  zip.writeZip(docxPath);
-  return docxPath;
+function hasPandoc() {
+  try {
+    return spawnSync('pandoc', ['--version'], { encoding: 'utf-8' }).status === 0;
+  } catch {
+    return false;
+  }
 }
 
-describe('prepareForTrackChanges', () => {
-  it('should replace insertions with markers', () => {
-    const text = 'Hello {++world++} there';
-    const { text: result, markers } = prepareForTrackChanges(text);
+/** Split a docx's document.xml into pretty lines for structural assertions. */
+function docXml(docxPath) {
+  const zip = new AdmZip(docxPath);
+  return zip.readAsText('word/document.xml');
+}
 
-    assert.ok(result.includes('{{TC_'));
-    assert.ok(!result.includes('{++'));
-    assert.strictEqual(markers.length, 1);
-    assert.strictEqual(markers[0].type, 'insert');
-    assert.strictEqual(markers[0].content, 'world');
+describe('criticToNativeTrackChanges', () => {
+  it('converts insertions to .insertion spans', () => {
+    const { text, stats } = criticToNativeTrackChanges('Hello {++world++} there', { author: 'GC' });
+    assert.match(text, /\[world\]\{\.insertion author="GC" date="[^"]+"\}/);
+    assert.ok(!text.includes('{++'));
+    assert.strictEqual(stats.insertions, 1);
   });
 
-  it('should replace deletions with markers', () => {
-    const text = 'Hello {--old--} there';
-    const { text: result, markers } = prepareForTrackChanges(text);
-
-    assert.ok(result.includes('{{TC_'));
-    assert.strictEqual(markers.length, 1);
-    assert.strictEqual(markers[0].type, 'delete');
-    assert.strictEqual(markers[0].content, 'old');
+  it('converts deletions to .deletion spans', () => {
+    const { text, stats } = criticToNativeTrackChanges('Hello {--old--} there', { author: 'GC' });
+    assert.match(text, /\[old\]\{\.deletion author="GC" date="[^"]+"\}/);
+    assert.strictEqual(stats.deletions, 1);
   });
 
-  it('should replace substitutions with markers', () => {
-    const text = 'Hello {~~old~>new~~} there';
-    const { text: result, markers } = prepareForTrackChanges(text);
-
-    assert.ok(result.includes('{{TC_'));
-    assert.strictEqual(markers.length, 1);
-    assert.strictEqual(markers[0].type, 'substitute');
-    assert.strictEqual(markers[0].content, 'old');
-    assert.strictEqual(markers[0].replacement, 'new');
+  it('converts substitutions to delete-then-insert spans', () => {
+    const { text, stats } = criticToNativeTrackChanges('Hello {~~old~>new~~} there', { author: 'GC' });
+    assert.match(text, /\[old\]\{\.deletion[^}]+\}\[new\]\{\.insertion[^}]+\}/);
+    assert.strictEqual(stats.substitutions, 1);
+    // Substitutions are not double-counted as ins/del.
+    assert.strictEqual(stats.insertions, 0);
+    assert.strictEqual(stats.deletions, 0);
   });
 
-  it('should handle multiple annotations', () => {
-    const text = 'The {++quick++} brown {--slow--} fox {~~jumps~>leaps~~} over.';
-    const { text: result, markers } = prepareForTrackChanges(text);
-
-    assert.strictEqual(markers.length, 3);
-    assert.ok(markers.some(m => m.type === 'insert'));
-    assert.ok(markers.some(m => m.type === 'delete'));
-    assert.ok(markers.some(m => m.type === 'substitute'));
+  it('counts a mix of all three types', () => {
+    const { stats } = criticToNativeTrackChanges(
+      'The {++quick++} brown {--slow--} fox {~~jumps~>leaps~~} over.',
+      { author: 'GC' }
+    );
+    assert.deepStrictEqual(stats, { insertions: 1, deletions: 1, substitutions: 1 });
   });
 
-  it('should preserve comments', () => {
-    const text = 'Hello {>>Author: comment<<} world';
-    const { text: result, markers } = prepareForTrackChanges(text);
-
-    // Comments should also be converted to markers
-    assert.ok(markers.some(m => m.type === 'comment'));
+  it('leaves comments and highlights untouched', () => {
+    const src = 'Text {++add++} {>>Author: note<<} and {==highlight==} here';
+    const { text } = criticToNativeTrackChanges(src, { author: 'GC' });
+    assert.ok(text.includes('{>>Author: note<<}'), 'comment should survive');
+    assert.ok(text.includes('{==highlight==}'), 'highlight should survive');
   });
 
-  it('should assign default author', () => {
-    const text = 'Hello {++world++}';
-    const { markers } = prepareForTrackChanges(text);
-
-    assert.strictEqual(markers[0].author, 'Reviewer');
+  it('preserves bracketed content inside a change', () => {
+    const { text } = criticToNativeTrackChanges('drop {--the value [1] here--} now', { author: 'GC' });
+    assert.ok(text.includes('[the value [1] here]{.deletion'), text);
   });
 
-  it('should return empty markers for text without annotations', () => {
-    const text = 'Plain text without annotations';
-    const { text: result, markers } = prepareForTrackChanges(text);
+  it('defaults the author to "Author"', () => {
+    const { text } = criticToNativeTrackChanges('x {++y++}');
+    assert.match(text, /author="Author"/);
+  });
 
-    assert.strictEqual(result, text);
-    assert.strictEqual(markers.length, 0);
+  it('escapes quotes in the author name', () => {
+    const { text } = criticToNativeTrackChanges('x {++y++}', { author: 'A "Nick" B' });
+    assert.ok(text.includes('author="A \\"Nick\\" B"'), text);
+  });
+
+  it('returns text unchanged when there are no track changes', () => {
+    const src = 'Plain text with a {>>Author: comment<<} only';
+    const { text, stats } = criticToNativeTrackChanges(src, { author: 'GC' });
+    assert.strictEqual(text, src);
+    assert.deepStrictEqual(stats, { insertions: 0, deletions: 0, substitutions: 0 });
   });
 });
 
-describe('applyTrackChangesToDocx', () => {
-  it('should replace markers with track changes XML', async () => {
-    const docxPath = createTestDocx('Hello {{TC_0}} there');
-    const outputPath = path.join(tempDir, 'output.docx');
+describe('enableTrackRevisions', () => {
+  function makeDocx() {
+    const zip = new AdmZip();
+    zip.addFile('word/settings.xml', Buffer.from(
+      '<?xml version="1.0"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:settings>'
+    ));
+    const p = path.join(tempDir, 'x.docx');
+    zip.writeZip(p);
+    return p;
+  }
 
-    const markers = [
-      { id: 0, type: 'insert', content: 'world', author: 'Test Author' },
-    ];
-
-    const result = await applyTrackChangesToDocx(docxPath, markers, outputPath);
-
-    assert.strictEqual(result.success, true);
-    assert.ok(fs.existsSync(outputPath));
-
-    // Check the output contains track changes markup
-    const zip = new AdmZip(outputPath);
-    const documentXml = zip.readAsText('word/document.xml');
-    assert.ok(documentXml.includes('w:ins'));
-    assert.ok(documentXml.includes('Test Author'));
+  it('adds w:trackRevisions to settings.xml', () => {
+    const p = makeDocx();
+    enableTrackRevisions(p);
+    const s = new AdmZip(p).readAsText('word/settings.xml');
+    assert.ok(s.includes('<w:trackRevisions/>'));
   });
 
-  it('should handle deletions', async () => {
-    const docxPath = createTestDocx('Hello {{TC_0}} there');
-    const outputPath = path.join(tempDir, 'output.docx');
+  it('is idempotent', () => {
+    const p = makeDocx();
+    enableTrackRevisions(p);
+    enableTrackRevisions(p);
+    const s = new AdmZip(p).readAsText('word/settings.xml');
+    assert.strictEqual((s.match(/<w:trackRevisions\/>/g) || []).length, 1);
+  });
+});
 
-    const markers = [
-      { id: 0, type: 'delete', content: 'removed', author: 'Reviewer' },
-    ];
+describe('buildWithTrackChanges (pandoc)', { skip: !hasPandoc() }, () => {
+  it('emits run-level w:ins/w:del, never nested inside w:t', async () => {
+    const md = path.join(tempDir, 'in.md');
+    const out = path.join(tempDir, 'out.docx');
+    fs.writeFileSync(md, 'The niche {--broadens--}{++expands++} over time.\n');
 
-    const result = await applyTrackChangesToDocx(docxPath, markers, outputPath);
+    const result = await buildWithTrackChanges(md, out, { author: 'GC' });
+    assert.ok(result.success, result.message);
+    assert.deepStrictEqual(result.stats, { insertions: 1, deletions: 1, substitutions: 0 });
 
-    assert.strictEqual(result.success, true);
-
-    const zip = new AdmZip(outputPath);
-    const documentXml = zip.readAsText('word/document.xml');
-    assert.ok(documentXml.includes('w:del'));
-    assert.ok(documentXml.includes('w:delText'));
+    const xml = docXml(out);
+    assert.ok(xml.includes('<w:ins '), 'expected w:ins');
+    assert.ok(xml.includes('<w:del '), 'expected w:del');
+    // The old marker approach produced `<w:t>...<w:ins>...</w:ins>...</w:t>`
+    // (malformed). Assert no revision element opens inside a text element.
+    assert.ok(
+      !/<w:t[^>]*>[^<]*<w:(ins|del)\b/.test(xml),
+      'w:ins/w:del must not be nested inside w:t'
+    );
+    // Track revisions turned on.
+    const settings = new AdmZip(out).readAsText('word/settings.xml');
+    assert.ok(settings.includes('w:trackRevisions'));
   });
 
-  it('should handle substitutions', async () => {
-    const docxPath = createTestDocx('Hello {{TC_0}} there');
-    const outputPath = path.join(tempDir, 'output.docx');
-
-    const markers = [
-      { id: 0, type: 'substitute', content: 'old', replacement: 'new', author: 'Reviewer' },
-    ];
-
-    const result = await applyTrackChangesToDocx(docxPath, markers, outputPath);
-
-    assert.strictEqual(result.success, true);
-
-    const zip = new AdmZip(outputPath);
-    const documentXml = zip.readAsText('word/document.xml');
-    // Substitution should have both deletion and insertion
-    assert.ok(documentXml.includes('w:del'));
-    assert.ok(documentXml.includes('w:ins'));
-  });
-
-  it('should enable track revisions in settings', async () => {
-    const docxPath = createTestDocx('Content');
-    const outputPath = path.join(tempDir, 'output.docx');
-
-    const markers = [];
-    const result = await applyTrackChangesToDocx(docxPath, markers, outputPath);
-
-    assert.strictEqual(result.success, true);
-
-    const zip = new AdmZip(outputPath);
-    const settingsXml = zip.readAsText('word/settings.xml');
-    assert.ok(settingsXml.includes('w:trackRevisions'));
-  });
-
-  it('should return error for non-existent file', async () => {
-    const result = await applyTrackChangesToDocx('/nonexistent.docx', [], 'out.docx');
-
+  it('reports failure for a missing input file', async () => {
+    const result = await buildWithTrackChanges(
+      path.join(tempDir, 'nope.md'),
+      path.join(tempDir, 'out.docx'),
+      { author: 'GC' }
+    );
     assert.strictEqual(result.success, false);
     assert.ok(result.message.includes('not found'));
-  });
-
-  it('should return error for invalid DOCX', async () => {
-    const fakePath = path.join(tempDir, 'fake.docx');
-    fs.writeFileSync(fakePath, 'not a zip file');
-
-    const result = await applyTrackChangesToDocx(fakePath, [], path.join(tempDir, 'out.docx'));
-
-    assert.strictEqual(result.success, false);
-  });
-
-  it('should handle multiple markers', async () => {
-    const docxPath = createTestDocx('A {{TC_0}} B {{TC_1}} C');
-    const outputPath = path.join(tempDir, 'output.docx');
-
-    const markers = [
-      { id: 0, type: 'insert', content: 'first', author: 'R1' },
-      { id: 1, type: 'delete', content: 'second', author: 'R2' },
-    ];
-
-    const result = await applyTrackChangesToDocx(docxPath, markers, outputPath);
-
-    assert.strictEqual(result.success, true);
-
-    const zip = new AdmZip(outputPath);
-    const documentXml = zip.readAsText('word/document.xml');
-    assert.ok(documentXml.includes('w:ins'));
-    assert.ok(documentXml.includes('w:del'));
-  });
-
-  it('should escape XML special characters', async () => {
-    const docxPath = createTestDocx('Hello {{TC_0}}');
-    const outputPath = path.join(tempDir, 'output.docx');
-
-    const markers = [
-      { id: 0, type: 'insert', content: '<tag> & "quotes"', author: "O'Brien" },
-    ];
-
-    const result = await applyTrackChangesToDocx(docxPath, markers, outputPath);
-
-    assert.strictEqual(result.success, true);
-
-    const zip = new AdmZip(outputPath);
-    const documentXml = zip.readAsText('word/document.xml');
-    // Content should be XML-escaped
-    assert.ok(documentXml.includes('&lt;tag&gt;'));
-    assert.ok(documentXml.includes('&amp;'));
   });
 });

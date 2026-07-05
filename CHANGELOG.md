@@ -5,6 +5,19 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-07-05
+
+### Added
+- **`rev build docx --dual --show-changes` emits tracked changes and threaded comments in one file (#6).** The standard "return to senior author" artifact — my `{++..++}`/`{--..--}` edits as Word tracked changes alongside the reviewer's `{>>..<<}` comments with my threaded replies — now builds as a single `<title>-changes.docx`. Previously the two were mutually exclusive: `--show-changes` dropped comments, `--dual` accepted all changes. A new `buildReviewedDocx` runs one pandoc pass through the full filter chain, then threads comments into the same file. Add `--reference <docx>` to realign comment anchors first.
+
+### Changed
+- **Track changes now use pandoc-native `w:ins`/`w:del` revisions.** `--show-changes` (and `rev apply`) previously injected revision XML by string-replacing text markers, which nested `<w:ins>`/`<w:del>` inside `<w:t>` (malformed OOXML) and bypassed crossref/citeproc/the reference-doc. CriticMarkup is now converted to pandoc `.insertion`/`.deletion` spans and emitted as well-formed run-level revisions through the full filter chain.
+
+## [0.11.0] - 2026-07-05
+
+### Changed
+- **Parser-backed OOXML layer, unified placement engine, boundary hardening.** One structural OOXML tokenizer (`lib/ooxml.ts`) now backs every Word reader and the comment injector, collapsing the divergent `extractCommentAnchors`/`extractWordComments` paths onto a single namespace-aware engine (matches WordprocessingML by URI, decodes entities, excludes `instrText` field codes, enumerates footnote/endnote parts, finds runs structurally). Section comment placement is offset-first, with proportional estimates demoted to a flagged last resort surfaced by `sync`. Rate-limiter gains a per-request timeout and HTTP-date `Retry-After` parsing; `checkDoi` reports unreachable distinctly from invalid; PPTX post-processing failures warn instead of being swallowed.
+
 ## [0.10.2] - 2026-06-22
 
 ### Fixed
