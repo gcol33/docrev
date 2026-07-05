@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -23,6 +24,23 @@ jobs:
       - run: npm ci
       - run: npx tsx --test test/*.test.js
       - run: npm run build
-      - run: npm publish --provenance --access public
+
+      # Fail early with a clear message if NPM_TOKEN is missing/expired,
+      # instead of npm's misleading E404 at the publish step.
+      - name: Verify npm auth
+        run: npm whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Idempotent: a re-run or a manual workflow_dispatch on an already-published
+      # version skips instead of failing with EPUBLISHCONFLICT.
+      - name: Publish to npm
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "docrev@$VERSION" version >/dev/null 2>&1; then
+            echo "docrev@$VERSION is already published — skipping."
+          else
+            npm publish --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
