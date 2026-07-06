@@ -22,6 +22,7 @@ import {
   detectRawLatexFigures,
   translateRawLatexFigures,
   collectRawLatexFigureWarning,
+  resolveLatexPreambleSources,
 } from '../lib/build.js';
 import { hasPandoc, hasPandocCrossref } from '../lib/dependencies.js';
 
@@ -290,6 +291,63 @@ describe('buildPandocArgs', () => {
     const args = buildPandocArgs('pdf', config, 'output.pdf');
 
     assert.ok(args.includes('--number-sections'));
+  });
+});
+
+describe('resolveLatexPreambleSources', () => {
+  it('resolves an existing pdf.header file to a -H arg', () => {
+    fs.writeFileSync(path.join(tempDir, 'header.tex'), '\\usepackage{lineno}\\linenumbers\n');
+    const config = { ...DEFAULT_CONFIG, pdf: { ...DEFAULT_CONFIG.pdf, header: 'header.tex' } };
+    const { headerArgs, warnings } = resolveLatexPreambleSources(tempDir, config);
+
+    assert.deepStrictEqual(headerArgs, ['header.tex']);
+    assert.strictEqual(warnings.length, 0);
+  });
+
+  it('resolves pdf.header and pdf.footer in order', () => {
+    fs.writeFileSync(path.join(tempDir, 'h.tex'), '% head\n');
+    fs.writeFileSync(path.join(tempDir, 'f.tex'), '% foot\n');
+    const config = { ...DEFAULT_CONFIG, pdf: { ...DEFAULT_CONFIG.pdf, header: 'h.tex', footer: 'f.tex' } };
+    const { headerArgs } = resolveLatexPreambleSources(tempDir, config);
+
+    assert.deepStrictEqual(headerArgs, ['h.tex', 'f.tex']);
+  });
+
+  it('warns instead of silently dropping a missing pdf.header file', () => {
+    const config = { ...DEFAULT_CONFIG, pdf: { ...DEFAULT_CONFIG.pdf, header: 'nope.tex' } };
+    const { headerArgs, warnings } = resolveLatexPreambleSources(tempDir, config);
+
+    assert.strictEqual(headerArgs.length, 0);
+    assert.strictEqual(warnings.length, 1);
+    assert.ok(warnings[0].includes('nope.tex'));
+  });
+
+  it('writes an inline header-includes block to a temp file and injects it', () => {
+    const config = { ...DEFAULT_CONFIG, 'header-includes': '\\usepackage{lineno}\n\\linenumbers' };
+    const { headerArgs, tempFiles } = resolveLatexPreambleSources(tempDir, config);
+
+    assert.strictEqual(headerArgs.length, 1);
+    assert.strictEqual(tempFiles.length, 1);
+    assert.ok(fs.existsSync(tempFiles[0]));
+    const written = fs.readFileSync(tempFiles[0], 'utf-8');
+    assert.ok(written.includes('\\linenumbers'));
+    assert.ok(written.endsWith('\n'));
+  });
+
+  it('accepts an inline header-includes under pdf as well', () => {
+    const config = { ...DEFAULT_CONFIG, pdf: { ...DEFAULT_CONFIG.pdf, 'header-includes': '\\usepackage{fancyhdr}' } };
+    const { headerArgs, tempFiles } = resolveLatexPreambleSources(tempDir, config);
+
+    assert.strictEqual(headerArgs.length, 1);
+    assert.ok(fs.readFileSync(tempFiles[0], 'utf-8').includes('fancyhdr'));
+  });
+
+  it('returns nothing when no preamble is configured', () => {
+    const { headerArgs, tempFiles, warnings } = resolveLatexPreambleSources(tempDir, DEFAULT_CONFIG);
+
+    assert.strictEqual(headerArgs.length, 0);
+    assert.strictEqual(tempFiles.length, 0);
+    assert.strictEqual(warnings.length, 0);
   });
 });
 

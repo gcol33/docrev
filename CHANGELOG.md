@@ -5,6 +5,11 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] - 2026-07-06
+
+### Fixed
+- **`pdf.header` / `pdf.footer` are now injected into the PDF build (#7).** The schema documented `pdf.header` / `pdf.footer`, but the build never read them, so any user-supplied LaTeX preamble (custom fonts, `fancyhdr` running headers, `lineno` line numbers) was silently dropped from `rev build pdf` — no error, no warning. `runPandoc` now resolves `pdf.header` / `pdf.footer` (file paths relative to the project root) and passes them to pandoc with `-H`, the same channel the macros preamble and annotated-comments path use. A file named but not found is reported as a warning instead of dropped. An inline `header-includes:` block (pandoc's native key, at the top level or under `pdf:`) is also honored by writing it to a temp `.tex`. The preamble applies to `pdf`, `tex`, and `beamer` builds and to the annotated `_comments.pdf`.
+
 ## [0.11.1] - 2026-07-05
 
 ### Added

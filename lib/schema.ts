@@ -175,8 +175,14 @@ export const revYamlSchema: Schema = {
         linestretch: { type: 'number', minimum: 1, maximum: 3, default: 1.5 },
         numbersections: { type: 'boolean', default: false },
         toc: { type: 'boolean', default: false },
-        header: { type: 'string' },
-        footer: { type: 'string' },
+        header: {
+          type: 'string',
+          description: 'Path (relative to the project root) to a LaTeX preamble file injected via pandoc -H, e.g. a header.tex with \\usepackage{lineno}\\linenumbers or fancyhdr running headers. A missing file is reported, not silently dropped. For inline LaTeX use a top-level header-includes: block instead.',
+        },
+        footer: {
+          type: 'string',
+          description: 'Second LaTeX preamble file (relative to the project root), injected via -H after pdf.header.',
+        },
         'pandoc-args': {
           type: 'array',
           description: 'Extra pandoc args for PDF builds. Appended after the top-level pandoc-args list.',

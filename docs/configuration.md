@@ -41,6 +41,7 @@ pdf:
   linestretch: 1.5
   toc: false
   numbersections: true
+  header: header.tex         # Optional LaTeX preamble file (relative to project root)
 
 # Word output settings
 docx:
@@ -182,6 +183,42 @@ rev spelling --learn-project myterm
 rev grammar --learn acronym
 rev grammar --forget acronym
 ```
+
+## LaTeX Preamble (PDF)
+
+Inject a custom LaTeX preamble into the PDF build — custom fonts, `fancyhdr`
+running headers, `lineno` continuous line numbers (a common journal
+requirement), and so on.
+
+Point `pdf.header` (and optionally `pdf.footer`) at a `.tex` file relative to
+the project root:
+
+```yaml
+pdf:
+  header: header.tex
+```
+
+```latex
+% header.tex
+\usepackage{lineno}
+\linenumbers
+```
+
+Both files are passed to pandoc with `-H`, in order (`header` then `footer`).
+A file named here that does not exist is reported as a warning rather than
+silently dropped.
+
+For a short inline preamble, use pandoc's native `header-includes` block
+instead of a file (accepted at the top level or under `pdf:`):
+
+```yaml
+header-includes: |
+  \usepackage{lineno}
+  \linenumbers
+```
+
+The preamble also applies to `tex` and `beamer` builds, and to the annotated
+`_comments.pdf`.
 
 ## Journal Profiles
 

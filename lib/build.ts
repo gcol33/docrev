@@ -66,6 +66,15 @@ export interface CrossrefConfig {
 export interface PdfConfig {
   template?: string | null;
   headerIncludes?: string | null;
+  /**
+   * Path (relative to the project dir, or absolute) to a LaTeX preamble file
+   * injected via pandoc's `-H`. Use for custom fonts, `fancyhdr` running
+   * headers, `lineno` line numbers, etc. A missing file is reported, not
+   * silently dropped.
+   */
+  header?: string | null;
+  /** Second LaTeX preamble file, injected via `-H` after {@link header}. */
+  footer?: string | null;
   documentclass?: string;
   fontsize?: string;
   geometry?: string;
@@ -1372,6 +1381,73 @@ export function collectRawLatexFigureWarning(directory: string, config: BuildCon
 }
 
 /**
+ * Collect an inline `header-includes` LaTeX string from the config. Pandoc's
+ * native metadata key is `header-includes`; accept it at the top level (where
+ * pandoc documents it) and under `pdf`. String or list of strings; entries are
+ * joined with newlines. Returns null when nothing is set.
+ */
+function getInlineHeaderIncludes(config: BuildConfig): string | null {
+  const top = (config as unknown as Record<string, unknown>)['header-includes'];
+  const pdf = (config.pdf as unknown as Record<string, unknown> | undefined)?.['header-includes'];
+  const parts: string[] = [];
+  for (const value of [top, pdf]) {
+    if (typeof value === 'string' && value.trim()) {
+      parts.push(value);
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string' && item.trim()) parts.push(item);
+      }
+    }
+  }
+  return parts.length > 0 ? parts.join('\n') : null;
+}
+
+/**
+ * Resolve user-supplied LaTeX preamble sources into files to inject via
+ * pandoc's `-H`. Covers `pdf.header` / `pdf.footer` (file paths, relative to
+ * the project dir) and an inline `header-includes` string (written to a temp
+ * `.tex` in the project dir). Pandoc runs with cwd = the project dir, so
+ * returned paths are left relative to it.
+ *
+ * A `pdf.header`/`pdf.footer` file that does not exist is reported in
+ * `warnings` rather than dropped silently — the fail-open loss of the entire
+ * user preamble was the bug this addresses.
+ *
+ * @returns headerArgs — file paths to pass after `-H`; tempFiles — paths the
+ *   caller must clean up; warnings — human-readable notices for missing files.
+ */
+export function resolveLatexPreambleSources(
+  directory: string,
+  config: BuildConfig
+): { headerArgs: string[]; tempFiles: string[]; warnings: string[] } {
+  const headerArgs: string[] = [];
+  const tempFiles: string[] = [];
+  const warnings: string[] = [];
+
+  const pdf = (config.pdf || {}) as PdfConfig;
+  for (const key of ['header', 'footer'] as const) {
+    const value = pdf[key];
+    if (!value || typeof value !== 'string') continue;
+    const abs = path.isAbsolute(value) ? value : path.join(directory, value);
+    if (fs.existsSync(abs)) {
+      headerArgs.push(value);
+    } else {
+      warnings.push(`pdf.${key}: LaTeX preamble file not found — ${value} (not applied)`);
+    }
+  }
+
+  const inline = getInlineHeaderIncludes(config);
+  if (inline) {
+    const inlinePath = path.join(directory, '.header-includes.tex');
+    fs.writeFileSync(inlinePath, inline.endsWith('\n') ? inline : inline + '\n', 'utf-8');
+    tempFiles.push(inlinePath);
+    headerArgs.push(path.basename(inlinePath));
+  }
+
+  return { headerArgs, tempFiles, warnings };
+}
+
+/**
  * Build pandoc arguments for format.
  *
  * Returns only the built-in args derived from config. Passthrough args
@@ -1749,6 +1825,21 @@ export async function runPandoc(
       macroTempFiles.push(preamblePath);
       args.push('-H', path.basename(preamblePath));
     }
+  }
+
+  // User-supplied LaTeX preamble: pdf.header / pdf.footer (file paths) and an
+  // inline header-includes block, injected through pandoc's -H channel — the
+  // same mechanism the macros preamble and annotated-comments path use. Only
+  // the LaTeX family consumes a preamble.
+  if (format === 'pdf' || format === 'tex' || format === 'beamer') {
+    const { headerArgs, tempFiles, warnings } = resolveLatexPreambleSources(directory, config);
+    for (const warning of warnings) {
+      console.warn(`Warning: ${warning}`);
+    }
+    for (const headerFile of headerArgs) {
+      args.push('-H', headerFile);
+    }
+    macroTempFiles.push(...tempFiles);
   }
 
   // Add crossref metadata file if exists (skip for slides - they don't use crossref)
