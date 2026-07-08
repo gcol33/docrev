@@ -93,9 +93,9 @@
     "build": "tsc && node scripts/postbuild.js",
     "build:watch": "tsc --watch",
     "dev": "tsx bin/rev.ts",
-    "test": "tsx --test \"test/*.test.js\" \"test/*.test.ts\"",
+    "test": "node scripts/run-tests.js",
     "test:watch": "node --test --watch test/*.test.js",
-    "test:coverage": "c8 --reporter=text --reporter=lcov tsx --test \"test/*.test.js\" \"test/*.test.ts\"",
+    "test:coverage": "c8 --reporter=text --reporter=lcov node scripts/run-tests.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "prepublishOnly": "npm run build"
