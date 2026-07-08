@@ -5,6 +5,11 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] - 2026-07-08
+
+### Fixed
+- **`rev status` / `rev comments` (and the whole `[file]`-taking class) now read `.docx` files correctly instead of reporting silent garbage (#8).** These commands used to `readFileSync(file, 'utf-8')` every argument and regex the bytes for CriticMarkup. A `.docx` is a binary ZIP, so a Word document full of tracked changes and comments came back as "No annotations found" / "No comments found" — or an unstable, plausible-looking wrong count from an accidental byte-match in the DEFLATE stream, with no error. A new front door (`lib/input.ts`) detects a Word document by extension **and** by ZIP magic + `word/document.xml` (catching a mis-extensioned `.docx`), and routes it through the existing OOXML/pandoc reader so `rev status` / `rev comments` / `rev todo` / `rev next` / `rev first` / `rev reply-doc` / `rev response` / `rev strip` report the real insertions, deletions, substitutions, and comments — the same numbers a subsequent `rev import` produces. In-place editors (`rev review` / `accept` / `reject` / `resolve` / `reply` / interactive `comments`) refuse a `.docx` with a pointer to `rev import` rather than corrupting it. As a backstop, the annotation parsers (`parseAnnotations` / `countAnnotations` / `getComments` / `stripAnnotations` / `hasAnnotations`) now reject binary input loudly, so the whole class can never silently regress.
+
 ## [0.11.2] - 2026-07-06
 
 ### Fixed

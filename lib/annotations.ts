@@ -124,6 +124,34 @@ function isCommentFalsePositive(commentContent: string, fullText: string, positi
 // Combined pattern for any track change (not comments)
 const TRACK_CHANGE_PATTERN = /(\{\+\+.+?\+\+\}|\{--.+?--\}|\{~~.+?~>.+?~~\})/gs;
 
+/**
+ * Reject binary content before it reaches the CriticMarkup regexes. A `.docx`
+ * is a ZIP; read as UTF-8 it starts with `PK\x03\x04` and is riddled with NUL
+ * bytes from the DEFLATE stream. Running the annotation patterns over that
+ * yields accidental byte-matches that look like a small, plausible count —
+ * silent garbage. This guard turns that whole failure class into a loud error.
+ * Callers that legitimately handle Word documents route them through
+ * `readAnnotatedInput` (lib/input.ts), which converts the docx to CriticMarkup
+ * first, so this only fires on a raw binary that reached a text-only path.
+ *
+ * UTF-8 Markdown never contains a NUL byte, so the check cannot false-positive
+ * on real input; it scans only the head to stay O(1) on large documents.
+ * @throws Error if the text is binary rather than text/Markdown.
+ */
+function assertNotBinary(text: string): void {
+  // ZIP local-file-header magic "PK\x03\x04" (docx/xlsx/pptx read as text),
+  // or any NUL byte in the head: a reliable binary marker absent from UTF-8
+  // Markdown, so this never false-positives on real input. Scans only the
+  // head to stay cheap on large documents.
+  if (text.startsWith('PK\u0003\u0004') || text.slice(0, 8192).includes('\u0000')) {
+    throw new Error(
+      'Expected text/Markdown but received binary content. If this is a Word ' +
+        'document, convert it first with "rev import <docx>" (rev status/comments ' +
+        'read .docx directly; other commands need the imported Markdown).',
+    );
+  }
+}
+
 // =============================================================================
 // Public API
 // =============================================================================
@@ -138,6 +166,7 @@ export function parseAnnotations(text: string): Annotation[] {
   if (typeof text !== 'string') {
     throw new TypeError(`text must be a string, got ${typeof text}`);
   }
+  assertNotBinary(text);
 
   const annotations: Annotation[] = [];
 
@@ -257,6 +286,7 @@ export function stripAnnotations(text: string, options: StripOptions = {}): stri
   if (typeof text !== 'string') {
     throw new TypeError(`text must be a string, got ${typeof text}`);
   }
+  assertNotBinary(text);
 
   const { keepComments = false } = options;
 
@@ -427,6 +457,7 @@ export function hasAnnotations(text: string): boolean {
   if (typeof text !== 'string') {
     throw new TypeError(`text must be a string, got ${typeof text}`);
   }
+  assertNotBinary(text);
 
   return ANNOTATION_TESTERS.some((re) => re.test(text));
 }

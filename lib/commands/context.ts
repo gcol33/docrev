@@ -161,6 +161,15 @@ export {
 } from '../errors.js';
 
 export {
+  isWordDocument,
+  readAnnotatedInput,
+  assertEditableMarkdown,
+  requireEditableMarkdown,
+  loadAnnotated,
+  InputError,
+} from '../input.js';
+
+export {
   listJournals,
   getJournalProfile,
   validateManuscript,

@@ -22,7 +22,10 @@ import {
   interactiveReview,
   exitWithError,
   getFileNotFoundSuggestions,
-  requireFile,
+  loadAnnotated,
+  readAnnotatedInput,
+  requireEditableMarkdown,
+  InputError,
 } from './context.js';
 
 interface StripOptions {
@@ -43,7 +46,9 @@ export function register(program: Command): void {
     .description('Interactively review and accept/reject track changes')
     .argument('<file>', 'Markdown file to review')
     .action(async (file: string) => {
-      requireFile(file, 'Markdown file');
+      // Review writes accepted/rejected text back to the same path; a .docx
+      // cannot hold CriticMarkup, so refuse it with a pointer to `rev import`.
+      requireEditableMarkdown(file, 'Markdown file');
 
       const text = fs.readFileSync(file, 'utf-8');
       const result = await interactiveReview(text);
@@ -78,10 +83,10 @@ export function register(program: Command): void {
     .argument('<file>', 'Markdown file to strip')
     .option('-o, --output <file>', 'Output file (default: stdout)')
     .option('-c, --keep-comments', 'Keep comment annotations')
-    .action((file: string, options: StripOptions) => {
-      requireFile(file, 'Markdown file');
-
-      const text = fs.readFileSync(file, 'utf-8');
+    .action(async (file: string, options: StripOptions) => {
+      // Reads the input (a .docx is converted to CriticMarkup first) and writes
+      // clean text to stdout or --output, never back to the input file.
+      const text = await loadAnnotated(file, 'Markdown file');
       const clean = stripAnnotations(text, { keepComments: options.keepComments });
 
       if (options.output) {
@@ -107,12 +112,26 @@ export function register(program: Command): void {
         if (!fs.existsSync(file)) {
           if (jsonMode) {
             jsonOutput({ error: `File not found: ${file}` });
-          } else {
-            exitWithError(`File not found: ${file}`, getFileNotFoundSuggestions(file));
+            return;
           }
+          exitWithError(`File not found: ${file}`, getFileNotFoundSuggestions(file));
         }
 
-        const text = fs.readFileSync(file, 'utf-8');
+        // Route .docx through the OOXML reader so real track changes and
+        // comments are counted, instead of regexing the binary ZIP (#8).
+        let text: string;
+        try {
+          text = await readAnnotatedInput(file);
+        } catch (err) {
+          if (err instanceof InputError) {
+            if (jsonMode) {
+              jsonOutput({ error: err.message });
+              return;
+            }
+            exitWithError(err.message, err.suggestions);
+          }
+          throw err;
+        }
         const counts = countAnnotations(text);
         const comments = getComments(text);
 

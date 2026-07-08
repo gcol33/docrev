@@ -75,7 +75,7 @@ export function register(program: Command): void {
 
       const spin = fmt.spinner('Collecting comments...').start();
 
-      const comments = collectComments(mdFiles);
+      const comments = await collectComments(mdFiles);
       spin.stop();
 
       if (comments.length === 0) {

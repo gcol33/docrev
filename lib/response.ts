@@ -182,13 +182,16 @@ export function generateResponseLetter(comments: CommentWithReplies[], options: 
 /**
  * Collect comments from multiple files
  */
-export function collectComments(files: string[]): CommentWithReplies[] {
+export async function collectComments(files: string[]): Promise<CommentWithReplies[]> {
+  const { readAnnotatedInput } = await import('./input.js');
   const allComments: CommentWithReplies[] = [];
 
   for (const file of files) {
     if (!fs.existsSync(file)) continue;
 
-    const text = fs.readFileSync(file, 'utf-8');
+    // Route each file through the shared reader so a returned `.docx` is
+    // converted to CriticMarkup first, rather than regexing the binary ZIP.
+    const text = await readAnnotatedInput(file);
     const comments = parseCommentsWithReplies(text, path.basename(file));
     allComments.push(...comments);
   }

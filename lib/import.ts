@@ -723,6 +723,32 @@ export async function importWordWithTrackChanges(
 }
 
 /**
+ * Read a `.docx` into the same CriticMarkup-annotated Markdown that
+ * `rev import` produces, for read-only inspection (`rev status`, `rev
+ * comments`, ...). Track changes become `{++..++}` / `{--..--}` / `{~~..~~}`
+ * and comments are placed at their anchors, so `countAnnotations` /
+ * `getComments` and the rest operate on it exactly as they do on imported
+ * Markdown — the numbers match a subsequent `rev import`.
+ *
+ * Side-effect free: no media is extracted, nothing is written to disk, and
+ * extraction/placement messages are discarded (the caller only wants the
+ * annotated text). Works with or without pandoc — the XML fallback emits the
+ * same CriticMarkup — so it never reads the binary ZIP as text.
+ */
+export async function readDocxAsAnnotatedMarkdown(docxPath: string): Promise<string> {
+  const extracted = await extractFromWord(docxPath, { skipMediaExtraction: true });
+  let text = extracted.text;
+  const comments = extracted.comments || [];
+  const anchors = extracted.anchors || new Map();
+
+  if (comments.length > 0) {
+    text = insertCommentsIntoMarkdown(text, comments, anchors, { quiet: true });
+  }
+
+  return cleanupAnnotations(text);
+}
+
+/**
  * Legacy import function: Word doc → annotated MD via diff
  */
 export async function importFromWord(

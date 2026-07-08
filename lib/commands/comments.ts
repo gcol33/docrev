@@ -23,9 +23,30 @@ import {
   getUserName,
   exitWithError,
   getAnnotationSuggestions,
-  requireFile,
+  loadAnnotated,
+  readAnnotatedInput,
+  requireEditableMarkdown,
+  InputError,
 } from './context.js';
 import type { Comment, Annotation } from '../types.js';
+
+/**
+ * Read one file for the multi-file navigation commands (next/prev/first/last/
+ * todo). Converts a `.docx` to CriticMarkup like every other reader; on an
+ * unreadable/binary file it warns and returns null so a scan over many files
+ * is not aborted by one bad entry (and never silently under-counts).
+ */
+async function readCommentSource(f: string): Promise<string | null> {
+  try {
+    return await readAnnotatedInput(f);
+  } catch (err) {
+    if (err instanceof InputError) {
+      console.error(chalk.yellow(`  Skipping ${f}: ${err.message}`));
+      return null;
+    }
+    throw err;
+  }
+}
 
 /**
  * Add a reply after a comment
@@ -170,9 +191,15 @@ export function register(program: Command): void {
     .option('-i, --interactive', 'Interactive review mode (reply, resolve, skip)')
     .option('-t, --tui', 'Visual TUI mode for comment review')
     .action(async (file: string, options: CommentsOptions) => {
-      requireFile(file, 'Markdown file');
+      // Interactive and TUI modes write replies/resolutions back to the file,
+      // so they need editable Markdown; a .docx is refused with a pointer to
+      // `rev import`. Plain listing/export is read-only and reads a .docx
+      // directly (converted to CriticMarkup first).
+      if (options.interactive || options.tui) {
+        requireEditableMarkdown(file, 'Markdown file');
+      }
 
-      const text = fs.readFileSync(file, 'utf-8');
+      const text = await loadAnnotated(file, 'Markdown file');
 
       // TUI review mode
       if (options.tui) {
@@ -314,7 +341,8 @@ export function register(program: Command): void {
     .option('-u, --unresolve', 'Mark as pending (unresolve)')
     .option('--dry-run', 'Preview without saving')
     .action((file: string, options: ResolveOptions) => {
-      requireFile(file, 'Markdown file');
+      // Writes resolved markers back to the file; refuse a .docx (see review).
+      requireEditableMarkdown(file, 'Markdown file');
 
       let text = fs.readFileSync(file, 'utf-8');
       const comments = getComments(text);
@@ -395,7 +423,7 @@ export function register(program: Command): void {
     .description('Show next pending comment')
     .argument('[file]', 'Specific file (default: all markdown files)')
     .option('-n, --number <n>', 'Skip to nth pending comment', parseInt)
-    .action((file: string | undefined, options: NextOptions) => {
+    .action(async (file: string | undefined, options: NextOptions) => {
       const files = file ? [file] : findFiles('.md');
 
       if (files.length === 0) {
@@ -407,7 +435,8 @@ export function register(program: Command): void {
       const allPending: Array<Annotation & { file: string; number: number }> = [];
       for (const f of files) {
         if (!fs.existsSync(f)) continue;
-        const text = fs.readFileSync(f, 'utf-8');
+        const text = await readCommentSource(f);
+        if (text === null) continue;
         const allComments = getComments(text);
         const pending = getComments(text, { pendingOnly: true });
 
@@ -460,7 +489,7 @@ export function register(program: Command): void {
     .description('Show previous pending comment')
     .argument('[file]', 'Specific file (default: all markdown files)')
     .option('-n, --number <n>', 'Skip to nth pending comment from end', parseInt)
-    .action((file: string | undefined, options: PrevOptions) => {
+    .action(async (file: string | undefined, options: PrevOptions) => {
       const files = file ? [file] : findFiles('.md');
 
       if (files.length === 0) {
@@ -472,7 +501,8 @@ export function register(program: Command): void {
       const allPending: Array<Annotation & { file: string; number: number }> = [];
       for (const f of files) {
         if (!fs.existsSync(f)) continue;
-        const text = fs.readFileSync(f, 'utf-8');
+        const text = await readCommentSource(f);
+        if (text === null) continue;
         const allComments = getComments(text);
         const pending = getComments(text, { pendingOnly: true });
 
@@ -527,7 +557,7 @@ export function register(program: Command): void {
     .command('first')
     .description('Show first comment')
     .argument('[section]', 'Specific file or section name (default: all markdown files)')
-    .action((section: string | undefined) => {
+    .action(async (section: string | undefined) => {
       const files = section ? findSectionFile(section) : findFiles('.md');
 
       if (files.length === 0) {
@@ -538,7 +568,8 @@ export function register(program: Command): void {
       // Find first comment across files
       for (const f of files) {
         if (!fs.existsSync(f)) continue;
-        const text = fs.readFileSync(f, 'utf-8');
+        const text = await readCommentSource(f);
+        if (text === null) continue;
         const comments = getComments(text);
 
         if (comments.length > 0) {
@@ -573,7 +604,7 @@ export function register(program: Command): void {
     .command('last')
     .description('Show last comment')
     .argument('[section]', 'Specific file or section name (default: all markdown files)')
-    .action((section: string | undefined) => {
+    .action(async (section: string | undefined) => {
       const files = section ? findSectionFile(section) : findFiles('.md').reverse();
 
       if (files.length === 0) {
@@ -584,7 +615,8 @@ export function register(program: Command): void {
       // Find last comment across files (reverse order)
       for (const f of files) {
         if (!fs.existsSync(f)) continue;
-        const text = fs.readFileSync(f, 'utf-8');
+        const text = await readCommentSource(f);
+        if (text === null) continue;
         const comments = getComments(text);
 
         if (comments.length > 0) {
@@ -622,7 +654,7 @@ export function register(program: Command): void {
     .description('List all pending comments as a checklist')
     .argument('[file]', 'Specific file (default: all markdown files)')
     .option('--by-author', 'Group by author')
-    .action((file: string | undefined, options: { byAuthor?: boolean }) => {
+    .action(async (file: string | undefined, options: { byAuthor?: boolean }) => {
       const files = file ? [file] : findFiles('.md');
 
       if (files.length === 0) {
@@ -640,7 +672,8 @@ export function register(program: Command): void {
       }> = [];
       for (const f of files) {
         if (!fs.existsSync(f)) continue;
-        const text = fs.readFileSync(f, 'utf-8');
+        const text = await readCommentSource(f);
+        if (text === null) continue;
         const allComments = getComments(text);
         const pending = allComments.filter(c => !c.resolved);
 
@@ -711,10 +744,8 @@ export function register(program: Command): void {
     .option('-a, --all', 'Accept all changes')
     .option('--dry-run', 'Preview without saving')
     .action((file: string, options: AcceptOptions) => {
-      if (!fs.existsSync(file)) {
-        console.error(chalk.red(`Error: File not found: ${file}`));
-        process.exit(1);
-      }
+      // Writes accepted text back to the file; refuse a .docx (see review).
+      requireEditableMarkdown(file, 'Markdown file');
 
       let text = fs.readFileSync(file, 'utf-8');
       const changes = getTrackChanges(text);
@@ -795,10 +826,8 @@ export function register(program: Command): void {
     .option('-a, --all', 'Reject all changes')
     .option('--dry-run', 'Preview without saving')
     .action((file: string, options: RejectOptions) => {
-      if (!fs.existsSync(file)) {
-        console.error(chalk.red(`Error: File not found: ${file}`));
-        process.exit(1);
-      }
+      // Writes reverted text back to the file; refuse a .docx (see review).
+      requireEditableMarkdown(file, 'Markdown file');
 
       let text = fs.readFileSync(file, 'utf-8');
       const changes = getTrackChanges(text);
@@ -878,10 +907,8 @@ export function register(program: Command): void {
     .option('--all', 'Reply to all pending comments with the same message (requires -m)')
     .option('--dry-run', 'Preview without saving')
     .action(async (file: string, options: ReplyOptions) => {
-      if (!fs.existsSync(file)) {
-        console.error(chalk.red(`File not found: ${file}`));
-        process.exit(1);
-      }
+      // Writes replies back to the file; refuse a .docx (see review).
+      requireEditableMarkdown(file, 'Markdown file');
 
       // Get author name
       let author = options.author || getUserName();
@@ -1001,9 +1028,9 @@ export function register(program: Command): void {
     .option('--no-context', 'Exclude commented text context')
     .option('--force', 'Overwrite existing output file')
     .action(async (file: string, options: ReplyDocOptions) => {
-      requireFile(file, 'Markdown file');
-
-      const text = fs.readFileSync(file, 'utf-8');
+      // Read-only over the input; the reply template is written to a new file,
+      // so a .docx is read directly (converted to CriticMarkup first).
+      const text = await loadAnnotated(file, 'Markdown file');
       const comments = getComments(text);
 
       if (comments.length === 0) {

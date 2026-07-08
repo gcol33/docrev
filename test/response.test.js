@@ -247,43 +247,43 @@ describe('generateResponseLetter', () => {
 });
 
 describe('collectComments', () => {
-  it('should collect comments from multiple files', () => {
+  it('should collect comments from multiple files', async () => {
     const file1 = path.join(tempDir, 'intro.md');
     const file2 = path.join(tempDir, 'methods.md');
 
     fs.writeFileSync(file1, 'Text {>>R1: Comment 1<<} here.');
     fs.writeFileSync(file2, 'More {>>R2: Comment 2<<} text.');
 
-    const comments = collectComments([file1, file2]);
+    const comments = await collectComments([file1, file2]);
 
     assert.strictEqual(comments.length, 2);
     assert.ok(comments.some(c => c.author === 'R1'));
     assert.ok(comments.some(c => c.author === 'R2'));
   });
 
-  it('should skip non-existent files', () => {
+  it('should skip non-existent files', async () => {
     const file1 = path.join(tempDir, 'exists.md');
     fs.writeFileSync(file1, '{>>R1: Comment<<}');
 
-    const comments = collectComments([file1, '/nonexistent.md']);
+    const comments = await collectComments([file1, '/nonexistent.md']);
 
     assert.strictEqual(comments.length, 1);
   });
 
-  it('should include file basename in comments', () => {
+  it('should include file basename in comments', async () => {
     const file = path.join(tempDir, 'section.md');
     fs.writeFileSync(file, '{>>R1: Comment<<}');
 
-    const comments = collectComments([file]);
+    const comments = await collectComments([file]);
 
     assert.strictEqual(comments[0].file, 'section.md');
   });
 
-  it('should handle empty files', () => {
+  it('should handle empty files', async () => {
     const file = path.join(tempDir, 'empty.md');
     fs.writeFileSync(file, '');
 
-    const comments = collectComments([file]);
+    const comments = await collectComments([file]);
 
     assert.deepStrictEqual(comments, []);
   });
