@@ -742,6 +742,144 @@ export function extractComments(zip: AdmZip): ExtractedComment[] {
   return comments;
 }
 
+// =============================================================================
+// Tables
+// =============================================================================
+
+export const OMML_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+
+export interface TableCellModel {
+  /** Concatenated cell text, entity-decoded, in document order. */
+  text: string;
+  /** Horizontal merge width (`w:gridSpan`), 1 when absent. */
+  gridSpan: number;
+  /** True for a vertical-merge continuation cell (`w:vMerge` without restart). */
+  vMergeContinuation: boolean;
+}
+
+export interface TableModel {
+  rows: TableCellModel[][];
+  /** Column count from `w:tblGrid`, 0 when the grid is absent. */
+  gridCols: number;
+}
+
+interface CellFrame {
+  text: string;
+  gridSpan: number;
+  vMergeContinuation: boolean;
+  inTcPr: boolean;
+  hasMath: boolean;
+  mathChars: number;
+}
+
+/**
+ * Read every top-level table in a part into a structural model. Matches
+ * elements by local name in the WordprocessingML namespace (never by the `w:`
+ * prefix), reads `w:gridSpan`/`w:vMerge` from the cell properties, and folds
+ * the text of any nested table into its containing cell. OMML math runs
+ * contribute their `m:t` text; a math zone with no text becomes `[math]`.
+ */
+export function extractTableModels(xml: string): TableModel[] {
+  const tokens = tokenizeXml(xml);
+  const ns = resolveNamespaces(tokens);
+  const tables: TableModel[] = [];
+
+  let tblDepth = 0;
+  let table: TableModel | null = null;
+  let row: TableCellModel[] | null = null;
+  let cell: CellFrame | null = null;
+  let inGrid = false;
+  /** >0 while inside a text-bearing element (`w:t` or `m:t`). */
+  let textDepth = 0;
+  let inMathText = false;
+
+  const isMathToken = (tok: XmlToken) => ns.uriForPrefix(tok.prefix ?? '') === OMML_NS;
+
+  for (const tok of tokens) {
+    if (tok.kind === 'text' || tok.kind === 'cdata') {
+      if (cell && textDepth > 0 && tok.text) {
+        cell.text += tok.text;
+        if (inMathText) cell.mathChars += tok.text.length;
+      }
+      continue;
+    }
+    if (tok.kind !== 'open' && tok.kind !== 'close' && tok.kind !== 'selfclose') continue;
+
+    const wml = ns.isWml(tok);
+    const math = isMathToken(tok);
+    const ln = tok.local;
+
+    if (tok.kind === 'open') {
+      if (wml && ln === 'tbl') {
+        tblDepth++;
+        if (tblDepth === 1) table = { rows: [], gridCols: 0 };
+      } else if (wml && ln === 'tblGrid' && tblDepth === 1) {
+        inGrid = true;
+      } else if (wml && ln === 'tr' && tblDepth === 1) {
+        row = [];
+      } else if (wml && ln === 'tc' && tblDepth === 1) {
+        cell = { text: '', gridSpan: 1, vMergeContinuation: false, inTcPr: false, hasMath: false, mathChars: 0 };
+      } else if (wml && ln === 'tcPr' && cell && tblDepth === 1) {
+        cell.inTcPr = true;
+      } else if (cell && ln === 't' && (wml || math)) {
+        // Cell text: WML <w:t> runs plus OMML <m:t> math text, document order.
+        textDepth++;
+        inMathText = math;
+      } else if (math && ln === 'oMath' && cell) {
+        cell.hasMath = true;
+      } else if (wml && ln === 'gridSpan' && cell?.inTcPr) {
+        const val = ns.wmlAttr(tok, 'val');
+        const span = val ? parseInt(val, 10) : NaN;
+        if (Number.isFinite(span) && span > 0) cell.gridSpan = span;
+      } else if (wml && ln === 'vMerge' && cell?.inTcPr) {
+        cell.vMergeContinuation = ns.wmlAttr(tok, 'val') !== 'restart';
+      }
+    } else if (tok.kind === 'close') {
+      if (wml && ln === 'tbl') {
+        if (tblDepth === 1 && table) {
+          tables.push(table);
+          table = null;
+        }
+        if (tblDepth > 0) tblDepth--;
+      } else if (wml && ln === 'tblGrid') {
+        inGrid = false;
+      } else if (wml && ln === 'tr' && tblDepth === 1) {
+        if (table && row && row.length > 0) table.rows.push(row);
+        row = null;
+      } else if (wml && ln === 'tc' && tblDepth === 1) {
+        if (cell && row) {
+          // A math zone that produced no text still needs a visible marker.
+          const text = cell.hasMath && cell.mathChars === 0 ? `[math]${cell.text}` : cell.text;
+          row.push({
+            text: cell.vMergeContinuation ? '' : text.trim(),
+            gridSpan: cell.gridSpan,
+            vMergeContinuation: cell.vMergeContinuation,
+          });
+        }
+        cell = null;
+      } else if (wml && ln === 'tcPr' && cell) {
+        cell.inTcPr = false;
+      } else if (((wml && ln === 't') || (math && ln === 't')) && textDepth > 0) {
+        textDepth--;
+        if (textDepth === 0) inMathText = false;
+      }
+    } else {
+      // self-close
+      if (wml && ln === 'gridCol' && inGrid && table) {
+        table.gridCols++;
+      } else if (wml && ln === 'gridSpan' && cell?.inTcPr) {
+        const val = ns.wmlAttr(tok, 'val');
+        const span = val ? parseInt(val, 10) : NaN;
+        if (Number.isFinite(span) && span > 0) cell.gridSpan = span;
+      } else if (wml && ln === 'vMerge' && cell?.inTcPr) {
+        cell.vMergeContinuation = ns.wmlAttr(tok, 'val') !== 'restart';
+      }
+    }
+  }
+
+  return tables;
+}
+
 /** Parts that can carry comment ranges, in reading order. */
 export const COMMENT_PARTS = ['word/document.xml', 'word/footnotes.xml', 'word/endnotes.xml'];
 

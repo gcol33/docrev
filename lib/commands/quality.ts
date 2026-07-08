@@ -334,7 +334,7 @@ export function register(program: Command): void {
       const severityLevels: Record<string, number> = { error: 3, warning: 2, info: 1 };
       const minSeverity = severityLevels[options.severity || 'info'] || 1;
 
-      let allIssues: GrammarIssue[] = [];
+      const allIssues: GrammarIssue[] = [];
 
       for (const file of mdFiles) {
         if (!fs.existsSync(file)) continue;
@@ -455,7 +455,7 @@ export function register(program: Command): void {
 
       const severityLevels: Record<string, number> = { error: 3, warning: 2, info: 1 };
       const minSeverity = severityLevels[options.severity || 'warning'] || 2;
-      let grammarIssues: GrammarIssue[] = [];
+      const grammarIssues: GrammarIssue[] = [];
 
       for (const file of sections) {
         if (!fs.existsSync(file)) continue;

@@ -245,15 +245,17 @@ export function prepareMarkdownWithMarkers(markdown: string): PrepareResult {
         removeStart--;
       }
 
-      // If this reply places parent's markers (anchor was propagated)
+      // If this reply places parent's markers (anchor was propagated).
+      // The parent's anchor IS this reply's anchor text, already extracted
+      // by the nested-bracket parse above — re-matching the raw text with a
+      // `[^\]]+` regex here would bail on nested `]` (e.g. `[[0..9]]{.mark}`)
+      // and silently drop both the parent and the reply.
       if (c.placesParentMarkers && c.parentIdx !== null) {
-        // Extract anchor text from the original match
-        const anchorMatch = c.fullMatch.match(/\[([^\]]+)\]\{\.mark\}$/);
-        if (anchorMatch) {
-          const anchorText = anchorMatch[1] ?? '';
+        const parentAnchor = comments[c.parentIdx]?.anchor;
+        if (parentAnchor != null) {
           // Output markers with PARENT's index around the anchor text
           const parentIdx = c.parentIdx;
-          const replacement = `${MARKER_START_PREFIX}${parentIdx}${MARKER_SUFFIX}${anchorText}${MARKER_END_PREFIX}${parentIdx}${MARKER_SUFFIX}`;
+          const replacement = `${MARKER_START_PREFIX}${parentIdx}${MARKER_SUFFIX}${parentAnchor}${MARKER_END_PREFIX}${parentIdx}${MARKER_SUFFIX}`;
           markedMarkdown = markedMarkdown.slice(0, removeStart) + replacement + markedMarkdown.slice(c.end);
         } else {
           markedMarkdown = markedMarkdown.slice(0, removeStart) + markedMarkdown.slice(c.end);
@@ -536,7 +538,7 @@ export async function injectCommentsAtMarkers(
         const afterStart = startSlot.content.slice(startHit.rel + startMarker.length);
         const endInTextRel = afterStart.indexOf(endMarker);
         if (endInTextRel === -1) continue;
-        let textBefore = startSlot.content.slice(0, startHit.rel);
+        const textBefore = startSlot.content.slice(0, startHit.rel);
         let anchorText = afterStart.slice(0, endInTextRel);
         let textAfter = afterStart.slice(endInTextRel + endMarker.length);
 

@@ -348,7 +348,7 @@ export function parseSlide(slideContent: string): Slide {
   let inBlock = false;
   let blockType: string | null = null;
   let currentBlockContent: string[] = [];
-  let beforeFirstStep: string[] = [];
+  const beforeFirstStep: string[] = [];
   let foundFirstStep = false;
 
   for (let i = 0; i < bodyLines.length; i++) {

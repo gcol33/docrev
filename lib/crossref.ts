@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import YAML from 'yaml';
+import { resolveSectionsConfig, getOrderedSections } from './sections.js';
 import type {
   RefNumber,
   HardcodedRef,
@@ -68,47 +69,17 @@ interface DetectedRef {
 // =============================================================================
 
 /**
- * Discover section files from a directory by reading config files
- * Only returns files explicitly defined in rev.yaml or sections.yaml
- * Returns empty array if no config found (caller should handle this)
+ * Discover section files from a directory by reading config files.
+ * Delegates to the canonical resolution in sections.ts (explicit
+ * sections.yaml wins, else the `sections:` list in rev.yaml) so crossref
+ * cannot drift from what sync/split/build consume.
+ * Returns empty array if no config found (caller should handle this).
  */
 function discoverSectionFiles(directory: string): string[] {
-  // Try rev.yaml first
-  const revYamlPath = path.join(directory, 'rev.yaml');
-  if (fs.existsSync(revYamlPath)) {
-    try {
-      const config = YAML.parse(fs.readFileSync(revYamlPath, 'utf-8'));
-      if (config.sections && Array.isArray(config.sections) && config.sections.length > 0) {
-        return config.sections.filter((f: string) => fs.existsSync(path.join(directory, f)));
-      }
-    } catch (e) {
-      if (process.env.DEBUG) {
-        console.warn('crossref: YAML parse error in rev.yaml:', (e as Error).message);
-      }
-    }
-  }
-
-  // Try sections.yaml
-  const sectionsPath = path.join(directory, 'sections.yaml');
-  if (fs.existsSync(sectionsPath)) {
-    try {
-      const config = YAML.parse(fs.readFileSync(sectionsPath, 'utf-8'));
-      if (config.sections) {
-        const sectionOrder = Object.entries(config.sections)
-          .sort((a, b) => ((a[1] as any).order ?? 999) - ((b[1] as any).order ?? 999))
-          .map(([file]) => file);
-        return sectionOrder.filter((f) => fs.existsSync(path.join(directory, f)));
-      }
-    } catch (e) {
-      if (process.env.DEBUG) {
-        console.warn('crossref: YAML parse error in sections.yaml:', (e as Error).message);
-      }
-    }
-  }
-
-  // No config found - return empty array
-  // Caller must handle this (either error or use explicit sections)
-  return [];
+  const resolved = resolveSectionsConfig(directory);
+  if (!resolved) return [];
+  return getOrderedSections(resolved.config)
+    .filter((f) => fs.existsSync(path.join(directory, f)));
 }
 
 // =============================================================================
@@ -207,7 +178,7 @@ export function parseReferenceList(listStr: string): ParsedRefNumber[] {
   if (!listStr || typeof listStr !== 'string') return results;
 
   // Normalize: replace "and" with comma, normalize dashes
-  let normalized = listStr
+  const normalized = listStr
     .replace(/\s+and\s+/gi, ', ')
     .replace(/[–—]/g, '-') // en-dash, em-dash → hyphen
     .replace(/&/g, ', '); // & → comma

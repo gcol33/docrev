@@ -137,7 +137,7 @@ export function register(program: Command): void {
         ]));
         console.log();
 
-        let finalMerged = merged;
+        const finalMerged = merged;
 
         // Handle conflicts
         if (conflicts.length > 0) {

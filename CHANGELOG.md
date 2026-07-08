@@ -5,6 +5,28 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-08
+
+### Fixed
+- **Images restored by caption match keep their `{#fig:label}` crossref anchor.** An add-then-check ordering bug in `restoreImagesFromRegistry` guaranteed the anchor was always dropped, so every `@fig:` reference to a caption-matched figure broke on the next build.
+- **Markdown tables in CRLF files are protected through the import diff.** The table-protection pattern required `|\n` line endings, so on Windows-authored files no table was ever protected and the diff engine could mangle rows. Math protection also no longer captures escaped `\$` (currency amounts) as math spans.
+- **Postprocess script failures now surface without `--verbose`.** A failing `postprocess.pdf`/`.docx` script used to be invisible unless verbose was on, with the build still reporting success; the failure is now returned through the build warnings and printed.
+- **Reply comments whose anchor contains nested brackets no longer vanish.** The reply-places-parent-markers path re-parsed the anchor with a regex that bailed at the first inner `]`, silently dropping both the parent and the reply from the rebuilt docx; it now uses the anchor already extracted by the nested-bracket parser.
+- **`rev orcid` and CSL style downloads can no longer hang forever.** Both now route through the shared rate limiter (per-request timeout via AbortController, bounded retries) that the DOI commands already used.
+- **Unexpected errors inside commands print a clean message instead of a raw Node stack.** The CLI now runs `parseAsync` inside a try/catch and installs `unhandledRejection`/`uncaughtException` handlers (`DEBUG=1` shows the stack). A corrupt `package.json` or `.rev/conflicts.json` degrades gracefully instead of crashing.
+- **Table cell text decodes XML entities correctly.** Table extraction had a private decoder that double-unescaped `&amp;lt;` and corrupted emoji/astral characters; it now shares the ooxml layer's decoder.
+- **`rev completions` and `rev install-cli-skill` work from the published package.** Both resolved package assets with a fixed number of `..` segments that only matched the source layout, not `dist/`; assets now resolve via the nearest `package.json`. A CI pack-smoke-test job installs the tarball and exercises the CLI to keep this class of regression out.
+- Temp files (`.paper-marked.*`, `.paper-annotated.*`, equation-sheet `.tmp.md`) are cleaned up in `finally` blocks, so a failed pandoc run no longer leaks them into the project directory.
+
+### Changed
+- **Table extraction is parser-backed.** Word tables are now read through the structural OOXML layer (namespace by URI, `gridSpan`/`vMerge` from cell properties), so documents binding WordprocessingML to a prefix other than `w:` yield their tables.
+- **Visible-comment conversion is stricter.** `[Author: text]` conversion now requires a name-like author (no digits), skips documentary lead-ins (`[Note: …]`), markdown links, and image alt text, so bracketed prose is no longer rewritten into reviewer comments during import.
+- Dual-mode orchestration (`_comments.docx` / `_comments.pdf`) moved from the command layer into `build.ts` (`buildCommentsDocx` / `buildCommentsPdf`) with a single output-suffix helper.
+- Dead pre-parser extractors were removed from `word.ts`; its public comment/anchor entry points now delegate to the shipping implementations, so tests exercise the real code path. `isWordDocument` is content-based (ZIP + `word/document.xml`) rather than extension-based.
+- crossref section discovery, config-key typo detection, and command suggestions now share single implementations (`resolveSectionsConfig`, `utils.levenshtein`).
+- Packaging: `files` allowlist replaces `.npmignore` (tarball drops from 3.7 MB/412 files to 2.1 MB/312 files — no more TS source, mkdocs site, or planning docs), `tsx` moved to devDependencies, legacy hand-written `types/index.d.ts` removed, MIT `LICENSE` file added.
+- CI: the test glob now includes `.test.ts` files (the pptx-template suite was silently excluded everywhere), ESLint actually lints the TypeScript source (it previously linted only compiled `dist/` output), and a pack-smoke-test job was added.
+
 ## [0.11.3] - 2026-07-08
 
 ### Fixed

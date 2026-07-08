@@ -4,6 +4,11 @@
  * Fetches author information from ORCID public API
  */
 
+import { RateLimiter } from './rate-limiter.js';
+
+// Bounded timeout + retry so a stalled ORCID connection cannot hang the CLI.
+const orcidLimiter = new RateLimiter({ minDelay: 100, maxDelay: 10000 });
+
 export interface OrcidProfile {
   orcid: string;
   name: string;
@@ -25,7 +30,7 @@ export function cleanOrcid(input: string): string {
   if (!input) return '';
 
   // Remove URL prefix if present
-  let clean = input.trim()
+  const clean = input.trim()
     .replace(/^https?:\/\/(www\.)?orcid\.org\//i, '')
     .replace(/^orcid\.org\//i, '')
     .trim();
@@ -45,7 +50,7 @@ export async function fetchOrcidProfile(orcid: string): Promise<OrcidProfile> {
 
   const url = `https://pub.orcid.org/v3.0/${cleanId}/person`;
 
-  const response = await fetch(url, {
+  const response = await orcidLimiter.fetchWithRetry(url, {
     headers: {
       'Accept': 'application/json',
     },
@@ -105,11 +110,16 @@ export async function fetchOrcidWorkCount(orcid: string): Promise<number> {
 
   const url = `https://pub.orcid.org/v3.0/${cleanId}/works`;
 
-  const response = await fetch(url, {
-    headers: {
-      'Accept': 'application/json',
-    },
-  });
+  let response: Response;
+  try {
+    response = await orcidLimiter.fetchWithRetry(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+  } catch {
+    return 0;
+  }
 
   if (!response.ok) {
     return 0;

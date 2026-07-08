@@ -203,7 +203,7 @@ export function register(program: Command): void {
 
       // TUI review mode
       if (options.tui) {
-        let author = options.author || getUserName();
+        const author = options.author || getUserName();
         if (!author) {
           exitWithError('No user name set for replies', getAnnotationSuggestions('no_author'));
         }
@@ -227,7 +227,7 @@ export function register(program: Command): void {
 
       // Interactive review mode
       if (options.interactive) {
-        let author = options.author || getUserName();
+        const author = options.author || getUserName();
         if (!author) {
           exitWithError('No user name set for replies', getAnnotationSuggestions('no_author'));
         }
@@ -911,7 +911,7 @@ export function register(program: Command): void {
       requireEditableMarkdown(file, 'Markdown file');
 
       // Get author name
-      let author = options.author || getUserName();
+      const author = options.author || getUserName();
       if (!author) {
         console.error(chalk.yellow('No user name set.'));
         console.error(chalk.dim('Set with: rev config user "Your Name"'));

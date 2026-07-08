@@ -164,10 +164,40 @@ export {
   isWordDocument,
   readAnnotatedInput,
   assertEditableMarkdown,
-  requireEditableMarkdown,
-  loadAnnotated,
   InputError,
 } from '../input.js';
+
+import { readAnnotatedInput, assertEditableMarkdown, InputError } from '../input.js';
+import { exitWithError, requireFile } from '../errors.js';
+
+/**
+ * Command front door: verify the file exists, then read it as annotated
+ * Markdown (converting a `.docx` on the way). On a bad input, print a friendly
+ * error and exit — matching how the rest of the CLI reports failures.
+ */
+export async function loadAnnotated(file: string, fileType = 'Markdown file'): Promise<string> {
+  requireFile(file, fileType);
+  try {
+    return await readAnnotatedInput(file);
+  } catch (err) {
+    if (err instanceof InputError) exitWithError(err.message, err.suggestions);
+    throw err;
+  }
+}
+
+/**
+ * Command front door for editing commands: verify existence and refuse a Word
+ * document (which cannot be edited in place), printing guidance and exiting.
+ */
+export function requireEditableMarkdown(file: string, fileType = 'Markdown file'): void {
+  requireFile(file, fileType);
+  try {
+    assertEditableMarkdown(file);
+  } catch (err) {
+    if (err instanceof InputError) exitWithError(err.message, err.suggestions);
+    throw err;
+  }
+}
 
 export {
   listJournals,

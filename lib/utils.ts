@@ -2,6 +2,26 @@
  * Shared utility functions
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Find the docrev package root by walking up from a directory inside the
+ * package until a `package.json` appears. Works both from source
+ * (`lib/commands` → repo root) and from the compiled package
+ * (`dist/lib/commands` → the installed package root) — a fixed number of
+ * `..` segments cannot serve both layouts.
+ */
+export function packageRoot(fromDir: string): string {
+  let dir = fromDir;
+  for (;;) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) return fromDir;
+    dir = parent;
+  }
+}
+
 /**
  * Count words in text (excluding markdown syntax)
  * @param text - Markdown text
@@ -25,6 +45,30 @@ export function countWords(text: string): number {
     .trim()
     .split(/\s+/)
     .filter(w => w.length > 0).length;
+}
+
+/**
+ * Levenshtein edit distance between two strings.
+ * Shared by command typo suggestions, config-key typo detection, and
+ * similar-filename suggestions.
+ */
+export function levenshtein(a: string, b: string): number {
+  const matrix: number[][] = Array(b.length + 1)
+    .fill(null)
+    .map(() => Array(a.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) matrix[0]![i] = i;
+  for (let j = 0; j <= b.length; j++) matrix[j]![0] = j;
+  for (let j = 1; j <= b.length; j++) {
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[j]![i] = Math.min(
+        matrix[j]![i - 1]! + 1,
+        matrix[j - 1]![i]! + 1,
+        matrix[j - 1]![i - 1]! + cost
+      );
+    }
+  }
+  return matrix[b.length]![a.length]!;
 }
 
 /**

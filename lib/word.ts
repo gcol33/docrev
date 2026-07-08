@@ -4,56 +4,33 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
-import AdmZip from 'adm-zip';
-import type { WordComment, CommentAnchor, WordMetadata, TrackChangesResult } from './types.js';
+import type { CommentAnchor, WordMetadata } from './types.js';
 import {
   openDocx,
   readPartText,
-  buildCommentAnchorModel,
-  extractComments,
   walkBody,
   type FlowItem,
 } from './ooxml.js';
-
-// =============================================================================
-// Constants
-// =============================================================================
-
-/** Characters of context to extract around comment anchors */
-const ANCHOR_CONTEXT_SIZE = 100;
-
-/** Characters of context before comment range start */
-const CONTEXT_BEFORE_SIZE = 500;
+import { extractCommentAnchors as extractAnchorsWithContext } from './word-extraction.js';
 
 // =============================================================================
 // Public API
 // =============================================================================
 
 /**
- * Extract comments from Word document's comments.xml
- * @param docxPath - Path to .docx file
- * @returns Array of extracted comments
- * @throws {TypeError} If docxPath is not a string
- * @throws {Error} If file not found or invalid docx
+ * Extract comments from Word document's comments.xml.
+ * Re-exported from word-extraction.ts — the single implementation the CLI
+ * ships — so this public entry cannot drift from what commands use (the
+ * earlier local copy had already lost reply threading via `parentId`).
  */
-export async function extractWordComments(docxPath: string): Promise<WordComment[]> {
-  if (typeof docxPath !== 'string') {
-    throw new TypeError(`docxPath must be a string, got ${typeof docxPath}`);
-  }
-  if (!fs.existsSync(docxPath)) {
-    throw new Error(`File not found: ${docxPath}`);
-  }
-
-  const zip = openDocx(docxPath);
-  return extractComments(zip)
-    .filter((c) => c.id && c.text)
-    .map((c) => ({ id: c.id, author: c.author, date: c.date, text: c.text }));
-}
+export { extractWordComments } from './word-extraction.js';
 
 /**
  * Extract comment anchors (where comments are attached) from document.xml
- * Returns mapping of comment ID to the text they're anchored to
+ * Returns mapping of comment ID to the text they're anchored to.
+ *
+ * Thin shape adapter over word-extraction.ts's richer anchor model so the
+ * extraction logic exists exactly once.
  * @param docxPath - Path to .docx file
  * @returns Map of comment ID to anchor info
  * @throws {TypeError} If docxPath is not a string
@@ -64,22 +41,12 @@ export async function extractCommentAnchors(docxPath: string): Promise<Map<strin
     throw new TypeError(`docxPath must be a string, got ${typeof docxPath}`);
   }
 
-  const zip = openDocx(docxPath);
-  if (!zip.getEntry('word/document.xml')) {
-    throw new Error('Invalid docx: no document.xml');
+  const { anchors } = await extractAnchorsWithContext(docxPath);
+  const result = new Map<string, CommentAnchor>();
+  for (const [id, data] of anchors) {
+    result.set(id, { text: data.anchor, context: data.before });
   }
-
-  const { fullDocText, comments } = buildCommentAnchorModel(zip);
-  const anchors = new Map<string, CommentAnchor>();
-
-  for (const range of comments) {
-    anchors.set(range.id, {
-      text: range.anchor,
-      context: fullDocText.slice(Math.max(0, range.start - CONTEXT_BEFORE_SIZE), range.start).slice(-ANCHOR_CONTEXT_SIZE),
-    });
-  }
-
-  return anchors;
+  return result;
 }
 
 /**
@@ -113,14 +80,13 @@ export async function getWordMetadata(docxPath: string): Promise<WordMetadata> {
     throw new TypeError(`docxPath must be a string, got ${typeof docxPath}`);
   }
 
-  const zip = new AdmZip(docxPath);
-  const coreEntry = zip.getEntry('docProps/core.xml');
+  const zip = openDocx(docxPath);
+  const coreXml = readPartText(zip, 'docProps/core.xml');
 
-  if (!coreEntry) {
+  if (coreXml === null) {
     return {};
   }
 
-  const coreXml = zip.readAsText(coreEntry);
   const metadata: WordMetadata = {};
 
   // Extract common metadata fields
@@ -142,101 +108,21 @@ export async function getWordMetadata(docxPath: string): Promise<WordMetadata> {
 }
 
 /**
- * Check if file is a valid Word document
+ * Check if file is a valid Word document: an existing OOXML package that
+ * actually contains `word/document.xml`. Content-based, so a valid docx
+ * with a wrong extension is still recognized and a renamed non-zip is not.
  * @param filePath - Path to file to check
- * @returns True if valid .docx file
+ * @returns True if valid Word document
  */
 export function isWordDocument(filePath: string): boolean {
   if (typeof filePath !== 'string') return false;
   if (!fs.existsSync(filePath)) return false;
-  if (!filePath.toLowerCase().endsWith('.docx')) return false;
 
   try {
-    const zip = new AdmZip(filePath);
-    return zip.getEntry('word/document.xml') !== null;
+    return openDocx(filePath).getEntry('word/document.xml') !== null;
   } catch {
     return false;
   }
-}
-
-/**
- * Extract text content from XML element, handling nested elements
- * @param xml - XML string
- * @returns Plain text content
- */
-function extractTextFromXml(xml: string): string {
-  let text = '';
-  // Match w:t elements (regular text)
-  const textPattern = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-  let match: RegExpExecArray | null;
-  while ((match = textPattern.exec(xml)) !== null) {
-    text += match[1];
-  }
-  // Also match w:delText (deleted text)
-  const delTextPattern = /<w:delText[^>]*>([^<]*)<\/w:delText>/g;
-  while ((match = delTextPattern.exec(xml)) !== null) {
-    text += match[1];
-  }
-  return text;
-}
-
-/**
- * Extract track changes (insertions and deletions) from Word document
- * Converts Word's w:ins and w:del elements to CriticMarkup format
- *
- * @param docxPath - Path to Word document
- * @returns Track changes result with content and stats
- */
-export async function extractTrackChanges(docxPath: string): Promise<TrackChangesResult> {
-  if (!fs.existsSync(docxPath)) {
-    throw new Error(`File not found: ${docxPath}`);
-  }
-
-  const zip = new AdmZip(docxPath);
-  const documentEntry = zip.getEntry('word/document.xml');
-
-  if (!documentEntry) {
-    throw new Error('Invalid docx: no document.xml');
-  }
-
-  let xml = zip.readAsText(documentEntry);
-  let insertions = 0;
-  let deletions = 0;
-
-  // Check if there are any track changes
-  const hasInsertions = xml.includes('<w:ins ');
-  const hasDeletions = xml.includes('<w:del ');
-
-  if (!hasInsertions && !hasDeletions) {
-    return { hasTrackChanges: false, content: null, stats: { insertions: 0, deletions: 0 } };
-  }
-
-  // Process insertions: <w:ins ...>...</w:ins> -> {++...++}
-  // Match the full w:ins element including nested content
-  xml = xml.replace(/<w:ins\b[^>]*>([\s\S]*?)<\/w:ins>/g, (match, content) => {
-    const text = extractTextFromXml(content);
-    if (text.trim()) {
-      insertions++;
-      return `{++${text}++}`;
-    }
-    return text;
-  });
-
-  // Process deletions: <w:del ...>...</w:del> -> {--...--}
-  xml = xml.replace(/<w:del\b[^>]*>([\s\S]*?)<\/w:del>/g, (match, content) => {
-    const text = extractTextFromXml(content);
-    if (text.trim()) {
-      deletions++;
-      return `{--${text}--}`;
-    }
-    return '';
-  });
-
-  return {
-    hasTrackChanges: true,
-    content: xml,
-    stats: { insertions, deletions },
-  };
 }
 
 /**
@@ -448,79 +334,3 @@ export async function extractPlainTextWithTrackChanges(docxPath: string): Promis
   };
 }
 
-interface ExtractWithTrackChangesOptions {
-  mediaDir?: string;
-}
-
-/**
- * Extract Word document content with track changes preserved as CriticMarkup
- * Uses pandoc with track-changes=all option to preserve insertions/deletions
- *
- * @param docxPath - Path to Word document
- * @param options - Options
- * @returns Track changes result with text and stats
- */
-export async function extractWithTrackChanges(
-  docxPath: string,
-  options: ExtractWithTrackChangesOptions = {}
-): Promise<{ text: string; hasTrackChanges: boolean; stats: { insertions: number; deletions: number } }> {
-  const { mediaDir } = options;
-
-  if (!fs.existsSync(docxPath)) {
-    throw new Error(`File not found: ${docxPath}`);
-  }
-
-  const { execSync } = await import('child_process');
-
-  // Use pandoc with --track-changes=all to preserve track changes
-  // This outputs insertions as [insertion]{.insertion} and deletions as [deletion]{.deletion}
-  let pandocArgs = `"${docxPath}" -t markdown --wrap=none --track-changes=all`;
-  if (mediaDir) {
-    pandocArgs += ` --extract-media="${mediaDir}"`;
-  }
-
-  let text: string;
-  try {
-    text = execSync(`pandoc ${pandocArgs}`, {
-      encoding: 'utf-8',
-      maxBuffer: 50 * 1024 * 1024,
-    });
-  } catch (err: any) {
-    throw new Error(`Pandoc extraction failed: ${err.message}`);
-  }
-
-  // Count track changes from pandoc output
-  let insertions = 0;
-  let deletions = 0;
-
-  // Pandoc outputs track changes as:
-  // [inserted text]{.insertion author="..."}
-  // [deleted text]{.deletion author="..."}
-
-  // Convert pandoc's track change format to CriticMarkup
-  // Insertions: [text]{.insertion ...} -> {++text++}
-  text = text.replace(/\[([^\]]*)\]\{\.insertion[^}]*\}/g, (match, content) => {
-    if (content.trim()) {
-      insertions++;
-      return `{++${content}++}`;
-    }
-    return '';
-  });
-
-  // Deletions: [text]{.deletion ...} -> {--text--}
-  text = text.replace(/\[([^\]]*)\]\{\.deletion[^}]*\}/g, (match, content) => {
-    if (content.trim()) {
-      deletions++;
-      return `{--${content}--}`;
-    }
-    return '';
-  });
-
-  const hasTrackChanges = insertions > 0 || deletions > 0;
-
-  return {
-    text,
-    hasTrackChanges,
-    stats: { insertions, deletions },
-  };
-}

@@ -83,7 +83,7 @@ function detectSectionsFromWord(text: string): DetectedSection[] {
 
   let currentSection: string | null = null;
   let currentContent: string[] = [];
-  let preambleContent: string[] = [];
+  const preambleContent: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();

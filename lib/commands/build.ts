@@ -709,150 +709,60 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
         // Handle --dual mode
         if (options.dual) {
+          const { buildCommentsDocx, buildCommentsPdf } = await import('../build.js');
+
           const docxResult = results.find(r => r.format === 'docx' && r.success);
           if (docxResult) {
-            const { prepareMarkdownWithMarkers, injectCommentsAtMarkers } = await import('../wordcomments.js');
-            const { runPandoc, applyFormatTransforms } = await import('../build.js');
+            const spinDual = fmt.spinner('Building comments DOCX...').start();
+            const dualResult = await buildCommentsDocx(dir, paperPath, config, docxResult.outputPath!, {
+              referencePath: options.reference ? path.resolve(dir, options.reference) : null,
+              pandocArgs: options.pandocArg,
+              verbose: options.verbose,
+            });
+            spinDual.stop();
 
-            let markdown = fs.readFileSync(paperPath, 'utf-8');
-
-            if (options.reference) {
-              const refPath = path.resolve(dir, options.reference);
-              if (fs.existsSync(refPath)) {
-                const spinRealign = fmt.spinner('Realigning comments from reference...').start();
-                const { realignMarkdown } = await import('../comment-realign.js');
-                const realigned = await realignMarkdown(refPath, markdown);
-                if (realigned.success) {
-                  markdown = realigned.markdown;
-                  spinRealign.stop();
-                  console.log(chalk.dim(`  Realigned ${realigned.insertions} comments from reference`));
-                } else {
-                  spinRealign.stop();
-                  console.log(chalk.yellow(`  Warning: Could not realign comments: ${realigned.error}`));
-                }
-              } else {
-                console.log(chalk.yellow(`  Warning: Reference not found: ${options.reference}`));
-              }
+            for (const w of dualResult.warnings) {
+              console.log(chalk.yellow(`  Warning: ${w}`));
+            }
+            if (dualResult.realigned !== undefined) {
+              console.log(chalk.dim(`  Realigned ${dualResult.realigned} comments from reference`));
             }
 
-            markdown = stripAnnotations(markdown, { keepComments: true });
-
-            // Apply DOCX transforms (author affiliations, @fig: → "Figure 1")
-            // before injecting markers, so the comments DOCX matches the clean
-            // DOCX in everything but the comments themselves.
-            const registry = buildRegistry(dir, config.sections);
-            markdown = applyFormatTransforms(markdown, 'docx', config, registry);
-
-            const spinMarkers = fmt.spinner('Preparing markers...').start();
-            const { markedMarkdown, comments } = prepareMarkdownWithMarkers(markdown);
-            spinMarkers.stop();
-
-            if (comments.length === 0) {
+            if (dualResult.skipped) {
               console.log(chalk.yellow('\nNo comments found - skipping comments DOCX'));
-            } else {
-              const markedPath = path.join(dir, '.paper-marked.md');
-              fs.writeFileSync(markedPath, markedMarkdown, 'utf-8');
-
-              const spinBuild = fmt.spinner('Building marked DOCX...').start();
-              const markedDocxPath = path.join(dir, '.paper-marked.docx');
-              const pandocResult = await runPandoc(markedPath, 'docx', config, { ...options, outputPath: markedDocxPath, pandocArgs: options.pandocArg });
-              spinBuild.stop();
-
-              if (!pandocResult.success) {
-                console.error(chalk.yellow(`\nWarning: Could not build marked DOCX: ${pandocResult.error}`));
-              } else {
-                const commentsDocxPath = docxResult.outputPath!.replace(/\.docx$/, '_comments.docx');
-                const spinInject = fmt.spinner('Injecting comments at markers...').start();
-                const commentResult = await injectCommentsAtMarkers(markedDocxPath, comments, commentsDocxPath);
-                spinInject.stop();
-
-                if (!process.env.DEBUG) {
-                  try {
-                    fs.unlinkSync(markedPath);
-                    fs.unlinkSync(markedDocxPath);
-                  } catch { /* ignore */ }
-                }
-
-                if (commentResult.success) {
-                  console.log(chalk.cyan('\nDual output:'));
-                  console.log(`  Clean:    ${path.basename(docxResult.outputPath!)}`);
-                  console.log(`  Comments: ${path.basename(commentsDocxPath)} (${commentResult.commentCount} comments)`);
-                  if (commentResult.skippedComments > 0) {
-                    console.log(chalk.yellow(`  Warning: ${commentResult.skippedComments} comments could not be anchored (markers not found)`));
-                  }
-                } else {
-                  console.error(chalk.yellow(`\nWarning: Could not create comments DOCX: ${commentResult.error}`));
-                }
+            } else if (dualResult.success) {
+              console.log(chalk.cyan('\nDual output:'));
+              console.log(`  Clean:    ${path.basename(docxResult.outputPath!)}`);
+              console.log(`  Comments: ${path.basename(dualResult.outputPath!)} (${dualResult.commentCount} comments)`);
+              if ((dualResult.skippedComments ?? 0) > 0) {
+                console.log(chalk.yellow(`  Warning: ${dualResult.skippedComments} comments could not be anchored (markers not found)`));
               }
+            } else {
+              console.error(chalk.yellow(`\nWarning: Could not create comments DOCX: ${dualResult.error}`));
             }
           }
 
           const pdfResult = results.find(r => r.format === 'pdf' && r.success);
           if (pdfResult) {
-            const { prepareMarkdownForAnnotatedPdf } = await import('../pdf-comments.js');
-            const { runPandoc, applyFormatTransforms } = await import('../build.js');
-
-            let markdown = fs.readFileSync(paperPath, 'utf-8');
-            markdown = stripAnnotations(markdown, { keepComments: true });
-
-            // Apply PDF transforms (table normalization, authblk header
-            // injection) before todonotes preamble work, so the comments PDF
-            // matches the clean PDF in everything but the margin notes.
-            const registry = buildRegistry(dir, config.sections);
-            markdown = applyFormatTransforms(markdown, 'pdf', config, registry);
-
-            const spinPdf = fmt.spinner('Preparing annotated PDF...').start();
-            const { markdown: annotatedMd, preamble, commentCount } = prepareMarkdownForAnnotatedPdf(markdown, {
-              useTodonotes: true,
-              stripResolved: true,
+            const spinPdf = fmt.spinner('Building annotated PDF...').start();
+            const dualResult = await buildCommentsPdf(dir, paperPath, config, pdfResult.outputPath!, {
+              pandocArgs: options.pandocArg,
+              verbose: options.verbose,
             });
+            spinPdf.stop();
 
-            if (commentCount === 0) {
-              spinPdf.stop();
+            for (const w of dualResult.warnings) {
+              console.log(chalk.yellow(`  Warning: ${w}`));
+            }
+
+            if (dualResult.skipped) {
               console.log(chalk.yellow('\nNo comments found - skipping annotated PDF'));
+            } else if (dualResult.success) {
+              console.log(chalk.cyan('\nPDF dual output:'));
+              console.log(`  Clean:    ${path.basename(pdfResult.outputPath!)}`);
+              console.log(`  Comments: ${path.basename(dualResult.outputPath!)} (${dualResult.commentCount} margin notes)`);
             } else {
-              const annotatedPath = path.join(dir, '.paper-annotated.md');
-              fs.writeFileSync(annotatedPath, annotatedMd, 'utf-8');
-
-              const annotatedConfig = JSON.parse(JSON.stringify(config));
-              annotatedConfig.pdf = annotatedConfig.pdf || {};
-
-              // Pandoc consumes header-includes via -H <file>. Write preamble
-              // (plus any existing user header file) to a temp .tex and point
-              // headerIncludes at it.
-              const preambleParts: string[] = [];
-              const existingHeader = annotatedConfig.pdf.headerIncludes;
-              if (existingHeader) {
-                const existingPath = path.isAbsolute(existingHeader)
-                  ? existingHeader
-                  : path.join(dir, existingHeader);
-                if (fs.existsSync(existingPath)) {
-                  preambleParts.push(fs.readFileSync(existingPath, 'utf-8'));
-                }
-              }
-              preambleParts.push(preamble);
-              const preamblePath = path.join(dir, '.paper-annotated.preamble.tex');
-              fs.writeFileSync(preamblePath, preambleParts.join('\n'), 'utf-8');
-              annotatedConfig.pdf.headerIncludes = preamblePath;
-              annotatedConfig.pdf.geometry = 'left=2.5cm,right=4.5cm,top=2.5cm,bottom=2.5cm,marginparwidth=3.5cm';
-
-              const annotatedPdfPath = pdfResult.outputPath!.replace(/\.pdf$/, '_comments.pdf');
-              spinPdf.text = 'Building annotated PDF...';
-              const pandocResult = await runPandoc(annotatedPath, 'pdf', annotatedConfig, { ...options, outputPath: annotatedPdfPath, pandocArgs: options.pandocArg });
-              spinPdf.stop();
-
-              if (!process.env.DEBUG) {
-                try { fs.unlinkSync(annotatedPath); } catch { /* ignore */ }
-                try { fs.unlinkSync(preamblePath); } catch { /* ignore */ }
-              }
-
-              if (pandocResult.success) {
-                console.log(chalk.cyan('\nPDF dual output:'));
-                console.log(`  Clean:    ${path.basename(pdfResult.outputPath!)}`);
-                console.log(`  Comments: ${path.basename(annotatedPdfPath)} (${commentCount} margin notes)`);
-              } else {
-                console.error(chalk.yellow(`\nWarning: Could not create annotated PDF: ${pandocResult.error}`));
-              }
+              console.error(chalk.yellow(`\nWarning: Could not create annotated PDF: ${dualResult.error}`));
             }
           }
         }

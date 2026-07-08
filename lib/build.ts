@@ -208,6 +208,7 @@ export interface BuildResult {
   success: boolean;
   outputPath?: string;
   error?: string;
+  warnings?: string[];
 }
 
 interface BuildOptions {
@@ -243,6 +244,7 @@ interface PandocResult {
   outputPath: string;
   success: boolean;
   error?: string;
+  warnings?: string[];
 }
 
 interface FullBuildResult {
@@ -1166,6 +1168,211 @@ export async function buildReviewedDocx(
 }
 
 /**
+ * Insert a suffix before the file extension: `paper.docx` + `_comments`
+ * → `paper_comments.docx`. Single source for the dual-output naming that
+ * used to be hand-rolled per format in the command layer.
+ */
+export function withOutputSuffix(filePath: string, suffix: string): string {
+  const ext = path.extname(filePath);
+  return filePath.slice(0, filePath.length - ext.length) + suffix + ext;
+}
+
+export interface DualCommentsResult {
+  success: boolean;
+  /** True when there were no comments to thread — nothing was built. */
+  skipped?: boolean;
+  outputPath?: string;
+  commentCount?: number;
+  skippedComments?: number;
+  realigned?: number;
+  warnings: string[];
+  error?: string;
+}
+
+interface DualCommentsOptions {
+  referencePath?: string | null;
+  pandocArgs?: string[];
+  verbose?: boolean;
+}
+
+/**
+ * Build the `_comments.docx` half of dual mode: the clean DOCX plus a twin
+ * carrying the CriticMarkup comments as threaded Word comments.
+ *
+ * Pipeline: realign anchors from a reference docx (optional) → strip
+ * annotations keeping comments → shared DOCX transforms → marker
+ * placement → pandoc → comment injection. Temp files are cleaned in a
+ * finally so a pandoc failure cannot leak `.paper-marked.*` into the
+ * project directory.
+ */
+export async function buildCommentsDocx(
+  directory: string,
+  paperPath: string,
+  config: BuildConfig,
+  cleanDocxPath: string,
+  options: DualCommentsOptions = {}
+): Promise<DualCommentsResult> {
+  const warnings: string[] = [];
+  let realigned: number | undefined;
+  let markdown = fs.readFileSync(paperPath, 'utf-8');
+
+  if (options.referencePath) {
+    if (fs.existsSync(options.referencePath)) {
+      try {
+        const { realignMarkdown } = await import('./comment-realign.js');
+        const realignResult = await realignMarkdown(options.referencePath, markdown);
+        if (realignResult.success) {
+          markdown = realignResult.markdown;
+          realigned = realignResult.insertions;
+        } else {
+          warnings.push(`Could not realign comments: ${realignResult.error}`);
+        }
+      } catch (err) {
+        warnings.push(`Could not realign comments: ${(err as Error).message}`);
+      }
+    } else {
+      warnings.push(`Reference not found: ${options.referencePath}`);
+    }
+  }
+
+  markdown = stripAnnotations(markdown, { keepComments: true });
+
+  // Apply DOCX transforms (author affiliations, @fig: → "Figure 1") before
+  // injecting markers, so the comments DOCX matches the clean DOCX in
+  // everything but the comments themselves.
+  const registry = buildRegistry(directory, config.sections);
+  markdown = applyFormatTransforms(markdown, 'docx', config, registry);
+
+  const { markedMarkdown, comments } = prepareMarkdownWithMarkers(markdown);
+  if (comments.length === 0) {
+    return { success: true, skipped: true, warnings };
+  }
+
+  const markedPath = path.join(directory, '.paper-marked.md');
+  const markedDocxPath = path.join(directory, '.paper-marked.docx');
+
+  try {
+    fs.writeFileSync(markedPath, markedMarkdown, 'utf-8');
+
+    const pandocResult = await runPandoc(markedPath, 'docx', config, {
+      outputPath: markedDocxPath,
+      pandocArgs: options.pandocArgs,
+      verbose: options.verbose,
+    });
+    if (!pandocResult.success) {
+      return { success: false, error: pandocResult.error, warnings };
+    }
+
+    const commentsDocxPath = withOutputSuffix(cleanDocxPath, '_comments');
+    const injection = await injectCommentsAtMarkers(markedDocxPath, comments, commentsDocxPath);
+    if (!injection.success) {
+      return { success: false, error: injection.error, warnings };
+    }
+
+    return {
+      success: true,
+      outputPath: commentsDocxPath,
+      commentCount: injection.commentCount,
+      skippedComments: injection.skippedComments,
+      realigned,
+      warnings,
+    };
+  } finally {
+    if (!process.env.DEBUG) {
+      for (const tmp of [markedPath, markedDocxPath]) {
+        try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
+      }
+    }
+  }
+}
+
+/**
+ * Build the `_comments.pdf` half of dual mode: the clean PDF plus a twin
+ * carrying the CriticMarkup comments as todonotes margin notes.
+ *
+ * Temp files (`.paper-annotated.md`, the preamble sidecar) are cleaned in a
+ * finally so a pandoc failure cannot leak them into the project directory.
+ */
+export async function buildCommentsPdf(
+  directory: string,
+  paperPath: string,
+  config: BuildConfig,
+  cleanPdfPath: string,
+  options: DualCommentsOptions = {}
+): Promise<DualCommentsResult> {
+  const warnings: string[] = [];
+  const { prepareMarkdownForAnnotatedPdf } = await import('./pdf-comments.js');
+
+  let markdown = fs.readFileSync(paperPath, 'utf-8');
+  markdown = stripAnnotations(markdown, { keepComments: true });
+
+  // Apply PDF transforms (table normalization, authblk header injection)
+  // before todonotes preamble work, so the comments PDF matches the clean
+  // PDF in everything but the margin notes.
+  const registry = buildRegistry(directory, config.sections);
+  markdown = applyFormatTransforms(markdown, 'pdf', config, registry);
+
+  const { markdown: annotatedMd, preamble, commentCount } = prepareMarkdownForAnnotatedPdf(markdown, {
+    useTodonotes: true,
+    stripResolved: true,
+  });
+
+  if (commentCount === 0) {
+    return { success: true, skipped: true, warnings };
+  }
+
+  const annotatedPath = path.join(directory, '.paper-annotated.md');
+  const preamblePath = path.join(directory, '.paper-annotated.preamble.tex');
+
+  try {
+    fs.writeFileSync(annotatedPath, annotatedMd, 'utf-8');
+
+    const annotatedConfig = JSON.parse(JSON.stringify(config)) as BuildConfig;
+    annotatedConfig.pdf = annotatedConfig.pdf || {};
+
+    // Pandoc consumes header-includes via -H <file>. Write preamble (plus any
+    // existing user header file) to a temp .tex and point headerIncludes at it.
+    const preambleParts: string[] = [];
+    const existingHeader = (annotatedConfig.pdf as Record<string, unknown>).headerIncludes as string | undefined;
+    if (existingHeader) {
+      const existingPath = path.isAbsolute(existingHeader)
+        ? existingHeader
+        : path.join(directory, existingHeader);
+      if (fs.existsSync(existingPath)) {
+        preambleParts.push(fs.readFileSync(existingPath, 'utf-8'));
+      }
+    }
+    preambleParts.push(preamble);
+    fs.writeFileSync(preamblePath, preambleParts.join('\n'), 'utf-8');
+    (annotatedConfig.pdf as Record<string, unknown>).headerIncludes = preamblePath;
+    (annotatedConfig.pdf as Record<string, unknown>).geometry = 'left=2.5cm,right=4.5cm,top=2.5cm,bottom=2.5cm,marginparwidth=3.5cm';
+
+    const annotatedPdfPath = withOutputSuffix(cleanPdfPath, '_comments');
+    const pandocResult = await runPandoc(annotatedPath, 'pdf', annotatedConfig, {
+      outputPath: annotatedPdfPath,
+      pandocArgs: options.pandocArgs,
+      verbose: options.verbose,
+    });
+    if (!pandocResult.success) {
+      return { success: false, error: pandocResult.error, warnings };
+    }
+
+    return {
+      success: true,
+      outputPath: annotatedPdfPath,
+      commentCount,
+      warnings,
+    };
+  } finally {
+    if (!process.env.DEBUG) {
+      for (const tmp of [annotatedPath, preamblePath]) {
+        try { fs.unlinkSync(tmp); } catch { /* best-effort */ }
+      }
+    }
+  }
+}
+
+/**
  * Convert @fig:label references to display format (Figure 1)
  */
 function convertDynamicRefsToDisplay(text: string, registry: Registry): string {
@@ -1931,13 +2138,16 @@ export async function runPandoc(
           }
         }
 
-        // Run user postprocess scripts
+        // Run user postprocess scripts. The pandoc output exists, so the
+        // build itself succeeded — but a failing script must be surfaced,
+        // not hidden behind --verbose: the user would otherwise ship an
+        // un-postprocessed file believing everything ran.
         const postResult = await runPostprocess(outputPath, format, config as unknown as Parameters<typeof runPostprocess>[2], options);
-        if (!postResult.success && options.verbose) {
-          console.error(`Postprocess warning: ${postResult.error}`);
-        }
+        const postWarnings = postResult.success
+          ? undefined
+          : [`Postprocess failed for ${format}: ${postResult.error}`];
 
-        resolve({ outputPath, success: true });
+        resolve({ outputPath, success: true, warnings: postWarnings });
       } else {
         resolve({ outputPath, success: false, error: stderr || `Exit code ${code}` });
       }
@@ -2016,6 +2226,9 @@ export async function build(
 
     // Run pandoc
     const result = await runPandoc(preparedPath, format, config, options);
+    if (result.warnings) {
+      warnings.push(...result.warnings);
+    }
     results.push({ format, ...result });
 
     // Clean up temp file

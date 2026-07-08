@@ -8,7 +8,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import * as https from 'https';
+import { RateLimiter } from './rate-limiter.js';
+
+// Bounded timeout + retry so a stalled CSL download cannot hang the CLI.
+const cslLimiter = new RateLimiter({ minDelay: 100, maxDelay: 10000 });
 
 // =============================================================================
 // Constants
@@ -164,28 +167,14 @@ function resolveCSLName(name: string): string {
 }
 
 /**
- * Simple HTTPS GET that follows redirects
+ * HTTPS GET with a bounded timeout. fetch follows redirects natively.
  */
-function httpGet(url: string, redirectCount = 0): Promise<string | null> {
-  if (redirectCount > 5) return Promise.resolve(null);
-
-  return new Promise((resolve) => {
-    https.get(url, (res) => {
-      // Follow redirects
-      if ((res.statusCode === 301 || res.statusCode === 302) && res.headers.location) {
-        resolve(httpGet(res.headers.location, redirectCount + 1));
-        return;
-      }
-
-      if (res.statusCode !== 200) {
-        resolve(null);
-        return;
-      }
-
-      let data = '';
-      res.on('data', chunk => { data += chunk; });
-      res.on('end', () => resolve(data));
-      res.on('error', () => resolve(null));
-    }).on('error', () => resolve(null));
-  });
+async function httpGet(url: string): Promise<string | null> {
+  try {
+    const response = await cslLimiter.fetchWithRetry(url);
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
 }

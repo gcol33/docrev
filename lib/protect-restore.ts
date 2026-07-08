@@ -266,8 +266,9 @@ export function simplifyMathForMatching(latex: string): string {
 export function protectMath(md: string): ProtectMathResult {
   const mathBlocks: ProtectedMath[] = [];
 
-  // First protect display math ($$...$$) - must be done before inline math
-  let text = md.replace(/\$\$([^$]+)\$\$/g, (match, content) => {
+  // First protect display math ($$...$$) - must be done before inline math.
+  // Escaped \$ is literal currency, not a math delimiter.
+  let text = md.replace(/(?<!\\)\$\$([^$]+)\$\$/g, (match, content) => {
     const idx = mathBlocks.length;
     const placeholder = `MATHBLOCK${idx}ENDMATH`;
     // Create simplified version for matching in Word text
@@ -276,8 +277,9 @@ export function protectMath(md: string): ProtectMathResult {
     return placeholder;
   });
 
-  // Then protect inline math ($...$)
-  text = text.replace(/\$([^$\n]+)\$/g, (match, content) => {
+  // Then protect inline math ($...$), skipping escaped \$ on either delimiter
+  // so prose like "costs \$5 versus \$10" is never captured as a math span.
+  text = text.replace(/(?<!\\)\$((?:[^$\n\\]|\\[^\n])+)\$/g, (match, content) => {
     const idx = mathBlocks.length;
     const placeholder = `MATHBLOCK${idx}ENDMATH`;
     const simplified = simplifyMathForMatching(content);
@@ -491,7 +493,7 @@ export function protectTables(md: string): ProtectTablesResult {
 
   // Match markdown tables: lines starting with | and containing |
   // A table is: optional caption, header row, separator row (|---|), data rows
-  const tablePattern = /(?:^(?:\*\*)?Table[^\n]*\n\n?)?(?:^\|[^\n]+\|\n)+/gm;
+  const tablePattern = /(?:^(?:\*\*)?Table[^\n]*\r?\n(?:\r?\n)?)?(?:^\|[^\r\n]+\|\r?\n)+/gm;
 
   const text = md.replace(tablePattern, (match) => {
     // Verify it's actually a table (has separator row with dashes)

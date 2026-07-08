@@ -26,14 +26,38 @@ export interface RestoreImagesResult {
 // ============================================
 
 /**
+ * Visible comment marker: `[Author: comment text]` typed directly in the
+ * document body. The author group is name-like (letters, spaces, hyphens,
+ * apostrophes, periods — no digits, max ~30 chars), mirroring the author
+ * heuristic in annotations.ts, so bracketed prose like `[Table 1: results]`
+ * is left alone. Guards exclude image alt-text (`![...]`) and markdown
+ * links (`[...](url)`).
+ */
+const VISIBLE_COMMENT_SOURCE = String.raw`(?<!!)\[([\p{L}][\p{L}\s\-'.]{0,30}):\s+([^\]]+)\](?!\()`;
+
+/**
+ * Documentary lead-ins that read as prose, not reviewer names.
+ * `[Note: see appendix]` is body text; `[Smith: see appendix]` is a comment.
+ */
+const NON_AUTHOR_LEADINS = new Set([
+  'note', 'nb', 'todo', 'fixme', 'warning', 'caution', 'hint', 'tip',
+  'see', 'example', 'source', 'ref', 'aside', 'update', 'edit',
+]);
+
+function isAuthorLike(author: string): boolean {
+  return !NON_AUTHOR_LEADINS.has(author.trim().toLowerCase());
+}
+
+/**
  * Parse visible comment markers from Word text
  */
 export function parseVisibleComments(text: string): Array<{ author: string; text: string; position: number }> {
   const comments: Array<{ author: string; text: string; position: number }> = [];
-  const pattern = /\[([^\]:]+):\s*([^\]]+)\]/g;
+  const pattern = new RegExp(VISIBLE_COMMENT_SOURCE, 'gu');
 
   let match;
   while ((match = pattern.exec(text)) !== null) {
+    if (!isAuthorLike(match[1])) continue;
     comments.push({
       author: match[1].trim(),
       text: match[2].trim(),
@@ -48,7 +72,9 @@ export function parseVisibleComments(text: string): Array<{ author: string; text
  * Convert visible comments to CriticMarkup format
  */
 export function convertVisibleComments(text: string): string {
-  return text.replace(/\[([^\]:]+):\s*([^\]]+)\]/g, '{>>$1: $2<<}');
+  return text.replace(new RegExp(VISIBLE_COMMENT_SOURCE, 'gu'), (match, author: string, body: string) =>
+    isAuthorLike(author) ? `{>>${author}: ${body}<<}` : match
+  );
 }
 
 /**
@@ -230,7 +256,7 @@ export function restoreImagesFromRegistry(
       }
       restored++;
       messages.push(`Restored image by caption match: ${captionKey.slice(0, 30)}...`);
-      const anchor = (entry.label && !restoredLabels!.has(labelKey!)) ? `{#${entry.type}:${entry.label}}` : '';
+      const anchor = labelKey ? `{#${entry.type}:${entry.label}}` : '';
       return `![${entry.caption}](${entry.path})${anchor}`;
     }
     return match;

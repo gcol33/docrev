@@ -11,6 +11,7 @@ import {
   path,
   fmt,
 } from './context.js';
+import { packageRoot } from '../utils.js';
 
 // Type definitions for package.json
 interface PackageJson {
@@ -63,7 +64,9 @@ export function register(program: Command, pkg?: PackageJson): void {
     .description('Output shell completions')
     .argument('<shell>', 'Shell type: bash, zsh, powershell')
     .action((shell: string) => {
-      const completionsDir = path.join(import.meta.dirname, '..', '..', 'completions');
+      // Resolve from the package root: a fixed '..' count breaks in the
+      // published package, where this file runs from dist/lib/commands/.
+      const completionsDir = path.join(packageRoot(import.meta.dirname), 'completions');
 
       if (shell === 'bash') {
         const bashFile = path.join(completionsDir, 'rev.bash');
@@ -147,7 +150,7 @@ export function register(program: Command, pkg?: PackageJson): void {
         process.exit(1);
       }
       const skillDir = path.join(homedir, '.claude', 'skills', 'docrev');
-      const sourceDir = path.join(import.meta.dirname, '..', '..', 'skill');
+      const sourceDir = path.join(packageRoot(import.meta.dirname), 'skill');
 
       // Check if source skill files exist
       const skillFile = path.join(sourceDir, 'SKILL.md');

@@ -5,6 +5,7 @@
 import chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs';
+import { levenshtein } from './utils.js';
 
 interface BuildContext {
   bibPath?: string;
@@ -286,43 +287,6 @@ function findSimilarFiles(target: string, candidates: string[], limit: number = 
     .sort((a, b) => a.distance - b.distance);
 
   return scored.slice(0, limit).map(c => c.name);
-}
-
-/**
- * Simple Levenshtein distance
- * @param a - First string
- * @param b - Second string
- * @returns Edit distance
- */
-function levenshtein(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-
-  const matrix: number[][] = [];
-
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0]![j] = j;
-  }
-
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i]![j] = matrix[i - 1]![j - 1]!;
-      } else {
-        matrix[i]![j] = Math.min(
-          matrix[i - 1]![j - 1]! + 1,
-          matrix[i]![j - 1]! + 1,
-          matrix[i - 1]![j]! + 1
-        );
-      }
-    }
-  }
-
-  return matrix[b.length]![a.length]!;
 }
 
 /**

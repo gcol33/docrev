@@ -345,7 +345,7 @@ export function register(program: Command): void {
 
         try {
           const text = fs.readFileSync(file, 'utf-8');
-          let result: BatchResult = { file, status: 'ok' };
+          const result: BatchResult = { file, status: 'ok' };
 
           switch (command) {
             case 'status': {

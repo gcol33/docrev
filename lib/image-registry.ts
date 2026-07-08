@@ -175,6 +175,10 @@ export function readImageRegistry(directory: string): (ImageRegistry & RegistryD
       byCaption,
     };
   } catch (err) {
+    // A corrupt registry degrades to "no registry", but should be findable.
+    if (process.env.DEBUG) {
+      console.warn(`image-registry: Failed to parse ${registryPath}:`, (err as Error).message);
+    }
     return null;
   }
 }

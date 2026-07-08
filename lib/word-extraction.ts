@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { buildDocTextModel, buildCommentAnchorModel, extractComments, openDocx, readPartText } from './ooxml.js';
+import { buildDocTextModel, buildCommentAnchorModel, extractComments, extractTableModels, openDocx, readPartText } from './ooxml.js';
 
 const execAsync = promisify(exec);
 
@@ -64,11 +64,6 @@ export interface WordTable {
   markdown: string;
   rowCount: number;
   colCount: number;
-}
-
-export interface ParsedRow {
-  cells: string[];
-  colSpans: number[];
 }
 
 export interface ExtractFromWordOptions {
@@ -191,149 +186,49 @@ export async function extractHeadings(docxPath: string): Promise<DocxHeading[]> 
 }
 
 /**
- * Decode XML entities in text
+ * Escape pipe characters in cell content (would break the markdown table).
  */
-function decodeXmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)))
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+function toMarkdownCell(text: string): string {
+  return text.replace(/\|/g, '\\|');
 }
 
 /**
- * Extract text content from a Word XML cell
- */
-function extractCellText(cellXml: string): string {
-  const parts: string[] = [];
-
-  // Check for OMML math - replace with [math] placeholder
-  if (cellXml.includes('<m:oMath')) {
-    // Try to extract the text representation of math
-    const mathTextMatches = cellXml.match(/<m:t>([^<]*)<\/m:t>/g) || [];
-    if (mathTextMatches.length > 0) {
-      const mathText = mathTextMatches.map((t) => t.replace(/<[^>]+>/g, '')).join('');
-      parts.push(mathText);
-    } else {
-      parts.push('[math]');
-    }
-  }
-
-  // Extract regular text from w:t elements
-  const textMatches = cellXml.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
-  for (const match of textMatches) {
-    const text = match.replace(/<[^>]+>/g, '');
-    if (text) {
-      parts.push(text);
-    }
-  }
-
-  let result = parts.join('').trim();
-  result = decodeXmlEntities(result);
-
-  // Escape pipe characters in cell content (would break table)
-  result = result.replace(/\|/g, '\\|');
-
-  return result;
-}
-
-/**
- * Parse a table row, handling merged cells (gridSpan)
- */
-function parseTableRow(rowXml: string, expectedCols: number): ParsedRow {
-  // Match cells - handle both <w:tc> and <w:tc ...>
-  const cellMatches = rowXml.match(/<w:tc(?:\s[^>]*)?>[\s\S]*?<\/w:tc>/g) || [];
-  const cells: string[] = [];
-  const colSpans: number[] = [];
-
-  for (const cellXml of cellMatches) {
-    // Check for horizontal merge (gridSpan)
-    const gridSpanMatch = cellXml.match(/<w:gridSpan\s+w:val="(\d+)"/);
-    const span = gridSpanMatch ? parseInt(gridSpanMatch[1], 10) : 1;
-
-    // Check for vertical merge continuation (vMerge without restart)
-    // If vMerge is present without w:val="restart", it's a continuation - use empty
-    const vMergeMatch = cellXml.match(/<w:vMerge(?:\s+w:val="([^"]+)")?/);
-    const isVMergeContinuation = vMergeMatch && vMergeMatch[1] !== 'restart';
-
-    const cellText = isVMergeContinuation ? '' : extractCellText(cellXml);
-
-    // Add the cell content
-    cells.push(cellText);
-    colSpans.push(span);
-
-    // For gridSpan > 1, add empty cells to maintain column alignment
-    for (let i = 1; i < span; i++) {
-      cells.push('');
-      colSpans.push(0); // 0 indicates this is a spanned cell
-    }
-  }
-
-  return { cells, colSpans };
-}
-
-/**
- * Determine table grid column count from table XML
- */
-function getTableGridCols(tableXml: string): number {
-  // Try to get from tblGrid
-  const gridColMatches = tableXml.match(/<w:gridCol/g) || [];
-  if (gridColMatches.length > 0) {
-    return gridColMatches.length;
-  }
-
-  // Fallback: count max cells in any row
-  const rowMatches = tableXml.match(/<w:tr[\s\S]*?<\/w:tr>/g) || [];
-  let maxCols = 0;
-  for (const rowXml of rowMatches) {
-    const { cells } = parseTableRow(rowXml, 0);
-    maxCols = Math.max(maxCols, cells.length);
-  }
-  return maxCols;
-}
-
-/**
- * Extract tables directly from Word document XML and convert to markdown pipe tables
+ * Extract tables directly from Word document XML and convert to markdown pipe
+ * tables. The structural read (rows, cells, gridSpan/vMerge merges, math
+ * zones) goes through the ooxml.ts parser, so a document that binds
+ * WordprocessingML to a prefix other than `w:` still yields its tables and
+ * entity decoding matches the rest of the extraction pipeline.
  */
 export async function extractWordTables(docxPath: string): Promise<WordTable[]> {
-  const AdmZip = (await import('adm-zip')).default;
   const tables: WordTable[] = [];
 
   try {
-    const zip = new AdmZip(docxPath);
-    const docEntry = zip.getEntry('word/document.xml');
-
-    if (!docEntry) {
+    const zip = openDocx(docxPath);
+    const xml = readPartText(zip, 'word/document.xml');
+    if (xml === null) {
       return tables;
     }
 
-    const xml = docEntry.getData().toString('utf8');
-
-    // Find all table elements
-    const tableMatches = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g) || [];
-
-    for (const tableXml of tableMatches) {
-      // Determine expected column count from grid
-      const expectedCols = getTableGridCols(tableXml);
-
-      // Extract rows
-      const rowMatches = tableXml.match(/<w:tr[\s\S]*?<\/w:tr>/g) || [];
+    for (const model of extractTableModels(xml)) {
       const rows: string[][] = [];
-
-      for (const rowXml of rowMatches) {
-        const { cells } = parseTableRow(rowXml, expectedCols);
+      for (const modelRow of model.rows) {
+        const cells: string[] = [];
+        for (const cell of modelRow) {
+          cells.push(toMarkdownCell(cell.text));
+          // For gridSpan > 1, add empty cells to maintain column alignment
+          for (let i = 1; i < cell.gridSpan; i++) {
+            cells.push('');
+          }
+        }
         if (cells.length > 0) {
           rows.push(cells);
         }
       }
 
       if (rows.length > 0) {
-        // Convert to markdown pipe table
+        const expectedCols = model.gridCols || Math.max(...rows.map((r) => r.length));
         const markdown = convertRowsToMarkdownTable(rows);
-        tables.push({ markdown, rowCount: rows.length, colCount: expectedCols || rows[0]?.length || 0 });
+        tables.push({ markdown, rowCount: rows.length, colCount: expectedCols });
       }
     }
   } catch (err: any) {
@@ -386,7 +281,7 @@ export async function extractFromWord(
   options: ExtractFromWordOptions = {}
 ): Promise<ExtractFromWordResult> {
   let text: string;
-  let messages: ExtractMessage[] = [];
+  const messages: ExtractMessage[] = [];
   let extractedMedia: string[] = [];
   let hasTrackChanges = false;
   let trackChangeStats = { insertions: 0, deletions: 0 };

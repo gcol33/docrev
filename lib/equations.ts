@@ -259,9 +259,16 @@ export async function createEquationsDoc(
     // Write temp md, convert to docx
     const tempMd = outputPath.replace('.docx', '.tmp.md');
     fs.writeFileSync(tempMd, sheet, 'utf-8');
-    const result = await convertToWord(tempMd, outputPath);
-    fs.unlinkSync(tempMd);
-    return { ...result, stats };
+    try {
+      const result = await convertToWord(tempMd, outputPath);
+      return { ...result, stats };
+    } finally {
+      try {
+        fs.unlinkSync(tempMd);
+      } catch {
+        // Best-effort cleanup
+      }
+    }
   } else {
     // Write as markdown
     fs.writeFileSync(outputPath, sheet, 'utf-8');

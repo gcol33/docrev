@@ -105,7 +105,7 @@ export function drawBox({ title = '', content = [], width = 60, borderColor = 'd
     h: '\u2500', v: '\u2502',
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const colorFn = ((chalk as any)[borderColor] as ((str: string) => string)) || chalk.dim;
   const lines: string[] = [];
 

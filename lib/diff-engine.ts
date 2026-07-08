@@ -222,7 +222,7 @@ export function generateSmartDiff(
   const { wordTables = [], imageRegistry = null } = options;
 
   // Inject Word tables into pandoc output
-  let wordTextWithTables = injectWordTables(wordText, wordTables);
+  const wordTextWithTables = injectWordTables(wordText, wordTables);
 
   // Protect markdown tables
   const { text: mdWithTablesProtected, tables } = protectTables(originalMd);

@@ -68,7 +68,7 @@ export function register(program: Command): void {
       let docXml = zip.readAsText(docEntry);
 
       // Read or create comments.xml
-      let commentsEntry = zip.getEntry('word/comments.xml');
+      const commentsEntry = zip.getEntry('word/comments.xml');
       let commentsXml: string;
       let nextCommentId = 1;
 
@@ -247,7 +247,7 @@ export function register(program: Command): void {
         let docXml = zip.readAsText(docEntry);
 
         // Read or create comments.xml
-        let commentsEntry = zip.getEntry('word/comments.xml');
+        const commentsEntry = zip.getEntry('word/comments.xml');
         let commentsXml: string;
         let nextCommentId = 1;
 

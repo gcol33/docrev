@@ -17,28 +17,21 @@ import {
   setQuietMode,
   setJsonMode,
 } from '../lib/commands/index.js';
+import { levenshtein } from '../lib/utils.js';
 
-// Global flags
-let quietMode = false;
-let jsonMode = false;
-
-// Levenshtein distance for command suggestions
-function levenshtein(a: string, b: string): number {
-  const matrix: number[][] = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(0));
-  for (let i = 0; i <= a.length; i++) matrix[0]![i] = i;
-  for (let j = 0; j <= b.length; j++) matrix[j]![0] = j;
-  for (let j = 1; j <= b.length; j++) {
-    for (let i = 1; i <= a.length; i++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[j]![i] = Math.min(
-        matrix[j]![i - 1]! + 1,
-        matrix[j - 1]![i]! + 1,
-        matrix[j - 1]![i - 1]! + cost
-      );
-    }
+// Any rejection that escapes a command action must fail cleanly, not dump a
+// raw Node stack (or crash with ERR_UNHANDLED_REJECTION on newer Node).
+function fail(err: unknown): never {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(chalk.red(`Error: ${message}`));
+  if (process.env.DEBUG && err instanceof Error && err.stack) {
+    console.error(chalk.dim(err.stack));
   }
-  return matrix[b.length]![a.length]!;
+  process.exit(1);
 }
+
+process.on('unhandledRejection', fail);
+process.on('uncaughtException', fail);
 
 // Find similar commands for typo suggestions
 function suggestCommand(input: string, commands: string[]): string[] {
@@ -58,9 +51,15 @@ interface PackageJson {
   [key: string]: unknown;
 }
 
-// Read version from package.json
+// Read version from package.json. A corrupt or missing file must not take
+// down the whole CLI before any command runs.
 const pkgPath = new URL('../package.json', import.meta.url);
-const pkg: PackageJson = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+let pkg: PackageJson = { version: 'unknown' };
+try {
+  pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as PackageJson;
+} catch {
+  // Keep the fallback version; every command still works.
+}
 
 program
   .name('rev')
@@ -79,11 +78,9 @@ program
       chalk.level = 0;
     }
     if (opts.quiet) {
-      quietMode = true;
       setQuietMode(true);
     }
     if (opts.json) {
-      jsonMode = true;
       setJsonMode(true);
       chalk.level = 0; // Disable colors in JSON mode
     }
@@ -142,4 +139,11 @@ if (args.length === 0 || (hasOnlyGlobalOpts && !hasCommand && !args.includes('-h
   }
 }
 
-program.parse();
+// parseAsync so errors thrown inside async command actions reject here and
+// hit the catch, instead of becoming unhandled rejections after parse()
+// returns synchronously.
+try {
+  await program.parseAsync();
+} catch (err) {
+  fail(err);
+}

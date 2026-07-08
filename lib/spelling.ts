@@ -231,7 +231,7 @@ export function extractWords(text: string): WordLocation[] {
     }
 
     // Remove markdown syntax, URLs, code spans, LaTeX, etc.
-    let cleanLine = line
+    const cleanLine = line
       .replace(/`[^`]+`/g, '')           // inline code
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // links (keep text)
       .replace(/!\[[^\]]*\]\([^)]+\)/g, '')     // images

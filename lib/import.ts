@@ -119,7 +119,6 @@ export type {
   CommentAnchorsResult,
   DocxHeading,
   WordTable,
-  ParsedRow,
   ExtractFromWordOptions,
   ExtractMessage,
   ExtractFromWordResult,
@@ -765,7 +764,7 @@ export async function importFromWord(
   let hasTrackChanges = false;
 
   if (sectionContent !== undefined) {
-    let annotated = cleanupAnnotations(sectionContent);
+    const annotated = cleanupAnnotations(sectionContent);
 
     const insertions = (annotated.match(/\{\+\+/g) || []).length;
     const deletions = (annotated.match(/\{--/g) || []).length;

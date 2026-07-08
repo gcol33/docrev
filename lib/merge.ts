@@ -503,7 +503,14 @@ export function loadConflicts(projectDir: string): ConflictsData | null {
   if (!fs.existsSync(conflictsPath)) {
     return null;
   }
-  return JSON.parse(fs.readFileSync(conflictsPath, 'utf-8')) as ConflictsData;
+  try {
+    return JSON.parse(fs.readFileSync(conflictsPath, 'utf-8')) as ConflictsData;
+  } catch (e) {
+    if (process.env.DEBUG) {
+      console.warn(`merge: Failed to parse ${conflictsPath}:`, (e as Error).message);
+    }
+    return null;
+  }
 }
 
 /**
