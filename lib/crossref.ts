@@ -698,15 +698,19 @@ export function resolveSupplementaryRefs(
     }
   }
 
-  // 2. Strip {#fig:label} and {#tbl:label} attributes from supplementary anchors
-  //    so pandoc-crossref does not re-number them
+  // 2. Strip the {#fig:label} / {#tbl:label} anchor from supplementary items
+  //    so pandoc-crossref does not re-number them, but keep any other
+  //    attributes sharing the block (width, height, class, style).
   for (const key of suppLabels) {
-    // Match {#fig:label ...} or just {#fig:label}
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(`\\{#${escaped}(?:\\s[^}]*)?\\}`, 'g');
-    result = result.replace(pattern, (match) => {
-      resolved.push({ from: match, to: '(stripped)' });
-      return '';
+    // Match an attribute block { ... } that contains the #key anchor.
+    const pattern = new RegExp(`\\{([^}]*#${escaped}[^}]*)\\}`, 'g');
+    const anchor = new RegExp(`#${escaped}(?=\\s|$)`);
+    result = result.replace(pattern, (match, inner: string) => {
+      const remaining = inner.replace(anchor, '').replace(/\s+/g, ' ').trim();
+      const replacement = remaining ? `{${remaining}}` : '';
+      resolved.push({ from: match, to: replacement || '(stripped)' });
+      return replacement;
     });
   }
 

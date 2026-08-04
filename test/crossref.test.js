@@ -14,6 +14,7 @@ import {
   detectForwardRefs,
   resolveForwardRefs,
   convertHardcodedRefs,
+  resolveSupplementaryRefs,
 } from '../lib/crossref.js';
 
 // Helper to extract number strings from parsed refs
@@ -494,6 +495,62 @@ describe('resolveForwardRefs', () => {
 
     assert.ok(result.startsWith('As shown in Figure 1'));
     assert.ok(result.includes(', the results...'));
+  });
+});
+
+describe('resolveSupplementaryRefs', () => {
+  const suppRegistry = {
+    figures: new Map([
+      ['confusion', { label: 'confusion', num: 1, isSupp: true }],
+      ['map', { label: 'map', num: 1, isSupp: false }],
+    ]),
+    tables: new Map([
+      ['suppdata', { label: 'suppdata', num: 1, isSupp: true }],
+    ]),
+    equations: new Map(),
+    byNumber: {
+      fig: new Map([[1, 'map']]),
+      figS: new Map([[1, 'confusion']]),
+      tbl: new Map(),
+      tblS: new Map([[1, 'suppdata']]),
+      eq: new Map(),
+    },
+  };
+
+  it('keeps image attributes when stripping a supplementary anchor (issue #9)', () => {
+    const text = '![Confusion](fig.png){#fig:confusion width=70%}';
+    const { text: result } = resolveSupplementaryRefs(text, suppRegistry);
+    assert.strictEqual(result, '![Confusion](fig.png){width=70%}');
+  });
+
+  it('emits nothing when the anchor is the only attribute', () => {
+    const text = '![Confusion](fig.png){#fig:confusion}';
+    const { text: result } = resolveSupplementaryRefs(text, suppRegistry);
+    assert.strictEqual(result, '![Confusion](fig.png)');
+  });
+
+  it('preserves multiple non-anchor attributes', () => {
+    const text = '![Confusion](fig.png){#fig:confusion width=70% .center}';
+    const { text: result } = resolveSupplementaryRefs(text, suppRegistry);
+    assert.strictEqual(result, '![Confusion](fig.png){width=70% .center}');
+  });
+
+  it('keeps attributes when the anchor is not first in the block', () => {
+    const text = '![Confusion](fig.png){width=70% #fig:confusion}';
+    const { text: result } = resolveSupplementaryRefs(text, suppRegistry);
+    assert.strictEqual(result, '![Confusion](fig.png){width=70%}');
+  });
+
+  it('strips supplementary table anchors while keeping attributes', () => {
+    const text = '| Col |{#tbl:suppdata .striped}';
+    const { text: result } = resolveSupplementaryRefs(text, suppRegistry);
+    assert.strictEqual(result, '| Col |{.striped}');
+  });
+
+  it('does not touch non-supplementary anchors', () => {
+    const text = '![Map](map.png){#fig:map width=50%}';
+    const { text: result } = resolveSupplementaryRefs(text, suppRegistry);
+    assert.strictEqual(result, '![Map](map.png){#fig:map width=50%}');
   });
 });
 

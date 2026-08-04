@@ -5,6 +5,11 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - 2026-08-04
+
+### Fixed
+- **Supplementary figure/table anchors no longer take their image attributes with them (#9).** `resolveSupplementaryRefs` stripped the entire `{#fig:label ...}` block from supplementary items so pandoc-crossref would not re-number them, but that also deleted any `width`, `height`, `class`, or `style` attribute sharing the block. A supplementary figure written in the documented portable form `![caption](path){#fig:label width=70%}` rendered at full text width with no warning. Only the `#fig:label` / `#tbl:label` anchor is now removed; the remaining attributes are kept (`{width=70%}`), and the block is emitted only when something survives. The anchor is also matched anywhere in the block, not just at the start.
+
 ## [0.12.0] - 2026-07-08
 
 ### Fixed
