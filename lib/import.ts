@@ -173,8 +173,19 @@ export interface InsertCommentsOptions {
    * that should be reviewed with `rev verify-anchors`, `deduped` counts
    * comments already present at their anchor (skipped on re-sync), and
    * `unmatched` counts comments that could not be placed at all.
+   *
+   * `unmatchedBlocks` carries the CriticMarkup for each unplaced cluster (root
+   * plus its replies), so a read-only caller that must not drop any comment can
+   * append them rather than lose them. Placement callers (`import`, `sync`)
+   * ignore it and keep surfacing the `unmatched` count as a warning.
    */
-  outStats?: { placed: number; deduped: number; unmatched: number; lowConfidence?: number };
+  outStats?: {
+    placed: number;
+    deduped: number;
+    unmatched: number;
+    lowConfidence?: number;
+    unmatchedBlocks?: string[];
+  };
 }
 
 /**
@@ -597,6 +608,13 @@ export function insertCommentsIntoMarkdown(
     outStats.lowConfidence = lowConfidenceCount;
     outStats.deduped = dedupedCount;
     outStats.unmatched = unmatchedCount;
+    // CriticMarkup for every cluster that could not be placed anywhere, so a
+    // read-only caller can append it rather than drop a reviewer's comment.
+    outStats.unmatchedBlocks = unmatched.map((c) => {
+      const replies = repliesByRoot.get(c.id) ?? [];
+      const replyBlocks = replies.map(r => `{>>↪ ${r.author}: ${r.text}<<}`);
+      return `{>>${c.author}: ${c.text}<<}` + replyBlocks.join('');
+    });
   }
 
   // Log warnings unless quiet mode
@@ -741,7 +759,17 @@ export async function readDocxAsAnnotatedMarkdown(docxPath: string): Promise<str
   const anchors = extracted.anchors || new Map();
 
   if (comments.length > 0) {
-    text = insertCommentsIntoMarkdown(text, comments, anchors, { quiet: true });
+    // Read-only inspection (`rev status` / `rev comments`) must account for
+    // every comment in the document. A comment whose anchor text cannot be
+    // located in the body is placed by proportional fallback, but on the rare
+    // docx where even that fails (empty body text) it would otherwise be
+    // dropped. Collect those and append them so the annotated Markdown carries
+    // the full comment set — the count then matches the docx (gcol33/docrev#10).
+    const stats = { placed: 0, deduped: 0, unmatched: 0, unmatchedBlocks: [] as string[] };
+    text = insertCommentsIntoMarkdown(text, comments, anchors, { quiet: true, outStats: stats });
+    if (stats.unmatchedBlocks.length > 0) {
+      text += '\n\n' + stats.unmatchedBlocks.join('\n\n') + '\n';
+    }
   }
 
   return cleanupAnnotations(text);

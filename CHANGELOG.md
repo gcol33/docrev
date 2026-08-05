@@ -5,6 +5,12 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.2] - 2026-08-05
+
+### Fixed
+- **`rev comments` / `rev status` list every comment in a `.docx` instead of silently dropping some (#10).** Both commands read a document through `readDocxAsAnnotatedMarkdown` and then count with `getComments`, but that round-trip lost comments on the re-parse: the false-positive filter — which exists to reject figure captions, code, and stray markers in hand-written Markdown — also rejected genuine reviewer comments whose anchor sat inside a tracked deletion, whose text mentioned a `.pdf`/code token, or which were threaded replies (emitted as `↪ Author: …`, a form the author-prefix check never recognized, so replies were hit hardest). On one 45-comment manuscript only 35 were listed, with no warning and no non-zero exit, while `rev verify-anchors` — which enumerates comments directly — correctly saw all 45. A `{>>…<<}` block that carries a clear `Author:` (or reply `↪ Author:`) prefix is now trusted as a real comment and skips the caption/code/track-change heuristics, which stay in force for bare, unauthored spans. As a backstop, the read-only path appends any comment that still could not be placed, so the listed count matches the document's comment count.
+- **`rev verify-anchors` / `rev sync` honor `--config` independently of `--dir` (#11).** The sections config was resolved by joining the config name onto `--dir`, so a `sections.yaml` at the project root could not be reached once `--dir` pointed at a section subdirectory — the exact layout `verify-anchors` is meant for (a reviewer's docx against markdown that has since moved into its own directory). Passing `--config` explicitly did not help, since it was still resolved inside `--dir`. `--config` is now a path in its own right: resolved against the working directory, or taken as-is when absolute, and never joined onto `--dir`. `--dir` only locates the section markdown. The older layout with the config co-located in `--dir` still resolves via a fallback.
+
 ## [0.12.1] - 2026-08-04
 
 ### Fixed

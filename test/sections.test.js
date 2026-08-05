@@ -336,4 +336,61 @@ describe('resolveSectionsConfig', () => {
   it('should return null when neither config source is present', () => {
     assert.strictEqual(resolveSectionsConfig(tempDir), null);
   });
+
+  // Regression: gcol33/docrev#11 — `--config` was resolved inside `--dir`, so a
+  // config that lived at the project root could not be reached once `--dir`
+  // pointed at a section subdirectory. The two options are independent now:
+  // `--config` resolves against the working directory (or as-is when absolute),
+  // `--dir` only locates the section markdown.
+  describe('config / dir independence (issue #11)', () => {
+    let prevCwd;
+    beforeEach(() => {
+      prevCwd = process.cwd();
+    });
+    afterEach(() => {
+      process.chdir(prevCwd);
+    });
+
+    it('resolves a root config while --dir points at a section subdirectory', () => {
+      const sub = path.join(tempDir, 'src', 'with_comments');
+      fs.mkdirSync(sub, { recursive: true });
+      fs.writeFileSync(
+        path.join(tempDir, 'sections.yaml'),
+        'sections:\n  intro.md:\n    header: Introduction\n'
+      );
+      fs.writeFileSync(path.join(sub, 'intro.md'), '# Introduction\n\nText.\n');
+
+      process.chdir(tempDir);
+      const resolved = resolveSectionsConfig(path.join('src', 'with_comments'), 'sections.yaml');
+      assert.ok(resolved, 'root sections.yaml should be found even with --dir set');
+      assert.strictEqual(resolved.config.sections['intro.md'].header, 'Introduction');
+      assert.strictEqual(path.resolve(resolved.source), path.resolve(tempDir, 'sections.yaml'));
+    });
+
+    it('honors an absolute --config path regardless of --dir', () => {
+      const sub = path.join(tempDir, 'sections');
+      fs.mkdirSync(sub, { recursive: true });
+      const cfg = path.join(tempDir, 'sections.yaml');
+      fs.writeFileSync(cfg, 'sections:\n  a.md:\n    header: A\n');
+      fs.writeFileSync(path.join(sub, 'a.md'), '# A\n\nText.\n');
+
+      process.chdir(os.tmpdir());
+      const resolved = resolveSectionsConfig(sub, cfg);
+      assert.ok(resolved);
+      assert.strictEqual(path.resolve(resolved.source), path.resolve(cfg));
+    });
+
+    it('still finds a config co-located in --dir (backward compatible)', () => {
+      const sub = path.join(tempDir, 'sections');
+      fs.mkdirSync(sub, { recursive: true });
+      fs.writeFileSync(path.join(sub, 'sections.yaml'), 'sections:\n  a.md:\n    header: A\n');
+      fs.writeFileSync(path.join(sub, 'a.md'), '# A\n\nText.\n');
+
+      // cwd deliberately has no sections.yaml, so only the --dir copy exists.
+      process.chdir(tempDir);
+      const resolved = resolveSectionsConfig('sections', 'sections.yaml');
+      assert.ok(resolved);
+      assert.strictEqual(path.resolve(resolved.source), path.resolve(sub, 'sections.yaml'));
+    });
+  });
 });

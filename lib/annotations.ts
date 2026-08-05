@@ -52,9 +52,19 @@ const PATTERNS = {
  * @returns true if this is a false positive (not a real comment)
  */
 function isCommentFalsePositive(commentContent: string, fullText: string, position: number): boolean {
+  // A real comment carries an "Author: " prefix. Accept hyphens, apostrophes,
+  // periods, digits and Unicode letters so names like "Jens-Christian Svenning",
+  // "Camilla T Colding-Jørgensen" or "Reviewer 2" all count (gcol33/docrev#1).
+  // A reply block is emitted as "↪ Author: ..." — recognize that marker so a
+  // reply is treated as authored too, otherwise threaded replies get filtered
+  // out far more often than top-level comments (gcol33/docrev#10).
+  const trimmedContent = commentContent.trim();
+  const hasAuthorPrefix = /^(?:↪\s*)?[\p{L}][\p{L}0-9\s\-'.]{0,30}:\s/u.test(trimmedContent);
+  const hasResolvedMark = /^(?:↪\s*)?[✓✔]\s/.test(trimmedContent);
+  const authored = hasAuthorPrefix || hasResolvedMark;
+
   // Check if inside a code block (fenced or indented)
   const textBefore = fullText.slice(Math.max(0, position - CONTEXT_WINDOW_SIZE), position);
-  const textAfter = fullText.slice(position, Math.min(fullText.length, position + CONTEXT_WINDOW_SIZE));
 
   // Count unclosed fenced code blocks (``` or ~~~)
   const fenceOpens = (textBefore.match(/^```|^~~~/gm) || []).length;
@@ -69,6 +79,20 @@ function isCommentFalsePositive(commentContent: string, fullText: string, positi
   // Check if inside inline code backticks
   const backticksBefore = (linePrefix.match(/`/g) || []).length;
   if (backticksBefore % 2 === 1) return true; // Inside inline code
+
+  // A figure caption is a caption whatever its surroundings: reject content that
+  // *starts* with a caption word. A real comment starts with its author name, so
+  // this never fires on one ("Reviewer: Table 2 is wrong" starts with the author).
+  if (/^(Fig\.?|Figure|Table|Sankey|Diagram|Proportion|Distribution|Map|Chart|Graph|Plot|Panel)/i.test(trimmedContent)) {
+    return true;
+  }
+
+  // Everything below distinguishes a real comment from prose that merely looks
+  // like one (equations, code, captions, deleted text). A block with a clear
+  // author prefix is unambiguously a comment — Word comments always carry one —
+  // so the heuristics are skipped for it. They stay in force for bare
+  // "{>>...<<}" spans hand-written in Markdown, where the signal is genuine.
+  if (authored) return false;
 
   // Check if nested inside a deletion or insertion block
   const nearTextBefore = fullText.slice(Math.max(0, position - 500), position);
@@ -91,26 +115,14 @@ function isCommentFalsePositive(commentContent: string, fullText: string, positi
   // Contains markdown figure reference syntax
   if (/\{#fig:|!\[/.test(commentContent)) return true;
 
-  // Real comments typically have "Author:" at start. Accept hyphens, apostrophes,
-  // periods, and Unicode letters so names like "Jens-Christian Svenning" or
-  // "Camilla T Colding-Jørgensen" don't get rejected. See gcol33/docrev#1.
-  const hasAuthorPrefix = /^[\p{L}][\p{L}\s\-'.]{0,30}:\s/u.test(commentContent.trim());
-  const hasResolvedMark = /^[✓✔]\s/.test(commentContent.trim());
-
-  // Contains URL patterns (likely a link, not a comment) — only filter when
-  // there is no real author prefix, since reviewers legitimately cite URLs/DOIs.
-  if (!hasAuthorPrefix && /https?:\/\/|www\./i.test(commentContent) && commentContent.length < 150) return true;
+  // Contains URL patterns (likely a link, not a comment)
+  if (/https?:\/\/|www\./i.test(commentContent) && commentContent.length < 150) return true;
 
   // Looks like code (contains programming patterns)
   if (/function\s*\(|=>|import\s+|export\s+|const\s+|let\s+|var\s+/.test(commentContent)) return true;
 
   // Very long without clear author pattern (likely caption, not comment)
-  if (!hasAuthorPrefix && !hasResolvedMark && commentContent.length > MAX_COMMENT_CONTENT_LENGTH) return true;
-
-  // Looks like a figure caption (starts with "Fig" or contains typical caption words)
-  if (/^(Fig\.?|Figure|Table|Sankey|Diagram|Proportion|Distribution|Map|Chart|Graph|Plot|Panel)/i.test(commentContent.trim())) {
-    return true;
-  }
+  if (commentContent.length > MAX_COMMENT_CONTENT_LENGTH) return true;
 
   // Contains LaTeX-like patterns (likely equation, not comment)
   if (/\\[a-z]+\{|\\frac|\\sum|\\int|\\begin\{/.test(commentContent)) return true;

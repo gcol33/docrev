@@ -371,6 +371,51 @@ describe('getComments edge cases', () => {
     const comments = getComments(text);
     assert.strictEqual(comments.length, 0);
   });
+
+  // Regression: gcol33/docrev#10 — `rev comments` / `rev status` under-counted
+  // because the false-positive filter rejected genuine authored comments. A
+  // Word comment always carries an "Author: " prefix, so the caption/code/
+  // track-change heuristics must not fire on it.
+  it('keeps an authored comment whose anchor sits inside a deletion span', () => {
+    const text = 'Intro {--deleted {>>Reviewer 2: this is inside deleted text<<} span--} end.';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 1);
+    assert.strictEqual(comments[0].author, 'Reviewer 2');
+  });
+
+  it('keeps a reply-prefixed comment (↪) that the caption/code heuristics would reject', () => {
+    // Reply blocks are emitted as "↪ Author: ...". Content mentions .png and a
+    // code keyword, which would drop a bare comment but not an authored reply.
+    const text = 'Prose {>>↪ Reviewer 1: see figures/panel.png and import the data<<} more.';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 1);
+  });
+
+  it('keeps an authored comment that mentions a .pdf and code tokens', () => {
+    const text = 'Body {>>S Dullinger: see the .pdf export; const values look off => fix<<} tail.';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 1);
+    assert.strictEqual(comments[0].author, 'S Dullinger');
+  });
+
+  it('keeps an authored comment with a digit in the author label (Reviewer 2)', () => {
+    const text = 'Body {>>Reviewer 2: short note<<} tail.';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 1);
+    assert.strictEqual(comments[0].author, 'Reviewer 2');
+  });
+
+  it('still drops a bare figure caption written with a colon (no real author)', () => {
+    const text = '{>>Table 1: Mean values by treatment group<<}';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 0);
+  });
+
+  it('counts a full parent+reply cluster emitted adjacently', () => {
+    const text = '{>>P: parent<<}{>>↪ R: reply one<<}{>>↪ R: reply two<<}[anchor]{.mark}';
+    const comments = getComments(text);
+    assert.strictEqual(comments.length, 3);
+  });
 });
 
 describe('nested annotations', () => {

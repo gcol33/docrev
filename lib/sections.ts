@@ -179,7 +179,10 @@ export function saveConfig(configPath: string, config: SectionsConfig): void {
  *
  * Returns null when rev.yaml is absent, unparseable, or has no `sections` list.
  */
-export function deriveSectionsFromRev(directory: string): SectionsConfig | null {
+export function deriveSectionsFromRev(
+  directory: string,
+  sectionDir: string = directory
+): SectionsConfig | null {
   const revPath = path.join(directory, 'rev.yaml');
   if (!fs.existsSync(revPath)) return null;
 
@@ -196,7 +199,7 @@ export function deriveSectionsFromRev(directory: string): SectionsConfig | null 
   const sections: Record<string, SectionConfig> = {};
   list.forEach((entry, index) => {
     if (typeof entry !== 'string') return;
-    const header = extractFirstHeading(path.join(directory, entry)) || titleCase(path.basename(entry, '.md'));
+    const header = extractFirstHeading(path.join(sectionDir, entry)) || titleCase(path.basename(entry, '.md'));
     sections[entry] = { header, aliases: [], order: index };
   });
 
@@ -212,10 +215,19 @@ export function deriveSectionsFromRev(directory: string): SectionsConfig | null 
 /**
  * Resolve the effective sections config for a project directory.
  *
+ * The config file (`--config`) and the section directory (`--dir`) are
+ * independent: `--config` is a path in its own right, so it is resolved
+ * against the working directory (or taken as-is when absolute), never joined
+ * onto `--dir`. `--dir` only says where the section markdown lives. The older
+ * co-located layout (config sitting beside the sections) still works via a
+ * fallback that looks inside `directory`.
+ *
  * Precedence (single source of truth, with optional override):
  *   1. An explicit sections config file (default `sections.yaml`) when it
- *      exists — lets users override headers/aliases/order.
- *   2. Otherwise the `sections:` list in `rev.yaml`, via {@link deriveSectionsFromRev}.
+ *      exists — lets users override headers/aliases/order. Looked up against
+ *      the working directory first, then inside `directory`.
+ *   2. Otherwise the `sections:` list in `rev.yaml` — again the working
+ *      directory first, then `directory` — via {@link deriveSectionsFromRev}.
  *
  * Returns null only when neither source yields any sections; callers turn that
  * into a user-facing error.
@@ -224,17 +236,45 @@ export function resolveSectionsConfig(
   directory: string,
   configFileName = 'sections.yaml'
 ): { config: SectionsConfig; source: string } | null {
-  const explicitPath = path.resolve(directory, configFileName);
-  if (fs.existsSync(explicitPath)) {
-    return { config: loadConfig(explicitPath), source: explicitPath };
+  // Explicit config file. Resolve the path against the working directory (or
+  // honor it as-is when absolute), then fall back to the section directory.
+  const configCandidates = uniquePaths([
+    path.resolve(configFileName),
+    path.resolve(directory, configFileName),
+  ]);
+  for (const candidate of configCandidates) {
+    if (fs.existsSync(candidate)) {
+      return { config: loadConfig(candidate), source: candidate };
+    }
   }
 
-  const derived = deriveSectionsFromRev(directory);
-  if (derived) {
-    return { config: derived, source: path.resolve(directory, 'rev.yaml') };
+  // rev.yaml `sections:` list. Look in the working directory first, then the
+  // section directory; either way the section files are read from `directory`.
+  const revDirs = uniquePaths([path.resolve('.'), path.resolve(directory)]);
+  for (const revDir of revDirs) {
+    const derived = deriveSectionsFromRev(revDir, directory);
+    if (derived) {
+      return { config: derived, source: path.join(revDir, 'rev.yaml') };
+    }
   }
 
   return null;
+}
+
+/**
+ * Deduplicate a list of paths while preserving order, comparing by resolved
+ * absolute path so that "." and the working directory collapse to one entry.
+ */
+function uniquePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of paths) {
+    const key = path.resolve(p);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
 }
 
 /**
