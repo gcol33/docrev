@@ -23,28 +23,44 @@ export function packageRoot(fromDir: string): string {
 }
 
 /**
- * Count words in text (excluding markdown syntax)
+ * Count the words of a manuscript's prose.
+ *
+ * What is not prose is removed first: frontmatter, fenced code, table rows,
+ * images with their captions, attribute and CriticMarkup braces, citations
+ * and cross-references, emphasis markers and horizontal rules. Link text is
+ * kept, since a reader reads it as part of the sentence. Heading text is
+ * kept and only the marker removed.
+ *
+ * A pattern that removes a delimited construct is bounded by that
+ * construct's own closing delimiter, and one that has no closing delimiter
+ * on the same line is bounded to a single line. A negated class that can
+ * match a newline runs from one construct to the NEXT one when the first is
+ * unterminated, and takes the prose between them with it, which is how a
+ * table-cell pattern came to delete whole paragraphs standing between two
+ * tables.
+ *
  * @param text - Markdown text
  * @returns Word count
  */
 export function countWords(text: string): number {
-  return text
-    .replace(/^---[\s\S]*?---/m, '') // Remove YAML frontmatter
-    .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Keep link text
-    .replace(/#+\s*/g, '') // Remove headers
+  const withoutFrontmatter = text.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '');
+  const withoutCode = withoutFrontmatter.replace(/^[ \t]*```[\s\S]*?^[ \t]*```/gm, '');
+  const withoutTables = withoutCode
+    .split('\n')
+    .filter(line => !/^\s*\|/.test(line))
+    .join('\n');
+
+  return withoutTables
+    .replace(/!\[[^\]]*\]\([^)\n]*\)/g, '') // Remove images, caption and all
+    .replace(/\[[^\]\n]*@[^\]\n]*\]/g, '') // Remove bracketed citations, brackets included
+    .replace(/\[([^\]]+)\]\([^)\n]+\)/g, '$1') // Keep link text
+    .replace(/^[ \t]*#+[ \t]*/gm, '') // Remove heading markers
+    .replace(/\{[^}\n]*\}/g, '') // Remove CriticMarkup and attributes
+    .replace(/@[\w-]+(?::[\w-]+)?/g, '') // Remove bare citations and cross-references
     .replace(/\*\*|__|[*_`]/g, '') // Remove formatting
-    .replace(/```[\s\S]*?```/g, '') // Remove code blocks
-    .replace(/\{[^}]+\}/g, '') // Remove CriticMarkup and attributes
-    .replace(/@\w+:\w+/g, '') // Remove cross-references
-    .replace(/@\w+/g, '') // Remove citations
-    .replace(/\|[^|]+\|/g, ' ') // Remove table cells
-    .replace(/[-=]{3,}/g, '') // Remove horizontal rules
-    .replace(/\n+/g, ' ') // Newlines to spaces
-    .replace(/\s+/g, ' ') // Collapse multiple spaces
-    .trim()
+    .replace(/^[ \t]*[-=*_]{3,}[ \t]*$/gm, '') // Remove horizontal rules
     .split(/\s+/)
-    .filter(w => w.length > 0).length;
+    .filter(w => /[\p{L}\p{N}]/u.test(w)).length;
 }
 
 /**

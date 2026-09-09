@@ -5,6 +5,14 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3] - 2026-09-09
+
+### Fixed
+- **`rev validate` counts the prose between two tables.** `countWords` stripped table content with `/\|[^|]+\|/g`, and `[^|]` matches a newline, so the pattern ran from the last pipe of one table to the first pipe of the next and deleted every paragraph standing between them. On an 8-table results section it dropped about 2,000 words of running text, and the reported count fell as prose was added between tables and rose as a table was removed. `/\{[^}]+\}/g` had the same shape and joined one figure's attribute block to the next. Both are now bounded: table rows are dropped line by line, so a table contributes nothing and nothing else is taken with it, and every pattern without a same-line closing delimiter is confined to one line.
+- **A citation no longer leaves its brackets behind as words.** `[@Ellenberg_1991; @Diekmann_2003]` had its keys removed and the residue `[; ]` counted as two words. Bracketed citations are removed whole, and a token carrying no letter or digit is not counted.
+- **A cross-reference label with a hyphen is removed in full.** `@\w+` stopped at the hyphen of `@fig:sample-efficiency`, leaving `-efficiency` to be counted.
+- **Frontmatter is recognized only at the top of the document.** The `^---[\s\S]*?---` pattern carried the `m` flag, so a horizontal rule mid-document could open a match and delete everything up to the next one. Horizontal rules are likewise matched as whole lines, not as any run of three dashes inside a word.
+
 ## [0.12.2] - 2026-08-05
 
 ### Fixed
