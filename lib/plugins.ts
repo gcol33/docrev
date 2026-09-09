@@ -15,10 +15,10 @@ import * as yaml from 'yaml';
  * Journal profile requirements
  */
 interface ProfileRequirements {
-  wordLimit?: Record<string, number | null>;
+  wordLimit?: Record<string, number | boolean | null>;
   references?: Record<string, unknown>;
   figures?: Record<string, unknown>;
-  sections?: Record<string, unknown>;
+  sections?: string[] | { required?: string[] } | Record<string, unknown>;
   authors?: Record<string, unknown>;
   keywords?: { min?: number; max?: number } | null;
   dataAvailability?: boolean;
@@ -163,6 +163,19 @@ function validateProfile(profile: unknown): profile is Profile {
 }
 
 /**
+ * Accept a section requirement written as a list or as `{required: [...]}`,
+ * and give back the list.
+ */
+function normalizeSections(sections: unknown): string[] {
+  if (Array.isArray(sections)) return sections.filter((s): s is string => typeof s === 'string');
+  if (sections && typeof sections === 'object') {
+    const required = (sections as { required?: unknown }).required;
+    if (Array.isArray(required)) return required.filter((s): s is string => typeof s === 'string');
+  }
+  return [];
+}
+
+/**
  * Normalize profile to standard structure
  */
 function normalizeProfile(profile: Profile): NormalizedProfile {
@@ -181,6 +194,12 @@ function normalizeProfile(profile: Profile): NormalizedProfile {
       ...profile.requirements,
     },
   };
+
+  // `sections` reaches the validator as a list it iterates. A profile may
+  // write it as one, or as `sections: {required: [...]}` — which is the shape
+  // the template used to suggest, and which failed at validation time with
+  // "req.sections is not iterable" rather than at load time.
+  normalized.requirements.sections = normalizeSections(normalized.requirements.sections);
 
   // Pass through formatting if present
   const formatting = (profile as { formatting?: ProfileFormatting }).formatting;
@@ -235,6 +254,13 @@ wordLimit:
   main: 8000      # null for no limit
   abstract: 300
   title: null     # characters
+  # What the main limit counts. Body prose, table and figure captions and the
+  # statements are always in it; these say what else is.
+  includeAbstract: true       # false when the abstract has its own limit above
+  includeFigureCaptions: true
+  includeTableCells: false    # true to count a table's cells, not just its caption
+  includeReferences: false    # true renders the reference list and counts it
+                              # (needs bibliography: in rev.yaml, and pandoc)
 
 # Reference requirements
 references:
@@ -248,13 +274,11 @@ figures:
 
 # Required sections
 sections:
-  required:
-    - Abstract
-    - Introduction
-    - Methods
-    - Results
-    - Discussion
-  methodsPosition: null  # 'end' or 'before-results'
+  - Abstract
+  - Introduction
+  - Methods
+  - Results
+  - Discussion
 
 # Keywords
 keywords:

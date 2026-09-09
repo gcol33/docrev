@@ -293,16 +293,23 @@ url: "https://journal.example.com/guidelines"
 wordLimit:
   main: 6000
   abstract: 250
+  # What the main limit counts, beyond body prose and captions
+  includeAbstract: true
+  includeFigureCaptions: true
+  includeTableCells: false
+  includeReferences: false   # true renders the reference list and counts it
 references:
   max: 50
   doiRequired: true
+keywords:
+  max: 8
+dataAvailability: true
 sections:
-  required:
-    - Abstract
-    - Introduction
-    - Methods
-    - Results
-    - Discussion
+  - Abstract
+  - Introduction
+  - Methods
+  - Results
+  - Discussion
 
 # Build formatting defaults
 formatting:

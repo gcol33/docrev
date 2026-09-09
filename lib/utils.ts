@@ -64,6 +64,42 @@ export function countWords(text: string): number {
 }
 
 /**
+ * Count the words inside pipe-table cells, which `countWords` drops.
+ *
+ * A journal that counts "tables" toward its word limit may mean the caption
+ * alone and may mean every cell; reporting the two separately lets a profile
+ * say which, instead of the counter deciding for it. Alignment rows carry no
+ * words and are skipped.
+ *
+ * @param text - Markdown text
+ * @returns Word count inside table cells
+ */
+export function countTableCellWords(text: string): number {
+  const cells = text
+    .split('\n')
+    .filter(line => /^\s*\|/.test(line))
+    .filter(line => !/^[ \t]*\|[\s:|+=-]*$/.test(line))
+    .map(line => line.replace(/\|/g, ' '))
+    .join('\n');
+  return cells.trim() ? countWords(cells) : 0;
+}
+
+/**
+ * Count the words of figure captions, which `countWords` removes with the
+ * image. A caption is sentences the reader reads, and journals that state
+ * what their word limit covers name it, so it is measured rather than lost.
+ *
+ * @param text - Markdown text
+ * @returns Word count across image captions
+ */
+export function countFigureCaptionWords(text: string): number {
+  const captions = [...text.matchAll(/!\[([^\]]*)\]\([^)\n]*\)/g)]
+    .map(m => m[1] ?? '')
+    .join('\n');
+  return captions.trim() ? countWords(captions) : 0;
+}
+
+/**
  * Levenshtein edit distance between two strings.
  * Shared by command typo suggestions, config-key typo detection, and
  * similar-filename suggestions.

@@ -8,6 +8,7 @@ import {
   listJournals,
   getJournalProfile,
   validateManuscript,
+  JOURNAL_PROFILES,
 } from '../lib/journals.js';
 
 describe('listJournals', () => {
@@ -144,5 +145,107 @@ As shown by @smith2020 and @jones2021, the results confirm @brown2019.
 `;
     const result = validateManuscript(textWithRefs, 'plos-one');
     assert.strictEqual(result.stats.references, 3);
+  });
+});
+
+describe('what the word limit counts', () => {
+  const manuscript = [
+    '# Abstract',
+    '',
+    'One two three four five.',
+    '',
+    '**Keywords:** alpha, beta, gamma',
+    '',
+    '# Introduction',
+    '',
+    'Body words here that the counter keeps [@smith2020].',
+    '',
+    '![A caption of exactly six words](fig1.png){#fig:one}',
+    '',
+    'See @fig:one for the shape.',
+    '',
+    '| Site | Count |',
+    '|------|-------|',
+    '| Alpha | 12 |',
+    '',
+    ': A table caption.',
+    '',
+    '# Data availability',
+    '',
+    'Archived openly.',
+  ].join('\n');
+
+  it('separates the abstract from the body, and drops its keyword line', () => {
+    const stats = validateManuscript(manuscript, 'plos-one').stats;
+    assert.strictEqual(stats.abstractWords, 5);
+  });
+
+  it('reports table cells and figure captions as their own parts', () => {
+    const stats = validateManuscript(manuscript, 'plos-one').stats;
+    assert.strictEqual(stats.tableCellWords, 4);
+    assert.strictEqual(stats.figureCaptionWords, 6);
+  });
+
+  it('counts one table per run of rows, not per five rows', () => {
+    const stats = validateManuscript(manuscript, 'plos-one').stats;
+    assert.strictEqual(stats.tables, 1);
+  });
+
+  it('does not count a cross-reference as a reference', () => {
+    const stats = validateManuscript(manuscript, 'plos-one').stats;
+    assert.strictEqual(stats.references, 1);
+  });
+
+  it('counts the keyword list', () => {
+    const stats = validateManuscript(manuscript, 'plos-one').stats;
+    assert.strictEqual(stats.keywords, 3);
+  });
+
+  it('takes the title from the caller, not from the first heading', () => {
+    const stats = validateManuscript(manuscript, 'plos-one', { title: 'A real title' }).stats;
+    assert.strictEqual(stats.titleChars, 'A real title'.length);
+  });
+
+  it('adds the rendered reference list only when the profile asks for it', () => {
+    const off = validateManuscript(manuscript, 'plos-one', { referenceWords: 500 }).stats;
+    assert.strictEqual(off.counted.references, false);
+    assert.strictEqual(off.wordCount, off.bodyWords + off.abstractWords + off.figureCaptionWords);
+
+    JOURNAL_PROFILES['test-counts-references'] = {
+      name: 'Counts references',
+      url: 'https://example.org',
+      requirements: {
+        wordLimit: { main: 8000, includeReferences: true, includeAbstract: false },
+      },
+    };
+    try {
+      const on = validateManuscript(manuscript, 'test-counts-references', { referenceWords: 500 }).stats;
+      assert.strictEqual(on.counted.references, true);
+      assert.strictEqual(on.counted.abstract, false);
+      assert.strictEqual(on.wordCount, on.bodyWords + on.figureCaptionWords + 500);
+    } finally {
+      delete JOURNAL_PROFILES['test-counts-references'];
+    }
+  });
+
+  it('warns when a profile counts a reference list that could not be rendered', () => {
+    JOURNAL_PROFILES['test-unrendered-references'] = {
+      name: 'Counts references',
+      url: 'https://example.org',
+      requirements: { wordLimit: { main: 8000, includeReferences: true } },
+    };
+    try {
+      const result = validateManuscript(manuscript, 'test-unrendered-references');
+      assert.ok(result.warnings.some(w => w.includes('could not be rendered')));
+      assert.strictEqual(result.stats.referenceWords, null);
+    } finally {
+      delete JOURNAL_PROFILES['test-unrendered-references'];
+    }
+  });
+
+  it('ends the abstract at the next heading, not at its first z', () => {
+    const withZ = ['# Abstract', '', 'Zonal patterns are analysed here.', '', '# Introduction', '', 'Body.'].join('\n');
+    const stats = validateManuscript(withZ, 'plos-one').stats;
+    assert.strictEqual(stats.abstractWords, 5);
   });
 });

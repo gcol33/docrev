@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { JournalProfile, JournalRequirements, JournalFormatting, ValidationResult } from './types.js';
 import { loadCustomProfiles } from './plugins.js';
-import { countWords } from './utils.js';
+import { countWords, countTableCellWords, countFigureCaptionWords } from './utils.js';
 
 /**
  * Journal requirement profiles
@@ -328,26 +328,62 @@ export function getJournalProfile(journalId: string): JournalProfile | null {
  * Extract abstract from markdown
  */
 function extractAbstract(text: string): string | null {
-  // Try to find abstract section
-  const patterns = [
-    /^#+\s*Abstract\s*\n([\s\S]*?)(?=^#+|\Z)/mi,
-    /^Abstract[:\s]*\n([\s\S]*?)(?=^#+|\n\n)/mi,
-  ];
+  // `\Z` is not a JavaScript escape: written into a pattern it matches a
+  // literal Z, and under /i a literal z, so the old lookahead ended the
+  // abstract at its first z rather than at the next heading.
+  const heading = /^#{1,6}[ \t]*Abstract[ \t]*:?[ \t]*$/im.exec(text);
+  if (heading) {
+    const body = text.slice(heading.index + heading[0].length);
+    const next = /^#{1,6}[ \t]/m.exec(body);
+    const abstract = (next ? body.slice(0, next.index) : body).trim();
+    if (abstract) return stripKeywordLine(abstract);
+  }
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
+  const inline = /^Abstract[:\s]*$/im.exec(text);
+  if (inline) {
+    const body = text.slice(inline.index + inline[0].length).replace(/^\s*\n/, '');
+    const end = body.search(/\n\s*\n|^#{1,6}[ \t]/m);
+    const abstract = (end >= 0 ? body.slice(0, end) : body).trim();
+    if (abstract) return stripKeywordLine(abstract);
   }
 
   return null;
 }
 
 /**
+ * Drop a trailing keyword line from an abstract. Journals limit the two
+ * separately, so counting the keywords as abstract words fails a manuscript
+ * that is inside both.
+ */
+function stripKeywordLine(abstract: string): string {
+  return abstract.replace(KEYWORD_LINE, '').trim();
+}
+
+const KEYWORD_LINE = /^[ \t]*(?:\*\*|__)?\s*Key[- ]?words?\s*:?(?:\*\*|__)?[ \t]*:?[\s\S]*$/im;
+
+/**
+ * Extract the keyword list, wherever it sits: a `Keywords:` line in the
+ * abstract or a section of its own.
+ */
+function extractKeywords(text: string): string[] {
+  const match = /^[ \t]*(?:\*\*|__)?\s*Key[- ]?words?\s*:?(?:\*\*|__)?\s*:?[ \t]*(.*(?:\n(?!\s*\n)(?!#).*)*)/im.exec(text);
+  if (!match || !match[1]) return [];
+  return match[1]
+    .replace(/\*\*|__|[*_`]/g, '')
+    .split(/[;,]/)
+    .map(k => k.trim())
+    .filter(k => k.length > 0);
+}
+
+/**
  * Extract title from markdown
  */
-function extractTitle(text: string): string | null {
+function extractTitle(text: string, declared?: string | null): string | null {
+  // A rev project carries its title in rev.yaml, not in the sections, so the
+  // caller passes it in. Without it the first H1 is a section heading
+  // ("Abstract"), which is not the manuscript's title.
+  if (declared && declared.trim()) return declared.trim();
+
   // Try YAML frontmatter
   const yamlMatch = text.match(/^---\n[\s\S]*?title:\s*["']?([^"'\n]+)["']?[\s\S]*?\n---/m);
   if (yamlMatch && yamlMatch[1]) {
@@ -394,40 +430,86 @@ function countFigures(text: string): number {
  * Count tables in markdown
  */
 function countTables(text: string): number {
-  // Count tables (lines starting with |)
-  const tablePattern = /^\|[^|]+\|/gm;
-  const matches = text.match(tablePattern) || [];
-  // Divide by approximate rows per table
-  return Math.ceil(matches.length / 5);
+  // One table is one run of consecutive pipe rows, so a wide table and a
+  // narrow one count the same. Dividing the row total by an assumed rows-per-
+  // table made the figure a function of table length.
+  let tables = 0;
+  let inTable = false;
+  for (const line of text.split('\n')) {
+    const isRow = /^[ \t]*\|/.test(line);
+    if (isRow && !inTable) tables++;
+    inTable = isRow;
+  }
+  return tables;
 }
 
 /**
  * Count references/citations in markdown
  */
-function countReferences(text: string): number {
-  // Count unique citation keys
-  const citationPattern = /@(\w+)/g;
+/**
+ * The pandoc-crossref label namespaces. `@fig:signal` is a cross-reference,
+ * not a citation, and the key stops at the colon, so the key alone cannot
+ * tell them apart.
+ */
+const CROSSREF_PREFIXES = new Set(['fig', 'tbl', 'eq', 'sec', 'lst']);
+
+/**
+ * Citation keys cited in the manuscript, deduplicated.
+ *
+ * Exported because the reference list is measured by rendering exactly these
+ * keys; counting one set and rendering another would report a length for a
+ * list nobody gets.
+ */
+export function extractCitationKeys(text: string): string[] {
+  const citationPattern = /@([A-Za-z][\w.-]*)(:?)/g;
   const citations = new Set<string>();
   let match: RegExpExecArray | null;
 
   while ((match = citationPattern.exec(text)) !== null) {
-    // Exclude cross-refs like @fig:label
-    if (match[1] && !match[0].includes(':')) {
-      citations.add(match[1]);
-    }
+    const key = match[1];
+    if (!key) continue;
+    // A colon after the key marks a cross-reference namespace, not a citation.
+    if (match[2] === ':' && CROSSREF_PREFIXES.has(key)) continue;
+    citations.add(key);
   }
 
-  return citations.size;
+  return [...citations];
+}
+
+function countReferences(text: string): number {
+  return extractCitationKeys(text).length;
 }
 
 interface ManuscriptStats {
+  /** The count checked against the limit: body plus whatever the profile counts. */
   wordCount: number;
+  /** Prose in the sections, excluding table cells and the abstract. */
+  bodyWords: number;
+  /** Words inside table cells. */
+  tableCellWords: number;
+  /** Words in figure captions, which the body count removes with the image. */
+  figureCaptionWords: number;
+  /** Words in the rendered reference list, or null when it was not measured. */
+  referenceWords: number | null;
   abstractWords: number;
+  /** What wordCount is made of, for reporting. */
+  counted: { abstract: boolean; tableCells: boolean; figureCaptions: boolean; references: boolean };
   titleChars: number;
   figures: number;
   tables: number;
   references: number;
+  keywords: number;
   sections: number;
+}
+
+export interface ValidationInput {
+  /** Manuscript title, from rev.yaml; the sections do not carry one. */
+  title?: string | null;
+  /**
+   * Words in the rendered reference list. The caller renders it, because
+   * doing so needs the project's bibliography, its CSL and pandoc.
+   */
+  referenceWords?: number | null;
 }
 
 interface ManuscriptValidationResult {
@@ -442,7 +524,11 @@ interface ManuscriptValidationResult {
 /**
  * Validate manuscript against journal requirements
  */
-export function validateManuscript(text: string, journalId: string): ManuscriptValidationResult {
+export function validateManuscript(
+  text: string,
+  journalId: string,
+  input: ValidationInput = {}
+): ManuscriptValidationResult {
   const profile = getJournalProfile(journalId);
 
   if (!profile) {
@@ -460,34 +546,77 @@ export function validateManuscript(text: string, journalId: string): ManuscriptV
 
   // Extract content
   const abstract = extractAbstract(text);
-  const title = extractTitle(text);
+  const title = extractTitle(text, input.title);
   const sections = extractSections(text);
-  const mainWordCount = countWords(text);
+  const keywords = extractKeywords(text);
   const figureCount = countFigures(text);
   const tableCount = countTables(text);
   const refCount = countReferences(text);
 
+  const abstractWords = abstract ? countWords(abstract) : 0;
+  const tableCellWords = countTableCellWords(text);
+  const figureCaptionWords = countFigureCaptionWords(text);
+  const referenceWords = input.referenceWords ?? null;
+
+  // countWords already drops table cells, so the body is prose alone; the
+  // abstract is subtracted so a profile can decide whether the limit that has
+  // its own abstract ceiling also counts those words a second time.
+  const bodyWords = Math.max(0, countWords(text) - abstractWords);
+
+  const counted = {
+    abstract: req.wordLimit?.includeAbstract !== false,
+    tableCells: req.wordLimit?.includeTableCells === true,
+    figureCaptions: req.wordLimit?.includeFigureCaptions !== false,
+    references: req.wordLimit?.includeReferences === true,
+  };
+
+  const countedWords =
+    bodyWords +
+    (counted.abstract ? abstractWords : 0) +
+    (counted.tableCells ? tableCellWords : 0) +
+    (counted.figureCaptions ? figureCaptionWords : 0) +
+    (counted.references ? referenceWords ?? 0 : 0);
+
   const stats: ManuscriptStats = {
-    wordCount: mainWordCount,
-    abstractWords: abstract ? countWords(abstract) : 0,
+    wordCount: countedWords,
+    bodyWords,
+    tableCellWords,
+    figureCaptionWords,
+    referenceWords,
+    abstractWords,
+    counted,
     titleChars: title ? title.length : 0,
     figures: figureCount,
     tables: tableCount,
     references: refCount,
+    keywords: keywords.length,
     sections: sections.length,
   };
 
   // Word limits
   if (req.wordLimit) {
-    if (req.wordLimit.main && mainWordCount > req.wordLimit.main) {
-      errors.push(`Main text exceeds ${req.wordLimit.main} words (current: ${mainWordCount})`);
+    if (counted.references && referenceWords === null) {
+      warnings.push(
+        `${profile.name} counts the reference list toward its word limit, and it could not be rendered ` +
+        '(needs `bibliography:` in rev.yaml and pandoc on PATH), so the count below is short by its length'
+      );
     }
-    if (req.wordLimit.abstract && abstract) {
-      const absWords = countWords(abstract);
-      if (absWords > req.wordLimit.abstract) {
-        errors.push(`Abstract exceeds ${req.wordLimit.abstract} words (current: ${absWords})`);
-      }
+    if (req.wordLimit.main && countedWords > req.wordLimit.main) {
+      errors.push(`Main text exceeds ${req.wordLimit.main} words (current: ${countedWords})`);
     }
+    if (req.wordLimit.abstract && abstract && abstractWords > req.wordLimit.abstract) {
+      errors.push(`Abstract exceeds ${req.wordLimit.abstract} words (current: ${abstractWords})`);
+    }
+  }
+
+  // Keywords
+  if (req.keywords?.max && keywords.length > req.keywords.max) {
+    errors.push(`Keywords exceed ${req.keywords.max} (current: ${keywords.length})`);
+  }
+
+  // Data availability statement
+  if (req.dataAvailability && !/^#{1,6}[ \t]*Data\s+(availability|accessibility)/im.test(text)) {
+    warnings.push('Missing a data availability statement');
   }
 
   // References
@@ -532,12 +661,16 @@ export function validateManuscript(text: string, journalId: string): ManuscriptV
 /**
  * Validate multiple files against journal requirements
  */
-export function validateProject(files: string[], journalId: string): ManuscriptValidationResult {
+export function validateProject(
+  files: string[],
+  journalId: string,
+  input: ValidationInput = {}
+): ManuscriptValidationResult {
   // Combine all file contents
   const combined = files
     .filter(f => fs.existsSync(f))
     .map(f => fs.readFileSync(f, 'utf-8'))
     .join('\n\n');
 
-  return validateManuscript(combined, journalId);
+  return validateManuscript(combined, journalId, input);
 }

@@ -181,18 +181,56 @@ export function register(program: Command): void {
       console.log(chalk.dim(`  ${profile.url}`));
       console.log();
 
-      const result = validateProject(mdFiles, options.journal);
+      const { loadConfig } = await import('../build.js');
+      const { extractCitationKeys } = await import('../journals.js');
+      const config = loadConfig(process.cwd());
+
+      // The reference list exists only after citeproc runs, so a profile that
+      // counts it toward the limit needs it rendered before the count is made.
+      let referenceWords: number | null = null;
+      if (profile.requirements.wordLimit?.includeReferences && config.bibliography) {
+        const { renderBibliography } = await import('../bibliography.js');
+        const combined = mdFiles
+          .filter(f => fs.existsSync(f))
+          .map(f => fs.readFileSync(f, 'utf-8'))
+          .join('\n\n');
+        const rendered = renderBibliography({
+          directory: process.cwd(),
+          bibliography: config.bibliography,
+          csl: config.csl ?? profile.formatting?.csl ?? null,
+          keys: extractCitationKeys(combined),
+        });
+        if (rendered.text !== null) referenceWords = rendered.words;
+      }
+
+      const result = validateProject(mdFiles, options.journal, {
+        title: config.title,
+        referenceWords,
+      });
 
       if (result.stats) {
+        const s = result.stats;
+        const part = (words: number, counted: boolean) =>
+          `${words} words${counted ? '' : ' (not counted)'}`;
+        const rows: string[][] = [
+          ['Word count', s.wordCount.toString()],
+          ['  body', part(s.bodyWords, true)],
+          ['  abstract', part(s.abstractWords, s.counted.abstract)],
+          ['  figure captions', part(s.figureCaptionWords, s.counted.figureCaptions)],
+          ['  table cells', part(s.tableCellWords, s.counted.tableCells)],
+        ];
+        if (s.counted.references) {
+          rows.push(['  references', s.referenceWords === null ? 'not measured' : part(s.referenceWords, true)]);
+        }
+        rows.push(
+          ['Title', `${s.titleChars} chars`],
+          ['Figures', s.figures.toString()],
+          ['Tables', s.tables.toString()],
+          ['References', s.references.toString()],
+          ['Keywords', s.keywords.toString()],
+        );
         console.log(chalk.cyan('Manuscript Stats:'));
-        console.log(fmt.table(['Metric', 'Value'], [
-          ['Word count', result.stats.wordCount.toString()],
-          ['Abstract', `${result.stats.abstractWords} words`],
-          ['Title', `${result.stats.titleChars} chars`],
-          ['Figures', result.stats.figures.toString()],
-          ['Tables', result.stats.tables.toString()],
-          ['References', result.stats.references.toString()],
-        ]));
+        console.log(fmt.table(['Metric', 'Value'], rows));
         console.log();
       }
 

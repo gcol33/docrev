@@ -346,10 +346,28 @@ export interface ContributorStats {
 // ============================================
 
 export interface JournalRequirements {
-  wordLimit?: { main?: number; abstract?: number };
+  wordLimit?: {
+    main?: number;
+    abstract?: number;
+    /**
+     * Count the rendered reference list toward `main`. Off by default, so a
+     * profile that has not stated its rule keeps counting body text alone.
+     * Rendering needs `bibliography:` in rev.yaml and pandoc on PATH.
+     */
+    includeReferences?: boolean;
+    /** Count words inside table cells toward `main`. Off by default. */
+    includeTableCells?: boolean;
+    /** Count figure captions toward `main`. On by default. */
+    includeFigureCaptions?: boolean;
+    /** Count the abstract toward `main`. On by default. */
+    includeAbstract?: boolean;
+  };
   references?: { max?: number; doiRequired?: boolean };
   figures?: { max?: number };
   tables?: { max?: number };
+  keywords?: { max?: number };
+  /** Require a data availability statement. */
+  dataAvailability?: boolean;
   sections?: string[];
 }
 

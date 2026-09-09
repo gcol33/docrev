@@ -5,6 +5,20 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-09-09
+
+### Fixed
+- **`rev validate` counts what the journal counts.** A limit stated as "including tables/figure captions, statements and references list" was checked against body prose alone: the reference list does not exist in the sources, since citeproc renders it at build time, and figure captions were removed with their image. On a manuscript with 31 references and 5 figures that is 1,661 words the count never saw. The parts are now measured separately and the profile says which of them its limit covers, through `wordLimit.includeReferences` / `includeFigureCaptions` / `includeTableCells` / `includeAbstract`. The reference list is rendered with the project's own bibliography and CSL, through the same pandoc + citeproc pass the build uses, so a style that prints every author of a consortium paper is counted at what it actually prints. The stats table shows each part and whether it was counted.
+- **The abstract ended at its first `z`.** `\Z` is not a JavaScript escape; written into the extraction pattern it matched a literal Z, and under `/i` a literal z, so an abstract was cut at its first one. A 356-word abstract was reported as 162 and passed a 350-word limit. A trailing `Keywords:` line is also dropped, since journals limit the two separately.
+- **The title was the first heading.** A rev project carries its title in `rev.yaml`, so the first H1 in the sections is "Abstract" and the reported title length was 8 characters. `validate` reads the configured title.
+- **A table was counted as five rows.** `countTables` divided the row total by an assumed rows-per-table, so the figure was a function of table length: 8 tables reported as 15. One table is now one run of consecutive rows.
+- **A cross-reference counted as a reference.** `@fig:one` was recorded under the key `fig`, because the guard tested the captured key for a colon the pattern had already stopped at.
+- **`sections: {required: [...]}` no longer dies at validation time.** The `--new` template suggested that shape, and it reached the validator as an object, which failed with "req.sections is not iterable". Both the list and the nested form are accepted; the template and the documented example now write the list.
+
+### Added
+- `keywords.max` and `dataAvailability` in a profile are read: both were accepted, stored, and never checked.
+- `countTableCellWords` and `countFigureCaptionWords` in `lib/utils.ts`, and `renderBibliography` in the new `lib/bibliography.ts`.
+
 ## [0.12.3] - 2026-09-09
 
 ### Fixed
