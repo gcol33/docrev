@@ -18,20 +18,18 @@ jobs:
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: '20'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 bundles npm 10.
+      - run: npm install -g npm@11
 
       - run: npm ci
       - run: npm test
       - run: npm run build
 
-      # Fail early with a clear message if NPM_TOKEN is missing/expired,
-      # instead of npm's misleading E404 at the publish step.
-      - name: Verify npm auth
-        run: npm whoami
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
+      # Authenticates through the trusted publisher configured on npmjs.com
+      # (gcol33/docrev, publish.yml); provenance is attached automatically.
       # Idempotent: a re-run or a manual workflow_dispatch on an already-published
       # version skips instead of failing with EPUBLISHCONFLICT.
       - name: Publish to npm
@@ -40,7 +38,5 @@ jobs:
           if npm view "docrev@$VERSION" version >/dev/null 2>&1; then
             echo "docrev@$VERSION is already published — skipping."
           else
-            npm publish --provenance --access public
+            npm publish --access public
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
