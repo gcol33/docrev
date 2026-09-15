@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { countWords } from '../dist/lib/utils.js';
+import { countWords } from '../lib/utils.js';
 
 describe('countWords', () => {
   it('counts plain prose', () => {
