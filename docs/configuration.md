@@ -227,8 +227,10 @@ The preamble also applies to `tex` and `beamer` builds, and to the annotated
 ```bash
 rev validate --list              # List all profiles ([formatting] = build support)
 rev validate -j nature           # Check against Nature requirements
-rev word-count -j ecology-letters  # Use journal word limit
+rev word-count -j ecology-letters  # Check the journal's word limit
 ```
+
+`validate` and `word-count -j` read the same files (the sections the build uses) and count the limit the same way: body prose, plus whatever the profile's `wordLimit` includes (see [Custom Profiles with Formatting](#custom-profiles-with-formatting)). Both print the parts, so a total that counts figure captions or the reference list shows where the words came from.
 
 Profiles include: nature, science, pnas, elife, cell, plos-one, ecology-letters, global-change-biology, etc.
 

@@ -64,6 +64,28 @@ describe('rev word-count', () => {
     const output = runRev('word-count --limit 100');
     assert.ok(output.includes('Within limit'));
   });
+
+  it('checks a journal limit against the same count as rev validate', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'title: A test\nsections:\n  - intro.md\n');
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), [
+      '# Abstract', '', 'A short abstract of six words.', '',
+      '# Introduction', '', 'Body prose that the counter keeps.', '',
+      '![A figure caption the journal counts](fig.png)', '',
+    ].join('\n'));
+    fs.writeFileSync(path.join(tempDir, 'notes.md'), 'Scratch notes outside the manuscript. '.repeat(50));
+
+    const counted = (output) => Number(output.match(/Word count\D+(\d+)/)[1]);
+    const wordCount = counted(runRev('word-count -j nature'));
+    const validate = counted(runRev('validate -j nature', { expectError: true }));
+    assert.strictEqual(wordCount, validate);
+    assert.strictEqual(wordCount, 20);
+  });
+
+  it('rejects an unknown journal', () => {
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), 'One two three.');
+    const output = runRev('word-count -j no-such-journal', { expectError: true });
+    assert.ok(output.includes('Unknown journal'));
+  });
 });
 
 describe('rev stats', () => {

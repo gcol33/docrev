@@ -8,6 +8,7 @@ import * as path from 'path';
 import type { JournalProfile, JournalRequirements, JournalFormatting, ValidationResult } from './types.js';
 import { loadCustomProfiles } from './plugins.js';
 import { countWords, countTableCellWords, countFigureCaptionWords } from './utils.js';
+import { renderBibliography } from './bibliography.js';
 
 /**
  * Journal requirement profiles
@@ -480,7 +481,7 @@ function countReferences(text: string): number {
   return extractCitationKeys(text).length;
 }
 
-interface ManuscriptStats {
+export interface WordLimitCount {
   /** The count checked against the limit: body plus whatever the profile counts. */
   wordCount: number;
   /** Prose in the sections, excluding table cells and the abstract. */
@@ -494,6 +495,100 @@ interface ManuscriptStats {
   abstractWords: number;
   /** What wordCount is made of, for reporting. */
   counted: { abstract: boolean; tableCells: boolean; figureCaptions: boolean; references: boolean };
+}
+
+/**
+ * Measure a manuscript the way a profile's word limit counts it.
+ *
+ * Each file is counted on its own and the parts summed, so frontmatter at the
+ * top of a later section file is stripped like the first one's. The abstract
+ * is located in the files joined, since its heading and its text may sit in
+ * different files.
+ *
+ * @param texts - Contents of the manuscript's section files, in build order
+ * @param wordLimit - The profile's `requirements.wordLimit`
+ * @param referenceWords - Words in the rendered reference list, or null
+ */
+export function countForWordLimit(
+  texts: string[],
+  wordLimit: JournalRequirements['wordLimit'],
+  referenceWords: number | null = null
+): WordLimitCount {
+  const abstract = extractAbstract(texts.join('\n\n'));
+  const abstractWords = abstract ? countWords(abstract) : 0;
+  const sum = (count: (text: string) => number) => texts.reduce((total, t) => total + count(t), 0);
+  const tableCellWords = sum(countTableCellWords);
+  const figureCaptionWords = sum(countFigureCaptionWords);
+
+  // countWords already drops table cells, so the body is prose alone; the
+  // abstract is subtracted so a profile can decide whether the limit that has
+  // its own abstract ceiling also counts those words a second time.
+  const bodyWords = Math.max(0, sum(countWords) - abstractWords);
+
+  const counted = {
+    abstract: wordLimit?.includeAbstract !== false,
+    tableCells: wordLimit?.includeTableCells === true,
+    figureCaptions: wordLimit?.includeFigureCaptions !== false,
+    references: wordLimit?.includeReferences === true,
+  };
+
+  const wordCount =
+    bodyWords +
+    (counted.abstract ? abstractWords : 0) +
+    (counted.tableCells ? tableCellWords : 0) +
+    (counted.figureCaptions ? figureCaptionWords : 0) +
+    (counted.references ? referenceWords ?? 0 : 0);
+
+  return { wordCount, bodyWords, tableCellWords, figureCaptionWords, referenceWords, abstractWords, counted };
+}
+
+/**
+ * Render the reference list and count its words, when the profile counts it.
+ *
+ * Returns null when the profile does not count the list or when it could not
+ * be rendered; `referenceListWarning` tells the two apart for the report.
+ */
+export function measureReferenceWords(
+  texts: string[],
+  profile: JournalProfile,
+  project: { directory: string; bibliography?: string | null; csl?: string | null }
+): number | null {
+  if (!profile.requirements.wordLimit?.includeReferences || !project.bibliography) return null;
+  const rendered = renderBibliography({
+    directory: project.directory,
+    bibliography: project.bibliography,
+    csl: project.csl ?? profile.formatting?.csl ?? null,
+    keys: extractCitationKeys(texts.join('\n\n')),
+  });
+  return rendered.text === null ? null : rendered.words;
+}
+
+/** The warning for a limit that counts a reference list nobody could render. */
+export function referenceListWarning(profile: JournalProfile, count: WordLimitCount): string | null {
+  if (!count.counted.references || count.referenceWords !== null) return null;
+  return (
+    `${profile.name} counts the reference list toward its word limit, and it could not be rendered ` +
+    '(needs `bibliography:` in rev.yaml and pandoc on PATH), so the count below is short by its length'
+  );
+}
+
+/** Table rows breaking a word-limit count into its parts, for CLI output. */
+export function wordLimitRows(count: WordLimitCount): string[][] {
+  const part = (words: number, counted: boolean) => `${words} words${counted ? '' : ' (not counted)'}`;
+  const rows: string[][] = [
+    ['Word count', count.wordCount.toString()],
+    ['  body', part(count.bodyWords, true)],
+    ['  abstract', part(count.abstractWords, count.counted.abstract)],
+    ['  figure captions', part(count.figureCaptionWords, count.counted.figureCaptions)],
+    ['  table cells', part(count.tableCellWords, count.counted.tableCells)],
+  ];
+  if (count.counted.references) {
+    rows.push(['  references', count.referenceWords === null ? 'not measured' : part(count.referenceWords, true)]);
+  }
+  return rows;
+}
+
+interface ManuscriptStats extends WordLimitCount {
   titleChars: number;
   figures: number;
   tables: number;
@@ -529,6 +624,15 @@ export function validateManuscript(
   journalId: string,
   input: ValidationInput = {}
 ): ManuscriptValidationResult {
+  return validateTexts([text], journalId, input);
+}
+
+function validateTexts(
+  texts: string[],
+  journalId: string,
+  input: ValidationInput
+): ManuscriptValidationResult {
+  const text = texts.join('\n\n');
   const profile = getJournalProfile(journalId);
 
   if (!profile) {
@@ -553,38 +657,11 @@ export function validateManuscript(
   const tableCount = countTables(text);
   const refCount = countReferences(text);
 
-  const abstractWords = abstract ? countWords(abstract) : 0;
-  const tableCellWords = countTableCellWords(text);
-  const figureCaptionWords = countFigureCaptionWords(text);
-  const referenceWords = input.referenceWords ?? null;
-
-  // countWords already drops table cells, so the body is prose alone; the
-  // abstract is subtracted so a profile can decide whether the limit that has
-  // its own abstract ceiling also counts those words a second time.
-  const bodyWords = Math.max(0, countWords(text) - abstractWords);
-
-  const counted = {
-    abstract: req.wordLimit?.includeAbstract !== false,
-    tableCells: req.wordLimit?.includeTableCells === true,
-    figureCaptions: req.wordLimit?.includeFigureCaptions !== false,
-    references: req.wordLimit?.includeReferences === true,
-  };
-
-  const countedWords =
-    bodyWords +
-    (counted.abstract ? abstractWords : 0) +
-    (counted.tableCells ? tableCellWords : 0) +
-    (counted.figureCaptions ? figureCaptionWords : 0) +
-    (counted.references ? referenceWords ?? 0 : 0);
+  const count = countForWordLimit(texts, req.wordLimit, input.referenceWords ?? null);
+  const { wordCount: countedWords, abstractWords } = count;
 
   const stats: ManuscriptStats = {
-    wordCount: countedWords,
-    bodyWords,
-    tableCellWords,
-    figureCaptionWords,
-    referenceWords,
-    abstractWords,
-    counted,
+    ...count,
     titleChars: title ? title.length : 0,
     figures: figureCount,
     tables: tableCount,
@@ -595,12 +672,8 @@ export function validateManuscript(
 
   // Word limits
   if (req.wordLimit) {
-    if (counted.references && referenceWords === null) {
-      warnings.push(
-        `${profile.name} counts the reference list toward its word limit, and it could not be rendered ` +
-        '(needs `bibliography:` in rev.yaml and pandoc on PATH), so the count below is short by its length'
-      );
-    }
+    const referenceWarning = referenceListWarning(profile, count);
+    if (referenceWarning) warnings.push(referenceWarning);
     if (req.wordLimit.main && countedWords > req.wordLimit.main) {
       errors.push(`Main text exceeds ${req.wordLimit.main} words (current: ${countedWords})`);
     }
@@ -666,11 +739,9 @@ export function validateProject(
   journalId: string,
   input: ValidationInput = {}
 ): ManuscriptValidationResult {
-  // Combine all file contents
-  const combined = files
+  const texts = files
     .filter(f => fs.existsSync(f))
-    .map(f => fs.readFileSync(f, 'utf-8'))
-    .join('\n\n');
+    .map(f => fs.readFileSync(f, 'utf-8'));
 
-  return validateManuscript(combined, journalId, input);
+  return validateTexts(texts, journalId, input);
 }

@@ -300,7 +300,7 @@ The cycle continues: receive feedback, sync, handle changes and comments, rebuil
 rev check                       # full check: lint, citations, grammar
 rev doi check references.bib    # validate all DOIs
 rev validate -j nature          # journal-specific requirements
-rev word-count -j nature        # check against word limit
+rev word-count -j nature        # word limit, counted as the journal counts it
 ```
 
 For journals with strict requirements, running `rev validate --list` shows which profiles are available and which include formatting support (`[formatting]` tag).

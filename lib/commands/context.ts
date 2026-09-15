@@ -84,6 +84,7 @@ export {
 export {
   build,
   loadConfig as loadBuildConfig,
+  findSections,
   formatBuildResults,
 } from '../build.js';
 

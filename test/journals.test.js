@@ -8,6 +8,7 @@ import {
   listJournals,
   getJournalProfile,
   validateManuscript,
+  countForWordLimit,
   JOURNAL_PROFILES,
 } from '../lib/journals.js';
 
@@ -247,5 +248,27 @@ describe('what the word limit counts', () => {
     const withZ = ['# Abstract', '', 'Zonal patterns are analysed here.', '', '# Introduction', '', 'Body.'].join('\n');
     const stats = validateManuscript(withZ, 'plos-one').stats;
     assert.strictEqual(stats.abstractWords, 5);
+  });
+});
+
+describe('countForWordLimit', () => {
+  it('strips the frontmatter of every section file, not only the first', () => {
+    const intro = ['---', 'title: Intro', '---', '', 'One two three.'].join('\n');
+    const methods = ['---', 'title: Methods section heading', '---', '', 'Four five.'].join('\n');
+    const count = countForWordLimit([intro, methods], { main: 100 });
+    assert.strictEqual(count.bodyWords, 5);
+  });
+
+  it('finds an abstract whose heading and text sit in different files', () => {
+    const count = countForWordLimit(['# Abstract', 'One two three.\n\n# Introduction\n\nBody here.'], { main: 100 });
+    assert.strictEqual(count.abstractWords, 3);
+    assert.strictEqual(count.bodyWords, 4);
+  });
+
+  it('matches validateManuscript on a single document', () => {
+    const text = ['# Abstract', '', 'Short abstract.', '', '# Results', '', '![Six words in this figure caption](f.png)', '', 'Body text.'].join('\n');
+    const count = countForWordLimit([text], getJournalProfile('nature').requirements.wordLimit);
+    const stats = validateManuscript(text, 'nature').stats;
+    assert.strictEqual(count.wordCount, stats.wordCount);
   });
 });

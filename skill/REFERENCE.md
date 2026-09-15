@@ -53,6 +53,15 @@ section prose:
 Useful before `rev sync --comments-only` to plan which comments will land
 automatically and which need manual placement.
 
+Both `sync` and `verify-anchors` take `-d, --dir` (where the section files
+are) and `-c, --config` (the sections config, default `sections.yaml`).
+`--config` resolves against the working directory, or as-is when absolute,
+before it is looked for inside `--dir`; without one, `rev.yaml`'s `sections:`
+list is used.
+```bash
+rev verify-anchors reviewed.docx -d sections/   # sections.yaml at the project root still applies
+```
+
 ### rev build
 Build output documents from markdown sections.
 ```bash
@@ -298,7 +307,7 @@ Built-in scientific vocabulary reduces false positives. Possible author names ar
 Check against journal requirements.
 ```bash
 rev validate --journal nature
-rev validate --list          # List 22 available journals
+rev validate --list          # List 21 built-in journal profiles, plus custom ones
 ```
 
 ### rev citations
@@ -343,8 +352,10 @@ Show word counts per section.
 ```bash
 rev word-count               # Per-section counts
 rev word-count --limit 5000  # Warn if over limit
-rev word-count -j nature     # Use journal word limit
+rev word-count -j nature     # Journal word limit, counted as rev validate counts it
 ```
+
+With `-j`, the total checked against the limit is body prose plus whatever the profile's `wordLimit` includes (abstract, figure captions, table cells, rendered reference list), and the parts are listed.
 
 ### rev stats
 Project dashboard showing overview.

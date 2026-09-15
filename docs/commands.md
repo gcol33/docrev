@@ -30,10 +30,19 @@ Complete list of `rev` commands.
 | `rev sync` | Auto-detect most recent .docx |
 | `rev sync reviewed.docx methods` | Sync only methods section |
 | `rev sync annotated.pdf` | Extract comments from PDF into markdown |
+| `rev sync reviewed.docx --comments-only` | Insert comments only; never modify prose |
+| `rev sync reviewed.docx -d sections/` | Section files live in `sections/` |
+| `rev verify-anchors reviewed.docx` | Report which comment anchors still match the current prose |
+| `rev verify-anchors reviewed.docx --json` | Same report as JSON |
 | `rev extract <docx>` | Extract plain text from Word |
 | `rev archive` | Move reviewer .docx files to archive folder |
 | `rev archive --by Smith` | Specify reviewer name |
 | `rev archive --dry-run` | Preview without moving |
+
+`sync` and `verify-anchors` take two path options:
+
+- `-d, --dir <directory>` is where the section markdown files are (default `.`).
+- `-c, --config <file>` is the sections config (default `sections.yaml`). It is resolved against the working directory, or used as-is when absolute, and only then looked for inside `--dir`. Without one, the `sections:` list in `rev.yaml` is used. A `sections.yaml` at the project root therefore still applies when `--dir` points at a subdirectory.
 
 **Word Import Features:**
 - Extracts text preserving structure
@@ -186,7 +195,7 @@ Adjacent comments from different authors become threaded replies in Word:
 |---------|-------------|
 | `rev word-count` | Show word counts per section |
 | `rev word-count --limit 5000` | Warn if over limit |
-| `rev word-count -j <journal>` | Use journal word limit |
+| `rev word-count -j <journal>` | Check the journal's word limit, counted as `rev validate` counts it |
 | `rev stats` | Project dashboard (words, figures, citations) |
 | `rev search <query>` | Search across all section files |
 | `rev search -i <query>` | Case-insensitive search |

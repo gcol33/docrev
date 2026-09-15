@@ -12,6 +12,7 @@ import {
   fmt,
   findFiles,
   loadBuildConfig,
+  findSections,
   countAnnotations,
   getComments,
   countWords,
@@ -56,30 +57,22 @@ export function register(program: Command): void {
       } catch {
         // Not in a rev project, that's ok
       }
-      const sections = config.sections || [];
+      const sections = findSections('.', config.sections);
 
       if (sections.length === 0) {
-        // Try to find .md files
-        const mdFiles = fs.readdirSync('.').filter(f =>
-          f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
-        );
-        if (mdFiles.length === 0) {
-          console.error(chalk.red('No section files found. Run from a rev project directory.'));
-          process.exit(1);
-        }
-        sections.push(...mdFiles);
+        console.error(chalk.red('No section files found. Run from a rev project directory.'));
+        process.exit(1);
       }
 
+      const texts = sections.map(section => fs.readFileSync(section, 'utf-8'));
       let total = 0;
       const rows: string[][] = [];
 
-      for (const section of sections) {
-        if (!fs.existsSync(section)) continue;
-        const text = fs.readFileSync(section, 'utf-8');
-        const words = countWords(text);
+      sections.forEach((section, i) => {
+        const words = countWords(texts[i]!);
         total += words;
         rows.push([section, words.toLocaleString()]);
-      }
+      });
 
       rows.push(['', '']);
       rows.push([chalk.bold('Total'), chalk.bold(total.toLocaleString())]);
@@ -87,12 +80,33 @@ export function register(program: Command): void {
       console.log(fmt.header('Word Count'));
       console.log(fmt.table(['Section', 'Words'], rows));
 
-      // Check limit
+      // A journal limit is checked against what that journal counts, measured
+      // exactly as `rev validate` measures it.
       let limit = options.limit;
       if (options.journal) {
-        const { getJournalProfile } = await import('../journals.js');
+        const { getJournalProfile, countForWordLimit, measureReferenceWords, referenceListWarning, wordLimitRows } =
+          await import('../journals.js');
         const profile = getJournalProfile(options.journal);
-        if (profile?.requirements?.wordLimit?.main) {
+        if (!profile) {
+          console.error(chalk.red(`\nUnknown journal: ${options.journal}`));
+          console.error(chalk.dim('Use rev validate --list to see available profiles'));
+          process.exit(1);
+        }
+
+        const referenceWords = measureReferenceWords(texts, profile, {
+          directory: process.cwd(),
+          bibliography: config.bibliography,
+          csl: config.csl,
+        });
+        const count = countForWordLimit(texts, profile.requirements.wordLimit, referenceWords);
+        total = count.wordCount;
+
+        console.log(chalk.cyan(`\n${profile.name} counts:`));
+        const warning = referenceListWarning(profile, count);
+        if (warning) console.log(chalk.yellow(`⚠ ${warning}`));
+        console.log(fmt.table(['Metric', 'Value'], wordLimitRows(count)));
+
+        if (profile.requirements.wordLimit?.main) {
           limit = profile.requirements.wordLimit.main;
           console.log(chalk.dim(`\nUsing ${profile.name} word limit: ${limit.toLocaleString()}`));
         }

@@ -5,6 +5,13 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-09-15
+
+### Fixed
+- **`rev word-count -j` checks the limit the journal states.** It compared the prose total of every section against `wordLimit.main` and ignored `includeAbstract` / `includeFigureCaptions` / `includeTableCells` / `includeReferences`, so on the same manuscript it could pass a limit that `rev validate -j` failed. Both commands now measure through one function, `countForWordLimit` in `lib/journals.ts`, render the reference list the same way, and print the same breakdown. An unknown journal name is an error instead of being ignored.
+- **`rev validate` reads the manuscript the build reads.** With no files given it took every `.md` in the directory, so a response letter or notes file sitting next to the sections was counted. It now uses the build's section list (`rev.yaml` `sections:`, then `sections.yaml`, then the directory), as `word-count` does.
+- **Frontmatter in a later section file is no longer counted.** Sections were joined before counting, and frontmatter is only recognized at the top of a document, so a second file's YAML block was counted as prose. Each file is now counted on its own and the parts summed.
+
 ## [0.13.0] - 2026-09-09
 
 ### Fixed

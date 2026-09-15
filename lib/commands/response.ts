@@ -118,7 +118,7 @@ export function register(program: Command): void {
     .option('-j, --journal <name>', 'Journal profile (e.g., nature, plos-one, science)')
     .option('--list', 'List available journal profiles')
     .action(async (files: string[] | undefined, options: ValidateOptions) => {
-      const { listJournals, validateProject, getJournalProfile } = await import('../journals.js');
+      const { listJournals, validateProject, getJournalProfile, measureReferenceWords, wordLimitRows } = await import('../journals.js');
 
       if (options.list) {
         console.log(fmt.header('Available Journal Profiles'));
@@ -165,12 +165,10 @@ export function register(program: Command): void {
         process.exit(1);
       }
 
-      let mdFiles = files;
-      if (!mdFiles || mdFiles.length === 0) {
-        mdFiles = fs.readdirSync('.').filter(f =>
-          f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
-        );
-      }
+      const { loadConfig, findSections } = await import('../build.js');
+      const config = loadConfig(process.cwd());
+
+      const mdFiles = files && files.length > 0 ? files : findSections('.', config.sections);
 
       if (mdFiles.length === 0) {
         console.error(fmt.status('error', 'No markdown files found'));
@@ -181,27 +179,13 @@ export function register(program: Command): void {
       console.log(chalk.dim(`  ${profile.url}`));
       console.log();
 
-      const { loadConfig } = await import('../build.js');
-      const { extractCitationKeys } = await import('../journals.js');
-      const config = loadConfig(process.cwd());
-
       // The reference list exists only after citeproc runs, so a profile that
       // counts it toward the limit needs it rendered before the count is made.
-      let referenceWords: number | null = null;
-      if (profile.requirements.wordLimit?.includeReferences && config.bibliography) {
-        const { renderBibliography } = await import('../bibliography.js');
-        const combined = mdFiles
-          .filter(f => fs.existsSync(f))
-          .map(f => fs.readFileSync(f, 'utf-8'))
-          .join('\n\n');
-        const rendered = renderBibliography({
-          directory: process.cwd(),
-          bibliography: config.bibliography,
-          csl: config.csl ?? profile.formatting?.csl ?? null,
-          keys: extractCitationKeys(combined),
-        });
-        if (rendered.text !== null) referenceWords = rendered.words;
-      }
+      const referenceWords = measureReferenceWords(
+        mdFiles.filter(f => fs.existsSync(f)).map(f => fs.readFileSync(f, 'utf-8')),
+        profile,
+        { directory: process.cwd(), bibliography: config.bibliography, csl: config.csl }
+      );
 
       const result = validateProject(mdFiles, options.journal, {
         title: config.title,
@@ -210,18 +194,7 @@ export function register(program: Command): void {
 
       if (result.stats) {
         const s = result.stats;
-        const part = (words: number, counted: boolean) =>
-          `${words} words${counted ? '' : ' (not counted)'}`;
-        const rows: string[][] = [
-          ['Word count', s.wordCount.toString()],
-          ['  body', part(s.bodyWords, true)],
-          ['  abstract', part(s.abstractWords, s.counted.abstract)],
-          ['  figure captions', part(s.figureCaptionWords, s.counted.figureCaptions)],
-          ['  table cells', part(s.tableCellWords, s.counted.tableCells)],
-        ];
-        if (s.counted.references) {
-          rows.push(['  references', s.referenceWords === null ? 'not measured' : part(s.referenceWords, true)]);
-        }
+        const rows = wordLimitRows(s);
         rows.push(
           ['Title', `${s.titleChars} chars`],
           ['Figures', s.figures.toString()],
