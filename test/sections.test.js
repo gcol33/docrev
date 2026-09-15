@@ -22,12 +22,16 @@ import {
 
 // Test fixtures
 let tempDir;
+let prevCwd;
 
 beforeEach(() => {
+  prevCwd = process.cwd();
   tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
 });
 
+// Restore cwd before removing tempDir: Windows cannot remove the working directory.
 afterEach(() => {
+  process.chdir(prevCwd);
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
@@ -343,14 +347,6 @@ describe('resolveSectionsConfig', () => {
   // `--config` resolves against the working directory (or as-is when absolute),
   // `--dir` only locates the section markdown.
   describe('config / dir independence (issue #11)', () => {
-    let prevCwd;
-    beforeEach(() => {
-      prevCwd = process.cwd();
-    });
-    afterEach(() => {
-      process.chdir(prevCwd);
-    });
-
     it('resolves a root config while --dir points at a section subdirectory', () => {
       const sub = path.join(tempDir, 'src', 'with_comments');
       fs.mkdirSync(sub, { recursive: true });
