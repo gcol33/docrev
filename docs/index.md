@@ -1,6 +1,6 @@
 # docrev
 
-<div class="badge-row">
+<div class="badge-row" markdown>
 [![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
 [![npm downloads](https://img.shields.io/npm/dm/docrev)](https://www.npmjs.com/package/docrev)
 [![node](https://img.shields.io/node/v/docrev)](https://nodejs.org)
@@ -35,7 +35,7 @@ docrev keeps the markdown as the canonical version, under git. The DOCX is rebui
 npm install -g docrev
 ```
 
-Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see the [Troubleshooting](troubleshooting.html) page.
+Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see the [Troubleshooting](troubleshooting.md) page.
 
 ## Quick Start
 
@@ -66,33 +66,38 @@ rev build docx --dual     # clean + annotated versions
 
 ## Documentation
 
-<div class="row g-3 mt-1">
-<div class="col-sm-6">
-<div class="doc-card position-relative">
-<h5>Get Started</h5>
-<p>The full revision cycle: import, build, sync, reply, resolve, rebuild, archive.</p>
-<a href="workflow.html" class="stretched-link text-decoration-none">Revision Workflow →</a>
-</div>
-</div>
-<div class="col-sm-6">
-<div class="doc-card position-relative">
-<h5>Commands</h5>
-<p>Complete reference for all <code>rev</code> commands, grouped by task.</p>
-<a href="commands.html" class="stretched-link text-decoration-none">Command Reference →</a>
-</div>
-</div>
-<div class="col-sm-6">
-<div class="doc-card position-relative">
-<h5>Configuration</h5>
-<p><code>rev.yaml</code> options, journal profiles, custom templates, CSL styles.</p>
-<a href="configuration.html" class="stretched-link text-decoration-none">Configuration →</a>
-</div>
-</div>
-<div class="col-sm-6">
-<div class="doc-card position-relative">
-<h5>Troubleshooting</h5>
-<p>Common issues with installation, builds, imports, and cross-references.</p>
-<a href="troubleshooting.html" class="stretched-link text-decoration-none">Troubleshooting →</a>
-</div>
-</div>
+<div class="grid cards" markdown>
+
+-   __Get Started__
+
+    ---
+
+    The full revision cycle: import, build, sync, reply, resolve, rebuild, archive.
+
+    [Revision Workflow →](workflow.md)
+
+-   __Commands__
+
+    ---
+
+    Complete reference for all `rev` commands, grouped by task.
+
+    [Command Reference →](commands.md)
+
+-   __Configuration__
+
+    ---
+
+    `rev.yaml` options, journal profiles, custom templates, CSL styles.
+
+    [Configuration →](configuration.md)
+
+-   __Troubleshooting__
+
+    ---
+
+    Common issues with installation, builds, imports, and cross-references.
+
+    [Troubleshooting →](troubleshooting.md)
+
 </div>
