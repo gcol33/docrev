@@ -1013,7 +1013,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>rev<span class="w"> </span>check<span class="w">                       </span><span class="c1"># full check: lint, citations, grammar</span>
 <a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>rev<span class="w"> </span>doi<span class="w"> </span>check<span class="w"> </span>references.bib<span class="w">    </span><span class="c1"># validate all DOIs</span>
 <a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>rev<span class="w"> </span>validate<span class="w"> </span>-j<span class="w"> </span>nature<span class="w">          </span><span class="c1"># journal-specific requirements</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>rev<span class="w"> </span>word-count<span class="w"> </span>-j<span class="w"> </span>nature<span class="w">        </span><span class="c1"># check against word limit</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>rev<span class="w"> </span>word-count<span class="w"> </span>-j<span class="w"> </span>nature<span class="w">        </span><span class="c1"># word limit, counted as the journal counts it</span>
 </code></pre></div>
 <p>For journals with strict requirements, running <code>rev validate --list</code> shows which profiles are available and which include formatting support (<code>[formatting]</code> tag).</p>
 <hr />

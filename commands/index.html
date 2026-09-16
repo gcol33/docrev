@@ -1031,6 +1031,10 @@
 <td>Export DOCX with visible track changes</td>
 </tr>
 <tr>
+<td><code>rev build docx --dual --show-changes</code></td>
+<td>One DOCX with tracked changes AND threaded comments</td>
+</tr>
+<tr>
 <td><code>rev new &lt;name&gt;</code></td>
 <td>Create new project (prompts for sections)</td>
 </tr>
@@ -1082,6 +1086,22 @@
 <td>Extract comments from PDF into markdown</td>
 </tr>
 <tr>
+<td><code>rev sync reviewed.docx --comments-only</code></td>
+<td>Insert comments only; never modify prose</td>
+</tr>
+<tr>
+<td><code>rev sync reviewed.docx -d sections/</code></td>
+<td>Section files live in <code>sections/</code></td>
+</tr>
+<tr>
+<td><code>rev verify-anchors reviewed.docx</code></td>
+<td>Report which comment anchors still match the current prose</td>
+</tr>
+<tr>
+<td><code>rev verify-anchors reviewed.docx --json</code></td>
+<td>Same report as JSON</td>
+</tr>
+<tr>
 <td><code>rev extract &lt;docx&gt;</code></td>
 <td>Extract plain text from Word</td>
 </tr>
@@ -1099,6 +1119,11 @@
 </tr>
 </tbody>
 </table>
+<p><code>sync</code> and <code>verify-anchors</code> take two path options:</p>
+<ul>
+<li><code>-d, --dir &lt;directory&gt;</code> is where the section markdown files are (default <code>.</code>).</li>
+<li><code>-c, --config &lt;file&gt;</code> is the sections config (default <code>sections.yaml</code>). It is resolved against the working directory, or used as-is when absolute, and only then looked for inside <code>--dir</code>. Without one, the <code>sections:</code> list in <code>rev.yaml</code> is used. A <code>sections.yaml</code> at the project root therefore still applies when <code>--dir</code> points at a subdirectory.</li>
+</ul>
 <p><strong>Word Import Features:</strong>
 - Extracts text preserving structure
 - Extracts comments with author and anchor text
@@ -1152,6 +1177,34 @@
 - Squiggly underlines (text extraction supported)</p>
 <p><strong>Text Extraction:</strong>
 Use <code>--with-text</code> to extract the actual text that was highlighted, underlined, or struck through. This is slower but shows exactly what the reviewer marked.</p>
+<p><strong>DOCX Export Modes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flags</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rev build docx</code></td>
+<td>Clean <code>paper.docx</code> (annotations applied)</td>
+</tr>
+<tr>
+<td><code>rev build docx --dual</code></td>
+<td><code>paper.docx</code> + <code>paper_comments.docx</code> (threaded comments)</td>
+</tr>
+<tr>
+<td><code>rev build docx --show-changes</code></td>
+<td><code>paper-changes.docx</code> with visible tracked changes</td>
+</tr>
+<tr>
+<td><code>rev build docx --dual --show-changes</code></td>
+<td><code>paper-changes.docx</code> with tracked changes <strong>and</strong> threaded comments in one file</td>
+</tr>
+</tbody>
+</table>
+<p><code>--dual --show-changes</code> is the "return to senior author" artifact: your <code>{++..++}</code>/<code>{--..--}</code> edits as Word tracked changes alongside the reviewer's <code>{&gt;&gt;..&lt;&lt;}</code> comments with your threaded replies. Add <code>--reference &lt;docx&gt;</code> to realign comment anchors against a reviewer's copy first.</p>
 <p><strong>PDF Dual Export:</strong>
 When building with <code>--dual</code>, produces:
 - <code>paper.pdf</code> — clean version for submission
@@ -1445,7 +1498,7 @@ Adjacent comments from different authors become threaded replies in Word:
 </tr>
 <tr>
 <td><code>rev word-count -j &lt;journal&gt;</code></td>
-<td>Use journal word limit</td>
+<td>Check the journal's word limit, counted as <code>rev validate</code> counts it</td>
 </tr>
 <tr>
 <td><code>rev stats</code></td>
