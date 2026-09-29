@@ -19,6 +19,9 @@ Complete list of `rev` commands.
 | `rev new <name> -s intro,methods,results` | Create with specified sections |
 | `rev new --list` | List available templates |
 | `rev install` | Check/install dependencies (pandoc-crossref) |
+| `rev build story` | Build story.md to a standalone docx for co-authors |
+| `rev build journey` | Build journey.md to a standalone docx for co-authors |
+| `rev build story pdf` | Same, as PDF (also builds the main paper's PDF) |
 
 ## Import & Export
 
@@ -181,6 +184,29 @@ Adjacent comments from different authors become threaded replies in Word:
 | `rev validate --journal <name>` | Check manuscript against journal requirements |
 | `rev validate --list` | List 21 available journal profiles |
 
+## Story & Journey Sidecars
+
+`story.md` and `journey.md` sit beside a manuscript for its whole life: `story.md`
+records the paper's argument as a handful of arcs, `journey.md` records how each
+paragraph/float moves the reader through it. Neither file is ever part of a
+build. See [Configuration](configuration.md#story--journey-sidecars) for the
+file format and `rev.yaml` keys.
+
+| Command | Description |
+|---------|-------------|
+| `rev journey init` | Assign `<!-- @p:id -->` markers to unmarked paragraphs/floats and scaffold `journey.md` |
+| `rev journey check` | Check the manuscript against `story.md` and `journey.md` |
+| `rev journey check --json` | Same, as structured JSON (parse errors + findings) |
+
+`rev journey init` is idempotent: re-running it only fills gaps (a paragraph
+that lost its marker after a heavy Word edit gets a fresh one; existing
+journey entries keep their hand-authored `arcs`/`support`/`leaves`). Assigned
+IDs are a scaffold (`intro.p1`, `res.fig1`, ...), not a final name — rename
+them to something semantic once you know what each paragraph does.
+
+`rev journey check` is also run as step 4 of `rev check`, but only when
+`journey.md` exists — projects that don't use the sidecars are unaffected.
+
 ## Multi-Reviewer & Git
 
 | Command | Description |
@@ -207,7 +233,7 @@ Adjacent comments from different authors become threaded replies in Word:
 | `rev lint` | Check for broken refs, missing citations |
 | `rev clean` | Remove generated files |
 | `rev clean --all` | Also remove backups and exports |
-| `rev check` | Pre-submission check (lint + grammar + citations) |
+| `rev check` | Pre-submission check (lint + grammar + citations + journey) |
 | `rev open` | Open project folder |
 | `rev open paper.pdf` | Open specific file |
 

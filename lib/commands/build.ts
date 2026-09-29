@@ -22,6 +22,7 @@ import {
   hasPandocCrossref,
   formatBuildResults,
   getUserName,
+  buildSidecarDoc,
 } from './context.js';
 import type { Command } from 'commander';
 import * as readline from 'readline';
@@ -479,7 +480,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
     .command('build')
     .alias('b')
     .description('Build PDF/DOCX/TEX/PPTX/Beamer from sections')
-    .argument('[formats...]', 'Output formats: pdf, docx, tex, beamer, pptx, all', ['pdf', 'docx'])
+    .argument('[formats...]', 'Output formats: pdf, docx, tex, beamer, pptx, all, story, journey', ['pdf', 'docx'])
     .option('-d, --dir <directory>', 'Project directory', '.')
     .option('-j, --journal <name>', 'Use journal profile for build formatting defaults')
     .option('--no-crossref', 'Skip pandoc-crossref filter')
@@ -545,7 +546,41 @@ export function register(program: Command, pkg?: { version?: string }): void {
       console.log(fmt.header(`Building ${config.title || 'document'}`));
       console.log();
 
-      const targetFormats = formats.length > 0 ? formats : ['pdf', 'docx'];
+      let targetFormats = formats.length > 0 ? formats : ['pdf', 'docx'];
+
+      // Story/journey sidecars (gcol33/docrev#12) aren't pandoc output
+      // formats — they're a docx/pdf render of story.md/journey.md for
+      // co-authors, built directly against the sidecar file rather than
+      // through combineSections. Additive: `rev build story pdf` also builds
+      // the main paper's PDF; `rev build story` on its own builds only the
+      // sidecar.
+      const SIDECAR_KINDS = ['story', 'journey'] as const;
+      const requestedSidecars = targetFormats.filter((f): f is 'story' | 'journey' =>
+        (SIDECAR_KINDS as readonly string[]).includes(f)
+      );
+      if (requestedSidecars.length > 0) {
+        targetFormats = targetFormats.filter((f) => !(SIDECAR_KINDS as readonly string[]).includes(f));
+        const sidecarFormat = targetFormats.includes('pdf') ? 'pdf' : 'docx';
+
+        for (const kind of requestedSidecars) {
+          const spin = fmt.spinner(`Building ${kind}...`).start();
+          const result = await buildSidecarDoc(dir, config, kind, sidecarFormat, {
+            output: requestedSidecars.length === 1 ? options.output : undefined,
+            pandocArgs: options.pandocArg,
+            verbose: options.verbose,
+          });
+          spin.stop();
+          if (result.success) {
+            console.log(fmt.status('success', `${kind}: ${path.relative(dir, result.outputPath || '')}`));
+          } else {
+            console.error(fmt.status('error', `${kind}: ${result.error}`));
+          }
+        }
+
+        if (targetFormats.length === 0) return;
+        console.log('');
+      }
+
       const tocEnabled = options.toc || config.pdf?.toc || config.docx?.toc;
       if (journalName) console.log(chalk.dim(`  Journal: ${journalName}`));
       console.log(chalk.dim(`  Formats: ${targetFormats.join(', ')}`));

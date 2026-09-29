@@ -562,3 +562,93 @@ export interface ErrorInfo {
   help?: string;
   cause?: Error;
 }
+
+// ============================================
+// Story / journey sidecars
+// ============================================
+
+/** A parse error pointing at the exact file:line that produced it. */
+export interface SidecarParseError {
+  file: string;
+  line: number;
+  message: string;
+}
+
+export interface StoryArc {
+  id: string;
+  title: string;
+  question: string;
+  answer: string;
+  evidence: string;
+  limits: string;
+  /** Arc IDs this arc's first journey entry must come after. */
+  needs: string[];
+  line: number;
+}
+
+export interface StoryTerm {
+  term: string;
+  definition: string;
+}
+
+export interface StoryDoc {
+  title: string;
+  claim: string;
+  audience: string;
+  arcs: StoryArc[];
+  terms: StoryTerm[];
+  constraints: string[];
+  open: string[];
+}
+
+/** A float/paragraph type tag, parenthesized after the arc list in journey.md. */
+export type JourneyEntryType = 'paragraph' | 'figure' | 'table' | 'equation' | 'code';
+
+export interface JourneyEntry {
+  id: string;
+  section: string;
+  arcs: string[];
+  entryType: JourneyEntryType;
+  job: string;
+  support: string;
+  leaves: string;
+  line: number;
+}
+
+export interface JourneyDoc {
+  title: string;
+  entries: JourneyEntry[];
+}
+
+/** One paragraph/float unit found in the manuscript source, in reading order. */
+export interface ManuscriptBlock {
+  file: string;
+  section: string;
+  blockType: JourneyEntryType;
+  markerId: string | null;
+  text: string;
+  line: number;
+}
+
+export type JourneyFindingKind =
+  | 'missing-marker'
+  | 'missing-entry'
+  | 'orphan-marker'
+  | 'order-mismatch'
+  | 'multi-sentence-job'
+  | 'orphan-entry'
+  | 'unclaimed-arc'
+  | 'needs-violation'
+  | 'unresolved-evidence'
+  | 'todo-evidence'
+  | 'near-duplicate'
+  | 'unlisted-float';
+
+export interface JourneyFinding {
+  kind: JourneyFindingKind;
+  message: string;
+  file?: string;
+  line?: number;
+  entryIds?: string[];
+  arcId?: string;
+}

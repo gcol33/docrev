@@ -37,6 +37,7 @@ import {
   convertVisibleComments,
 } from './restore-references.js';
 import { findAnchorInText, findAllOccurrences } from './anchor-match.js';
+import { reattachParagraphMarkers } from './paragraph-markers.js';
 
 /**
  * Pick the best position from candidate `occurrences` given the
@@ -792,7 +793,16 @@ export async function importFromWord(
   let hasTrackChanges = false;
 
   if (sectionContent !== undefined) {
-    const annotated = cleanupAnnotations(sectionContent);
+    let annotated = cleanupAnnotations(sectionContent);
+
+    // The OOXML reconstruction above rebuilds this section's markdown from
+    // the docx alone, which never carried `<!-- @p:id -->` markers (they are
+    // dropped from every build output). Re-attach them by matching against
+    // the on-disk original, which still has them (gcol33/docrev#12).
+    if (fs.existsSync(originalMdPath)) {
+      const originalMd = fs.readFileSync(originalMdPath, 'utf-8');
+      annotated = reattachParagraphMarkers(originalMd, annotated);
+    }
 
     const insertions = (annotated.match(/\{\+\+/g) || []).length;
     const deletions = (annotated.match(/\{--/g) || []).length;

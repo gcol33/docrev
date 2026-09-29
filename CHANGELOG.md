@@ -5,6 +5,15 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-09-29
+
+### Added
+- **Story and journey sidecars (#12).** `story.md` records a paper's argument as a handful of arcs (claim, audience, `question`/`answer`/`evidence`/`limits`/`needs` per arc); `journey.md` records one entry per paragraph, figure, table, equation, or code block, in reading order, tagged with the arc(s) it serves. Neither file is ever part of a build. `story:`/`journey:` keys in `rev.yaml` override the default filenames.
+- `rev journey init` assigns a stable `<!-- @p:id -->` marker to every unmarked paragraph/float and scaffolds `journey.md` (draft `job` from the paragraph's first sentence). Idempotent: re-running only fills gaps and keeps existing entries' hand-authored fields.
+- `rev journey check` (`--json` for structured output) checks the manuscript against `story.md`/`journey.md`: every paragraph has an ID and entry and the order matches; `job` is one sentence; every entry has an arc and every arc has an entry; an arc's first entry comes after an entry of each arc it `needs`; evidence labels resolve (and `TODO` evidence is reported); near-identical `job`/`leaves` across sections; every figure/table/equation has an entry. Also runs as step 4 of `rev check` when `journey.md` exists.
+- `rev build story` / `rev build journey` render a sidecar to a standalone docx/pdf for co-authors, without touching the main paper's configured output.
+- A paragraph marker survives a Word round-trip: the legacy diff-based `rev import` protects/restores it like a figure anchor; the OOXML-based `rev sync` path (which rebuilds a section purely from the reviewed docx) re-attaches markers by matching reconstructed paragraphs back against the on-disk original.
+
 ## [0.13.1] - 2026-09-15
 
 ### Fixed

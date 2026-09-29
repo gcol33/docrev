@@ -172,6 +172,9 @@ rev response                 # Generate point-by-point response letter
 | Open PDF preview | `rev preview pdf` |
 | Auto-rebuild on changes | `rev watch` |
 | Check for updates | `rev upgrade --check` |
+| Assign paragraph IDs, scaffold journey.md | `rev journey init` |
+| Check manuscript against story/journey | `rev journey check` |
+| Build story.md/journey.md to docx | `rev build story` / `rev build journey` |
 
 ## DOI Management
 
@@ -210,6 +213,44 @@ so figures still render. Exotic blocks (`\subfloat`, `\rotatebox`, multiple
 `\includegraphics`) are left alone and warned about — convert them by hand
 or supply a custom Lua filter via `--pandoc-arg`. Opt out of auto-translate
 with `docx.translateRawFigures: false` in `rev.yaml`.
+
+## Story & Journey Sidecars
+
+Two optional files sit beside a manuscript for its whole life and are never
+part of a build:
+
+- **`story.md`** — the argument: a claim, an audience, and a few arcs. Each
+  arc has a `question`, `answer`, `evidence` (a `@fig:`/`@tbl:`/`@eq:` label
+  or a source, never a restated number), its `limits`, and the arcs it
+  `needs` before it.
+- **`journey.md`** — one entry per paragraph (and per figure, table,
+  equation, or code block, at its reading position): a stable ID, the arc(s)
+  it serves, its `job` in one sentence, and what the reader `leaves`
+  understanding.
+
+A paragraph's ID lives in the section file as `<!-- @p:id -->` on the line
+before it — a semantic slug (`intro.memory`), not a position, so moving the
+paragraph keeps its ID. It survives `rev sync`/`rev import` and is dropped
+from every build.
+
+```bash
+rev journey init                     # assign IDs, scaffold journey.md
+rev journey check                    # check the manuscript against story/journey
+rev journey check --json             # same, as structured findings
+rev build story                      # story.md → docx for co-authors
+rev build journey                    # journey.md → docx for co-authors
+```
+
+`rev journey check` also runs as step 4 of `rev check` when `journey.md`
+exists. Findings (missing markers, orphan paragraphs, unclaimed arcs, arcs
+introduced before what they `need`, unresolved evidence, near-duplicate
+paragraphs, floats with no entry) are structure decisions made visible, not
+hard errors — the user decides which to act on. For drafting `story.md`/
+`journey.md` with the user, or reading a manuscript into them, use the
+`paper-sidecars` skill if available.
+
+Config: `story:`/`journey:` keys in `rev.yaml` override the default
+`story.md`/`journey.md` filenames.
 
 ## Template Variables
 

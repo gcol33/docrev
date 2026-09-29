@@ -24,6 +24,7 @@ import { getThemePath, getThemeNames, PPTX_THEMES } from './pptx-themes.js';
 import { runPostprocess } from './postprocess.js';
 import { hasPandoc, hasPandocCrossref, hasLatex } from './dependencies.js';
 import { buildImageRegistry, writeImageRegistry } from './image-registry.js';
+import { stripParagraphMarkers } from './paragraph-markers.js';
 import type { Author, JournalFormatting } from './types.js';
 import { getJournalProfile } from './journals.js';
 import { resolveCSL } from './csl.js';
@@ -181,6 +182,16 @@ export interface BuildConfig {
    * See lib/macros.ts for the per-format rendering rules.
    */
   macros?: MacroDef[];
+  /**
+   * Filename of the story sidecar (gcol33/docrev#12): the paper's argument as
+   * a handful of arcs. Default 'story.md'. Never included in a build.
+   */
+  story?: string;
+  /**
+   * Filename of the journey sidecar: one entry per paragraph/float, in
+   * reading order. Default 'journey.md'. Never included in a build.
+   */
+  journey?: string;
   /**
    * Directory (relative to the project) where final outputs land. Created on
    * demand. Set to null/empty to keep outputs alongside paper.md (legacy
@@ -344,6 +355,8 @@ export const DEFAULT_CONFIG: BuildConfig = {
   // Placeholder/highlight macros. Defaults are the built-ins from
   // lib/macros.ts; users append their own here.
   macros: [],
+  story: 'story.md',
+  journey: 'journey.md',
   // Final outputs land here (created on demand). Set to null or '' to keep
   // outputs in the project root.
   outputDir: 'output',
@@ -593,6 +606,11 @@ export function combineSections(directory: string, config: BuildConfig, options:
 
     // Remove any existing frontmatter from section files
     content = stripFrontmatter(content);
+    // Journey paragraph markers (<!-- @p:id -->, gcol33/docrev#12) never
+    // reach a build. Pandoc already drops block HTML comments from non-HTML
+    // output on its own; stripping here makes that explicit rather than
+    // relying on it.
+    content = stripParagraphMarkers(content);
     sectionContents.push(content);
 
     // Check if this section has an explicit refs div
@@ -1918,6 +1936,49 @@ export function resolveOutputPath(
 
   const slug = slugifyTitle(config.title);
   return path.join(resolveOutputDir(directory, config), `${slug}${suffix}${ext}`);
+}
+
+/**
+ * Build a story.md or journey.md sidecar (gcol33/docrev#12) as a standalone
+ * docx/pdf for co-authors. The sidecar is a self-contained markdown document
+ * — no section combining, no bibliography — so this runs pandoc on it
+ * directly rather than going through `combineSections`.
+ *
+ * Deliberately does not consult `config.output[format]` (the main paper's
+ * output filename): reusing that would point a `rev build story` at the same
+ * path as the main build and overwrite it. Only an explicit `--output`
+ * chooses a custom name; otherwise the output lands beside the paper's own
+ * as `<slug>-story.<ext>` / `<slug>-journey.<ext>`.
+ */
+export async function buildSidecarDoc(
+  directory: string,
+  config: BuildConfig,
+  kind: 'story' | 'journey',
+  format: string,
+  options: BuildOptions = {}
+): Promise<BuildResult> {
+  const filename = (kind === 'story' ? config.story : config.journey) || `${kind}.md`;
+  const inputPath = path.join(directory, filename);
+  if (!fs.existsSync(inputPath)) {
+    return { format, success: false, error: `${filename} not found. Run "rev journey init" first.` };
+  }
+
+  let outputPath = options.outputPath;
+  if (!outputPath) {
+    const ext = getFormatExtension(format);
+    const outDir = resolveOutputDir(directory, config);
+    if (options.output) {
+      outputPath = path.isAbsolute(options.output)
+        ? options.output
+        : path.join(outDir, ensureExtension(options.output, ext));
+    } else {
+      const slug = slugifyTitle(config.title);
+      outputPath = path.join(outDir, `${slug}-${kind}${ext}`);
+    }
+  }
+
+  const result = await runPandoc(inputPath, format, config, { ...options, outputPath });
+  return { format, success: result.success, outputPath: result.outputPath, error: result.error, warnings: result.warnings };
 }
 
 /**

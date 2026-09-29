@@ -7,6 +7,8 @@ import {
   extractMarkdownPrefix,
   protectAnchors,
   restoreAnchors,
+  protectParagraphMarkers,
+  restoreParagraphMarkers,
   protectCrossrefs,
   restoreCrossrefs,
   protectMath,
@@ -244,8 +246,11 @@ export function generateSmartDiff(
     wordWithMappedImages = wordWithMappedImages.split(wordPlaceholder).join(origPlaceholder);
   }
 
+  // Protect journey paragraph markers (<!-- @p:id -->, gcol33/docrev#12)
+  const { text: mdWithMarkersProtected, anchors: paragraphMarkers } = protectParagraphMarkers(mdWithImagesProtected);
+
   // Protect figure/table anchors
-  const { text: mdWithAnchorsProtected, anchors: figAnchors } = protectAnchors(mdWithImagesProtected);
+  const { text: mdWithAnchorsProtected, anchors: figAnchors } = protectAnchors(mdWithMarkersProtected);
 
   // Protect cross-references
   const { text: mdWithXrefsProtected, crossrefs } = protectCrossrefs(mdWithAnchorsProtected);
@@ -350,6 +355,7 @@ export function generateSmartDiff(
   finalResult = restoreMath(finalResult, mathBlocks);
   finalResult = restoreCrossrefs(finalResult, crossrefs);
   finalResult = restoreAnchors(finalResult, figAnchors);
+  finalResult = restoreParagraphMarkers(finalResult, paragraphMarkers);
   finalResult = restoreImages(finalResult, origImages);
   finalResult = restoreImages(finalResult, wordImages);
   finalResult = restoreTables(finalResult, tables);

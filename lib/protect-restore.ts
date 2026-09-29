@@ -194,6 +194,30 @@ export function restoreAnchors(text: string, anchors: ProtectedItem[]): string {
 }
 
 /**
+ * Protect `<!-- @p:id -->` paragraph markers (gcol33/docrev#12) before diffing.
+ * The marker never reaches a Word document (block HTML comments are dropped
+ * from every non-HTML pandoc output), so a diff against the reviewed text
+ * always sees it as "deleted" — restoring it the same way anchors are
+ * restored (unwrapping it out of the deletion) keeps the marker attached to
+ * its paragraph regardless of how the prose around it changed.
+ */
+export function protectParagraphMarkers(md: string): ProtectAnchorsResult {
+  const { text, items: anchors } = collectAndReplace(
+    md, /<!--\s*@p:\S+?\s*-->/g, 'PMARKERBLOCK', 'ENDPMARKER',
+  );
+  return { text, anchors };
+}
+
+/**
+ * Restore paragraph markers from placeholders. Shares {@link restoreAnchors}'s
+ * deletion/substitution unwrapping so a marker survives even when the whole
+ * paragraph around it was rewritten.
+ */
+export function restoreParagraphMarkers(text: string, markers: ProtectedItem[]): string {
+  return restoreAnchors(text, markers);
+}
+
+/**
  * Protect cross-references before diffing
  * References like @fig:label, @tbl:label should be preserved
  */

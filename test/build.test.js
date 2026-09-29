@@ -178,6 +178,25 @@ describe('combineSections', () => {
     assert.ok(content.includes('# Methods'));
   });
 
+  it('strips <!-- @p:id --> journey markers (gcol33/docrev#12)', () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'intro.md'),
+      '# Introduction\n\n<!-- @p:intro.memory -->\nText here.'
+    );
+
+    const config = {
+      ...DEFAULT_CONFIG,
+      title: 'Test Paper',
+      sections: ['intro.md'],
+    };
+
+    const paperPath = combineSections(tempDir, config);
+    const content = fs.readFileSync(paperPath, 'utf-8');
+
+    assert.ok(!content.includes('@p:intro.memory'));
+    assert.ok(content.includes('Text here.'));
+  });
+
   it('should strip frontmatter from section files', () => {
     fs.writeFileSync(path.join(tempDir, 'intro.md'), `---
 title: Section Title

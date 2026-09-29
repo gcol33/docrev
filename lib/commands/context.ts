@@ -86,6 +86,7 @@ export {
   loadConfig as loadBuildConfig,
   findSections,
   formatBuildResults,
+  buildSidecarDoc,
 } from '../build.js';
 
 export {

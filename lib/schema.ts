@@ -120,6 +120,16 @@ export const revYamlSchema: Schema = {
       description: 'Path to bibliography file (.bib)',
       pattern: '.*\\.bib$',
     },
+    story: {
+      type: 'string',
+      description: 'Path to the story sidecar (the paper\'s argument as arcs). Default "story.md". Never included in a build.',
+      pattern: '.*\\.md$',
+    },
+    journey: {
+      type: 'string',
+      description: 'Path to the journey sidecar (one entry per paragraph/float). Default "journey.md". Never included in a build.',
+      pattern: '.*\\.md$',
+    },
     csl: {
       type: 'string',
       description: 'Path to CSL citation style file',

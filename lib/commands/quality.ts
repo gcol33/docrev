@@ -12,7 +12,11 @@ import {
   fmt,
   loadBuildConfig,
   getComments,
+  buildRegistry,
 } from './context.js';
+import { parseStory } from '../story.js';
+import { parseJourney, journeyCheck } from '../journey.js';
+import { parseManuscriptBlocks } from '../paragraph-markers.js';
 
 // Use the actual BuildConfig from build.ts which allows string|Author[]
 type BuildConfig = ReturnType<typeof loadBuildConfig>;
@@ -500,6 +504,43 @@ export function register(program: Command): void {
         }
       } else {
         console.log(chalk.dim('   - No bibliography file found'));
+      }
+      console.log();
+
+      // 4. Run journey check (gcol33/docrev#12), only if the project has one
+      console.log(chalk.cyan.bold('4. Journey check...'));
+      const journeyFile = (config as unknown as { journey?: string }).journey || 'journey.md';
+      if (fs.existsSync(journeyFile)) {
+        const storyFile = (config as unknown as { story?: string }).story || 'story.md';
+        const story = fs.existsSync(storyFile) ? parseStory(fs.readFileSync(storyFile, 'utf-8'), storyFile).doc : null;
+        const { doc: journeyDoc, errors: journeyParseErrors } = parseJourney(
+          fs.readFileSync(journeyFile, 'utf-8'),
+          journeyFile
+        );
+
+        const existingSections = sections.filter((f) => fs.existsSync(f));
+        const blocks = existingSections.flatMap((f) =>
+          parseManuscriptBlocks(fs.readFileSync(f, 'utf-8'), f, path.basename(f, '.md'))
+        );
+        const registry = buildRegistry('.', existingSections);
+        const findings = journeyCheck(blocks, journeyDoc, { story, registry });
+
+        if (journeyParseErrors.length > 0) {
+          for (const err of journeyParseErrors) {
+            console.log(chalk.red(`   ✗ ${err.file}:${err.line} ${err.message}`));
+          }
+          hasErrors = true;
+          totalIssues += journeyParseErrors.length;
+        }
+        if (findings.length > 0) {
+          console.log(chalk.yellow(`   ⚠ ${findings.length} journey finding(s) — run "rev journey check" for details`));
+          totalIssues += findings.length;
+        }
+        if (journeyParseErrors.length === 0 && findings.length === 0) {
+          console.log(chalk.green('   ✓ Journey matches the manuscript'));
+        }
+      } else {
+        console.log(chalk.dim('   - No journey.md found'));
       }
       console.log();
 

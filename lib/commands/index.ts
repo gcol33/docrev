@@ -25,6 +25,7 @@ import { register as registerPreviewCommands } from './preview.js';
 import { register as registerQualityCommands } from './quality.js';
 import { register as registerWordToolsCommands } from './word-tools.js';
 import { register as registerTextOpsCommands } from './text-ops.js';
+import { register as registerJourneyCommands } from './journey.js';
 
 export {
   registerCoreCommands,
@@ -46,6 +47,7 @@ export {
   registerQualityCommands,
   registerWordToolsCommands,
   registerTextOpsCommands,
+  registerJourneyCommands,
 };
 
 // Re-export context utilities for use by the main CLI
@@ -84,4 +86,5 @@ export function registerAllCommands(program: Command, pkg?: PackageJson): void {
   registerQualityCommands(program);
   registerWordToolsCommands(program);
   registerTextOpsCommands(program);
+  registerJourneyCommands(program);
 }

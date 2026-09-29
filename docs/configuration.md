@@ -24,6 +24,9 @@ sections:
 bibliography: references.bib
 csl: nature.csl           # Citation style (optional)
 
+story: story.md           # Optional: the paper's argument as arcs (default shown)
+journey: journey.md       # Optional: one entry per paragraph/float (default shown)
+
 # Cross-reference settings (pandoc-crossref)
 crossref:
   figureTitle: Figure
@@ -49,6 +52,65 @@ docx:
   keepComments: true         # Preserve CriticMarkup comments
   toc: false
 ```
+
+## Story & Journey Sidecars
+
+Two optional files sit beside a manuscript for its whole life:
+
+- **`story.md`** — the argument: a claim, an audience, and a few arcs. Each
+  arc has a `question`, an `answer`, `evidence` (a `@fig:`/`@tbl:`/`@eq:`
+  label or a source, never a restated number), its `limits`, and the arcs it
+  `needs` before it.
+- **`journey.md`** — one entry per paragraph (and per figure, table,
+  equation, or code block, at its reading position): a stable ID, the arc(s)
+  it serves, its `job` in one sentence, its `support`, and what the reader
+  `leaves` understanding.
+
+```markdown
+# story.md
+# Story: <title>
+
+## Claim
+One sentence: what the paper establishes.
+
+## Audience
+Who reads it and what they already know.
+
+## Arcs
+
+### S1 Checkable optimality
+- question: The reader's question, in their words.
+- answer: What the paper establishes.
+- evidence: @fig:runtime
+- limits: Where the answer stops.
+- needs: S0
+```
+
+```markdown
+# journey.md
+# Journey: <title>
+
+## Introduction
+
+### intro.memory  [S1]
+- job: One sentence: what this paragraph establishes.
+- support: example, reasoning, citation, or result it rests on
+- leaves: What the reader understands after it that they did not before.
+
+### fig.headline  [S1]  (figure)
+- job: ...
+```
+
+A paragraph's ID lives in its section file as an HTML comment on the line
+before it — `<!-- @p:intro.memory -->` — in the same family as the
+`<!-- @section:file.md -->` marker. It is a semantic slug, not a position, so
+moving the paragraph keeps its ID; never dropped from a Word round-trip
+(`rev sync`/`rev import`), and never included in a build output.
+
+Both files default to `story.md`/`journey.md` at the project root; override
+with the `story:`/`journey:` keys above. See
+[Story & Journey Sidecars](commands.md#story--journey-sidecars) for
+`rev journey init`/`rev journey check` and `rev build story`/`rev build journey`.
 
 ## Placeholder Macros
 

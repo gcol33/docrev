@@ -83,6 +83,25 @@ export function scoreContextAt(
   return score;
 }
 
+/**
+ * Word-overlap similarity between two short strings, 0 (nothing shared) to 1
+ * (identical bag of words). Used to flag near-duplicate prose — e.g. a
+ * Discussion paragraph restating a Results paragraph almost verbatim — where
+ * an exact-string comparison would miss reordering or minor rewording.
+ */
+export function wordOverlapSimilarity(a: string, b: string): number {
+  const wordsA = a.toLowerCase().split(/\s+/).filter(Boolean);
+  const wordsB = b.toLowerCase().split(/\s+/).filter(Boolean);
+  if (wordsA.length === 0 || wordsB.length === 0) return 0;
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
+  let common = 0;
+  for (const w of setA) {
+    if (setB.has(w)) common++;
+  }
+  return common / Math.max(setA.size, setB.size);
+}
+
 export function findAllOccurrences(haystack: string, needle: string): number[] {
   if (!needle || needle.length === 0) return [];
   const occurrences: number[] = [];
