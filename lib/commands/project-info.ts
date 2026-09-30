@@ -16,6 +16,7 @@ import {
   countAnnotations,
   getComments,
   countWords,
+  countTexWords,
   jsonMode,
   jsonOutput,
 } from './context.js';
@@ -27,6 +28,7 @@ type BuildConfig = ReturnType<typeof loadBuildConfig>;
 interface WordCountOptions {
   limit?: number;
   journal?: string;
+  excludeFormulas?: boolean;
 }
 
 interface StatsOptions {
@@ -47,12 +49,67 @@ export function register(program: Command): void {
   // ==========================================================================
 
   program
-    .command('word-count')
+    .command('word-count [file]')
     .alias('wc')
-    .description('Show word counts per section')
+    .description('Show word counts per section, or for one .md/.tex file')
     .option('-l, --limit <number>', 'Warn if total exceeds limit', parseInt)
     .option('-j, --journal <name>', 'Use journal word limit (default: the journal in rev.yaml)')
-    .action(async (options: WordCountOptions) => {
+    .option('--exclude-formulas', 'Drop math and code listings from a .tex count instead of counting each as one word')
+    .action(async (file: string | undefined, options: WordCountOptions) => {
+      if (file) {
+        if (!fs.existsSync(file)) {
+          console.error(chalk.red(`File not found: ${file}`));
+          process.exit(1);
+        }
+        const ext = path.extname(file).toLowerCase();
+        const limit = options.limit;
+
+        if (ext === '.tex') {
+          const result = countTexWords(fs.readFileSync(file, 'utf-8'), { excludeFormulas: options.excludeFormulas });
+          if (jsonMode) {
+            jsonOutput({ ...result, limit: limit ?? null });
+            return;
+          }
+          const rows: [string, string][] = [];
+          if (result.front) rows.push(['Front matter', result.front.toLocaleString()]);
+          rows.push(['Abstract', result.abstract.toLocaleString()]);
+          for (const s of result.sections) rows.push([s.name, s.words.toLocaleString()]);
+          if (result.figures) rows.push(['Figure captions', result.figures.toLocaleString()]);
+          if (result.tables) rows.push(['Table captions', result.tables.toLocaleString()]);
+          if (result.back) rows.push(['Back matter (appendix)', result.back.toLocaleString()]);
+          rows.push(['', '']);
+          rows.push([chalk.bold('Total'), chalk.bold(result.total.toLocaleString())]);
+          console.log(fmt.header('Word Count'));
+          console.log(fmt.table(['Section', 'Words'], rows));
+          if (limit && result.total > limit) {
+            console.log(chalk.red(`\n⚠ Over limit by ${(result.total - limit).toLocaleString()} words`));
+          } else if (limit) {
+            console.log(chalk.green(`\n✓ Within limit (${(limit - result.total).toLocaleString()} words remaining)`));
+          }
+          return;
+        }
+
+        if (ext !== '.md' && ext !== '.markdown') {
+          console.error(chalk.red(`Cannot count words in "${file}": unsupported file type "${ext || '(none)'}"`));
+          console.error(chalk.dim('Supported: .md, .tex'));
+          process.exit(1);
+        }
+
+        const words = countWords(fs.readFileSync(file, 'utf-8'));
+        if (jsonMode) {
+          jsonOutput({ sections: [{ file, words }], total: words, limit: limit ?? null, journal: null });
+          return;
+        }
+        console.log(fmt.header('Word Count'));
+        console.log(fmt.table(['Section', 'Words'], [[file, words.toLocaleString()]]));
+        if (limit && words > limit) {
+          console.log(chalk.red(`\n⚠ Over limit by ${(words - limit).toLocaleString()} words`));
+        } else if (limit) {
+          console.log(chalk.green(`\n✓ Within limit (${(limit - words).toLocaleString()} words remaining)`));
+        }
+        return;
+      }
+
       let config: Partial<BuildConfig> = {};
       try {
         config = loadBuildConfig('.') || {};

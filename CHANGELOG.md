@@ -5,6 +5,15 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.5] - 2026-09-30
+
+### Added
+- **`story.md` `Problem` and `Question` sections.** `Problem` records the larger problem the opening names, at the width the closer returns to; `Question` states the paper's challenge in one sentence ("to learn X, we did Y"). Parsed the same way as `Claim`/`Audience`.
+- **A display equation and the sentence around it stay one journey unit.** `parseManuscriptBlocks` now joins a paragraph that ends without a full stop to the equation that continues it, and joins the lower-case where-clause that follows an equation back to the sentence it belongs to — unless the author marked either block with its own `<!-- @p:id -->` marker.
+
+### Fixed
+- **`word-count`/`wc` ignored a `.tex` argument and silently counted the project's Markdown files instead (#16).** The command took no file argument at all; any extra word on the command line was accepted and dropped. It now takes an optional `[file]`: a `.tex` file is read directly and counted per top-level `\section`, with the abstract, figure/table captions and back matter (from `\appendix` on) reported separately and the bibliography excluded entirely; a `.md` file is counted on its own instead of the whole project; any other extension is now a clear error instead of a silent fallback. Math and code listings count as one word each by default, or are dropped with `--exclude-formulas`.
+
 ## [0.14.4] - 2026-09-30
 
 ### Added

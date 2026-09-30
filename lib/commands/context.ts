@@ -117,6 +117,8 @@ export { inlineDiffPreview } from '../format.js';
 
 export { countWords } from '../utils.js';
 
+export { countTexWords } from '../tex-count.js';
+
 export {
   parseCommentsWithReplies,
   collectComments,
