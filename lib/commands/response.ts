@@ -191,6 +191,7 @@ export function register(program: Command): void {
       const result = validateProject(mdFiles, options.journal, {
         title: config.title,
         referenceWords,
+        wordCount: { includeStatements: config.wordCount?.includeStatements, statementHeadings: config.wordCount?.statementHeadings },
       });
 
       if (result.stats) {

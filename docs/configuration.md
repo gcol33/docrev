@@ -294,7 +294,18 @@ rev word-count -j ecology-letters  # Check the journal's word limit
 
 `validate` and `word-count -j` read the same files (the sections the build uses) and count the limit the same way: body prose, plus whatever the profile's `wordLimit` includes (see [Custom Profiles with Formatting](#custom-profiles-with-formatting)). Both print the parts, so a total that counts figure captions or the reference list shows where the words came from. Over-limit errors state the same breakdown inline (`current: 8098 = body 7357 + abstract 343 + captions 398`), so a wrong number is visible without reading the table.
 
-Body prose stops at the manuscript's back matter: a section file is counted only up to its first Acknowledgements, Author Contributions, Competing/Conflict of Interest, Data/Code Availability, Funding, Supporting Information or References heading, whether that heading starts its own file or trails the discussion in a shared one.
+Body prose excludes a manuscript's back matter: Acknowledgements, Author Contributions, Competing/Conflict of Interest, Data/Code Availability, Funding and Ethics ("statements"), plus Supporting Information/Supplementary Material and the References heading, wherever they fall — starting their own file, trailing the discussion in a shared one, or nested as a subsection. Each spans from its heading to the next heading of the same or higher level, so `## Reference plots` or `### Funding of the survey` mid-Methods stays body text.
+
+Supporting Information/Supplementary Material and References are never counted (the reference list is measured by rendering it, via `includeReferences`). Statements are counted by default — matching a plain word count with no journal in play — since a profile that has not stated its rule should err toward counting too much, not pass a manuscript that then fails at the journal. MEE, for one, is explicit that statements count. A profile turns it off with `wordLimit.includeStatements: false`; a project overrides that with `wordCount.includeStatements` in `rev.yaml`:
+
+```yaml
+wordCount:
+  includeStatements: false
+  statementHeadings:
+    - "Author Note"
+```
+
+`statementHeadings` adds to the built-in list (matched as the whole heading text, case-insensitive, with an optional trailing "Statement" or colon) — for a heading a profile doesn't already recognize. A profile can extend the same list with `wordLimit.statementHeadings`; both add to it, they don't replace it.
 
 A section that should never be counted at all — a reviewer-only note kept only so it lands in the anonymized build, say — is dropped with `wordCount.exclude` in `rev.yaml`:
 
@@ -373,7 +384,10 @@ wordLimit:
   includeAbstract: true
   includeFigureCaptions: true
   includeTableCells: false
+  includeStatements: true    # false excludes acknowledgements/funding/etc from main
   includeReferences: false   # true renders the reference list and counts it
+  statementHeadings:         # extra headings treated as statements
+    - "Author Note"
 references:
   max: 50
   doiRequired: true

@@ -254,13 +254,14 @@ wordLimit:
   main: 8000      # null for no limit
   abstract: 300
   title: null     # characters
-  # What the main limit counts. Body prose, table and figure captions and the
-  # statements are always in it; these say what else is.
+  # What the main limit counts. Body prose is always in it; these say what else is.
   includeAbstract: true       # false when the abstract has its own limit above
   includeFigureCaptions: true
   includeTableCells: false    # true to count a table's cells, not just its caption
+  includeStatements: true     # false excludes acknowledgements/contributions/funding/etc
   includeReferences: false    # true renders the reference list and counts it
                               # (needs bibliography: in rev.yaml, and pandoc)
+  statementHeadings: []       # extra headings treated as statements, e.g. "Author Note"
 
 # Reference requirements
 references:

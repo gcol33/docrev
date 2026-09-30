@@ -263,7 +263,9 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
     name: 'Methods in Ecology and Evolution',
     url: 'https://besjournals.onlinelibrary.wiley.com/hub/journal/2041210x/author-guidelines',
     requirements: {
-      wordLimit: { main: 7000, abstract: 350 },
+      // "Research articles should have a maximum of 7000-8000 words (including
+      // tables/figure captions, statements and references list)."
+      wordLimit: { main: 7000, abstract: 350, includeStatements: true },
       references: { doiRequired: true },
       sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
     },
@@ -482,23 +484,104 @@ function countReferences(text: string): number {
 }
 
 /**
- * Headings that start a journal's back matter: sections a word limit covers
- * the manuscript up to, not through. Matched loosely (a following "Statement"
- * or colon is fine) since journals and templates spell these differently.
+ * Headings journals sometimes call "statements": author-facing boilerplate
+ * that a word limit may or may not count toward `main` (`includeStatements`).
+ * Matched as the *whole* heading text, not a prefix — see `headingMatcher`.
  */
-const BACK_MATTER_HEADING =
-  /^#{1,6}[ \t]*(?:Acknowledge?ments?|Author(?:s'?)?\s+Contributions?|(?:Competing|Conflicts?\s+of)\s+Interests?|Data\s+(?:Availability|Accessibility)|Code\s+Availability|Funding|Supporting\s+Information|Supplementary\s+(?:Material|Information)|References?|Bibliography|Ethics(?:\s+Statement)?)\b.*$/im;
+const STATEMENT_HEADING_PATTERNS = [
+  "Acknowledge?ments?",
+  "Author(?:s'?)?\\s+Contributions?",
+  '(?:Competing|Conflicts?\\s+of)\\s+Interests?',
+  'Data\\s+(?:Availability|Accessibility)',
+  'Code\\s+Availability',
+  'Funding',
+  'Ethics',
+];
 
 /**
- * Drop everything from a section file's first back-matter heading onward.
- * Acknowledgements, author contributions, data/code availability and the
- * reference heading are not main text, so a limit that checks the body
- * should not see them — whether they live in their own file or trail after
- * the discussion in one shared with it.
+ * Headings that are never main text, whatever `includeStatements` says: the
+ * reference list is measured by rendering it (`includeReferences`), and
+ * supplementary material is not part of the manuscript being limited.
  */
-export function stripBackMatter(text: string): string {
-  const match = BACK_MATTER_HEADING.exec(text);
-  return match ? text.slice(0, match.index) : text;
+const ALWAYS_EXCLUDED_HEADING_PATTERNS = ['References?', 'Bibliography', 'Supporting\\s+Information', 'Supplementary\\s+(?:Material|Information)'];
+
+/**
+ * A heading counts only when it IS one of `patterns`, not when it merely
+ * starts with one: the line has nothing else on it besides an optional
+ * trailing "Statement" and/or colon. This is what keeps "## Reference plots"
+ * and "### Funding of the survey" out of back matter — the old prefix match
+ * (`References?\b.*$`) took both, and truncated the rest of the file with them.
+ */
+function headingMatcher(patterns: string[]): RegExp {
+  return new RegExp(`^#{1,6}[ \\t]*(?:${patterns.join('|')})[ \\t]*(?:Statement)?[ \\t]*:?[ \\t]*$`, 'i');
+}
+
+const ALWAYS_EXCLUDED_HEADING = headingMatcher(ALWAYS_EXCLUDED_HEADING_PATTERNS);
+const HEADING_LINE = /^(#{1,6})[ \t]*(.*)$/gm;
+
+interface RemovedSpan {
+  start: number;
+  end: number;
+  statement: boolean;
+}
+
+/**
+ * Back-matter headings in `text`, each spanning from the heading to the next
+ * heading of the same or higher level — not to the end of the file, which is
+ * what let a mid-file "## Supporting Information" or "### Ethics" swallow the
+ * rest of a shared section.
+ */
+function findRemovedSpans(text: string, extraStatementHeadings: string[]): RemovedSpan[] {
+  const statementHeading = headingMatcher([...STATEMENT_HEADING_PATTERNS, ...extraStatementHeadings]);
+  const headings: { index: number; level: number; line: string }[] = [];
+  let m: RegExpExecArray | null;
+  HEADING_LINE.lastIndex = 0;
+  while ((m = HEADING_LINE.exec(text)) !== null) {
+    headings.push({ index: m.index, level: m[1]!.length, line: m[0] });
+  }
+
+  const spans: RemovedSpan[] = [];
+  for (let i = 0; i < headings.length; i++) {
+    const h = headings[i]!;
+    const statement = statementHeading.test(h.line);
+    const excluded = !statement && ALWAYS_EXCLUDED_HEADING.test(h.line);
+    if (!statement && !excluded) continue;
+
+    let end = text.length;
+    for (let j = i + 1; j < headings.length; j++) {
+      if (headings[j]!.level <= h.level) {
+        end = headings[j]!.index;
+        break;
+      }
+    }
+    spans.push({ start: h.index, end, statement });
+  }
+  return spans;
+}
+
+/**
+ * Split a section file into its main text and its statements. References/
+ * Bibliography and Supporting Information/Supplementary Material are dropped
+ * outright, in neither part: they are always excluded from a word limit
+ * (`ALWAYS_EXCLUDED_HEADING_PATTERNS`), never a statement.
+ *
+ * `extraStatementHeadings` extends the built-in statement list with a
+ * profile's `wordLimit.statementHeadings` and/or a project's
+ * `wordCount.statementHeadings`.
+ */
+export function stripBackMatter(text: string, extraStatementHeadings: string[] = []): { main: string; statement: string } {
+  const spans = findRemovedSpans(text, extraStatementHeadings).sort((a, b) => a.start - b.start);
+  let main = '';
+  let statement = '';
+  let cursor = 0;
+  for (const span of spans) {
+    if (span.start < cursor) continue; // nested inside a span already removed
+    main += text.slice(cursor, span.start);
+    if (span.statement) statement += text.slice(span.start, span.end);
+    cursor = span.end;
+  }
+  main += text.slice(cursor);
+  return { main, statement };
 }
 
 /**
@@ -515,17 +598,27 @@ export function excludeFromWordCount(files: string[], exclude: string[] | undefi
 export interface WordLimitCount {
   /** The count checked against the limit: body plus whatever the profile counts. */
   wordCount: number;
-  /** Prose in the sections, excluding table cells and the abstract. */
+  /** Prose in the sections, excluding table cells, the abstract and statements. */
   bodyWords: number;
   /** Words inside table cells. */
   tableCellWords: number;
   /** Words in figure captions, which the body count removes with the image. */
   figureCaptionWords: number;
+  /** Words in statements (acknowledgements, contributions, funding, ...). */
+  statementWords: number;
   /** Words in the rendered reference list, or null when it was not measured. */
   referenceWords: number | null;
   abstractWords: number;
   /** What wordCount is made of, for reporting. */
-  counted: { abstract: boolean; tableCells: boolean; figureCaptions: boolean; references: boolean };
+  counted: { abstract: boolean; tableCells: boolean; figureCaptions: boolean; statements: boolean; references: boolean };
+}
+
+/** Project/profile knobs that adjust what `countForWordLimit` treats as a statement. */
+export interface WordCountOverrides {
+  /** Overrides the profile's `wordLimit.includeStatements`. */
+  includeStatements?: boolean;
+  /** Added to the profile's `wordLimit.statementHeadings`, not a replacement. */
+  statementHeadings?: string[];
 }
 
 /**
@@ -539,21 +632,27 @@ export interface WordLimitCount {
  * @param texts - Contents of the manuscript's section files, in build order
  * @param wordLimit - The profile's `requirements.wordLimit`
  * @param referenceWords - Words in the rendered reference list, or null
+ * @param overrides - A project's `rev.yaml` `wordCount` knobs, if any
  */
 export function countForWordLimit(
   texts: string[],
   wordLimit: JournalRequirements['wordLimit'],
-  referenceWords: number | null = null
+  referenceWords: number | null = null,
+  overrides: WordCountOverrides = {}
 ): WordLimitCount {
   const abstract = extractAbstract(texts.join('\n\n'));
   const abstractWords = abstract ? countWords(abstract) : 0;
-  // Back matter (acknowledgements, contributions, availability statements,
-  // references, ...) is stripped per file before any of the body parts are
-  // measured, so it never inflates a limit that covers the body alone.
-  const mainTexts = texts.map(stripBackMatter);
+
+  // Back matter (statements, references, supporting information) is split off
+  // per file before any of the body parts are measured, so it never inflates
+  // a limit that covers the body alone.
+  const extraStatementHeadings = [...(wordLimit?.statementHeadings ?? []), ...(overrides.statementHeadings ?? [])];
+  const split = texts.map(t => stripBackMatter(t, extraStatementHeadings));
+  const mainTexts = split.map(s => s.main);
   const sum = (count: (text: string) => number) => mainTexts.reduce((total, t) => total + count(t), 0);
   const tableCellWords = sum(countTableCellWords);
   const figureCaptionWords = sum(countFigureCaptionWords);
+  const statementWords = split.reduce((total, s) => total + countWords(s.statement), 0);
 
   // countWords already drops table cells, so the body is prose alone; the
   // abstract is subtracted so a profile can decide whether the limit that has
@@ -564,6 +663,7 @@ export function countForWordLimit(
     abstract: wordLimit?.includeAbstract !== false,
     tableCells: wordLimit?.includeTableCells === true,
     figureCaptions: wordLimit?.includeFigureCaptions !== false,
+    statements: overrides.includeStatements ?? wordLimit?.includeStatements ?? true,
     references: wordLimit?.includeReferences === true,
   };
 
@@ -572,9 +672,10 @@ export function countForWordLimit(
     (counted.abstract ? abstractWords : 0) +
     (counted.tableCells ? tableCellWords : 0) +
     (counted.figureCaptions ? figureCaptionWords : 0) +
+    (counted.statements ? statementWords : 0) +
     (counted.references ? referenceWords ?? 0 : 0);
 
-  return { wordCount, bodyWords, tableCellWords, figureCaptionWords, referenceWords, abstractWords, counted };
+  return { wordCount, bodyWords, tableCellWords, figureCaptionWords, statementWords, referenceWords, abstractWords, counted };
 }
 
 /**
@@ -617,6 +718,7 @@ export function wordLimitBreakdown(count: WordLimitCount): string {
   if (count.counted.abstract) parts.push(`abstract ${count.abstractWords}`);
   if (count.counted.figureCaptions) parts.push(`captions ${count.figureCaptionWords}`);
   if (count.counted.tableCells) parts.push(`table cells ${count.tableCellWords}`);
+  if (count.counted.statements) parts.push(`statements ${count.statementWords}`);
   if (count.counted.references && count.referenceWords !== null) parts.push(`references ${count.referenceWords}`);
   return parts.join(' + ');
 }
@@ -630,6 +732,7 @@ export function wordLimitRows(count: WordLimitCount): string[][] {
     ['  abstract', part(count.abstractWords, count.counted.abstract)],
     ['  figure captions', part(count.figureCaptionWords, count.counted.figureCaptions)],
     ['  table cells', part(count.tableCellWords, count.counted.tableCells)],
+    ['  statements', part(count.statementWords, count.counted.statements)],
   ];
   if (count.counted.references) {
     rows.push(['  references', count.referenceWords === null ? 'not measured' : part(count.referenceWords, true)]);
@@ -654,6 +757,8 @@ export interface ValidationInput {
    * doing so needs the project's bibliography, its CSL and pandoc.
    */
   referenceWords?: number | null;
+  /** A project's `rev.yaml` `wordCount` knobs (`includeStatements`, `statementHeadings`). */
+  wordCount?: WordCountOverrides;
 }
 
 interface ManuscriptValidationResult {
@@ -706,7 +811,7 @@ function validateTexts(
   const tableCount = countTables(text);
   const refCount = countReferences(text);
 
-  const count = countForWordLimit(texts, req.wordLimit, input.referenceWords ?? null);
+  const count = countForWordLimit(texts, req.wordLimit, input.referenceWords ?? null, input.wordCount);
   const { wordCount: countedWords, abstractWords } = count;
 
   const stats: ManuscriptStats = {

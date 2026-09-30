@@ -87,7 +87,7 @@ export function register(program: Command): void {
             directory: process.cwd(),
             bibliography: config.bibliography,
             csl: config.csl,
-          }))
+          }), { includeStatements: config.wordCount?.includeStatements, statementHeadings: config.wordCount?.statementHeadings })
         : null;
       if (count) total = count.wordCount;
       if (profile?.requirements.wordLimit?.main) limit = profile.requirements.wordLimit.main;

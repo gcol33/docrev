@@ -124,6 +124,15 @@ export const revYamlSchema: Schema = {
           description: 'Section files to leave out of every word count, matched by path or basename (e.g. a reviewer-only note kept only for the anonymized build)',
           items: { type: 'string', pattern: '.*\\.md$' },
         },
+        includeStatements: {
+          type: 'boolean',
+          description: 'Count statements (Acknowledgements, Author Contributions, Conflict of Interest/Competing Interests, Data/Code Availability, Funding, Ethics) toward the journal word limit. Overrides the profile\'s `wordLimit.includeStatements`. Defaults to true (the profile\'s setting, or on if the profile leaves it unset).',
+        },
+        statementHeadings: {
+          type: 'array',
+          description: 'Extra heading patterns treated as statements, added to the built-in list and the profile\'s `wordLimit.statementHeadings`',
+          items: { type: 'string' },
+        },
       },
       additionalProperties: false,
     },

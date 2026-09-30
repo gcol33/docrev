@@ -361,6 +361,20 @@ export interface JournalRequirements {
     includeFigureCaptions?: boolean;
     /** Count the abstract toward `main`. On by default. */
     includeAbstract?: boolean;
+    /**
+     * Count statements (Acknowledgements, Author Contributions, Conflict of
+     * Interest/Competing Interests, Data/Code Availability, Funding, Ethics)
+     * toward `main`. On by default, matching the count before this setting
+     * existed; a `rev.yaml` `wordCount.includeStatements` overrides it.
+     */
+    includeStatements?: boolean;
+    /**
+     * Extra heading patterns (matched like the built-in statement headings:
+     * whole heading text, case-insensitive, optional trailing "Statement" or
+     * colon) treated as statements for this profile, in addition to the
+     * built-in list.
+     */
+    statementHeadings?: string[];
   };
   references?: { max?: number; doiRequired?: boolean };
   figures?: { max?: number };
@@ -579,6 +593,8 @@ export interface StoryArc {
   title: string;
   question: string;
   answer: string;
+  /** What the audience can do or knows once the answer holds. */
+  payoff: string;
   evidence: string;
   limits: string;
   /** Arc IDs this arc's first journey entry must come after. */
@@ -609,9 +625,15 @@ export interface JourneyEntry {
   section: string;
   arcs: string[];
   entryType: JourneyEntryType;
+  /** The paragraph's point in a few words. */
+  idea: string;
   job: string;
   support: string;
   leaves: string;
+  /** Open findings recorded on the entry, one per `- warning:` line. */
+  warnings: string[];
+  /** Findings overruled on the entry, one per `- accept:` line. */
+  accepts: string[];
   line: number;
 }
 
@@ -628,6 +650,8 @@ export interface ManuscriptBlock {
   markerId: string | null;
   text: string;
   line: number;
+  /** An item of a list whose items carry their own markers (`1. <!-- @p:id -->`). */
+  listItem?: boolean;
 }
 
 export type JourneyFindingKind =

@@ -217,7 +217,13 @@ export interface BuildConfig {
    * reach the published article, such as a reviewer-only note kept only so
    * it lands in the anonymized build.
    */
-  wordCount?: { exclude?: string[] };
+  wordCount?: {
+    exclude?: string[];
+    /** Overrides the profile's `wordLimit.includeStatements` for this project. */
+    includeStatements?: boolean;
+    /** Extra statement headings, added to the profile's `wordLimit.statementHeadings`. */
+    statementHeadings?: string[];
+  };
   _configPath?: string | null;
 }
 

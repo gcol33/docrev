@@ -5,7 +5,14 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.2] - 2026-09-30
+## [0.14.3] - 2026-09-30
+
+### Fixed
+- **Statements had no per-journal setting, and back-matter headings truncated mid-file (#15).** `countForWordLimit`'s back-matter heading was matched as a prefix (`References?\b.*$`), so a mid-file `## Reference plots`, `### Funding of the survey`, `## Supporting Information` or `## Ethics` subsection dropped the rest of the section it was in from the count, with no warning. A heading is now matched only when it IS the whole heading text (an optional trailing "Statement" or colon is fine), and a back-matter span runs from its heading to the next heading of the same or higher level, not to the end of the file.
+- Acknowledgements, Author Contributions, Conflict of Interest/Competing Interests, Data/Code Availability, Funding and Ethics are "statements": whether they count toward `main` differs by journal (MEE counts them, for one), and neither `main` (which always counted them) nor the previous back-matter stripping (which never did) could be set per profile. `wordLimit.includeStatements` in a journal profile (default `true`, matching a plain count with no journal in play) and `wordCount.includeStatements` in `rev.yaml` (wins over the profile) now decide it; `statementHeadings` in either extends the built-in list. References/Bibliography and Supporting Information/Supplementary Material are still always excluded — the reference list is measured by rendering it (`includeReferences`), and neither is main text.
+- `statementWords` is reported beside `tableCellWords` and `figureCaptionWords` in `WordLimitCount`, `rev word-count --json`, the `rev validate`/`rev word-count -j` stats table, and the over-limit error's inline breakdown.
+
+
 
 ### Fixed
 - **`rev validate`/`rev word-count -j` counted back matter as body text (#14).** `countForWordLimit` summed `countWords` over every section file with no distinction between the sections a journal's limit covers (Abstract → Discussion) and Acknowledgements, Author Contributions, Competing/Conflict of Interest, Data/Code Availability, Funding, Supporting Information and the References heading — on a manuscript with ~500–800 words of back matter, `main` was checked against a body ~10% too high. Each section file is now counted only up to its first back-matter heading, whether that heading starts its own file or trails the discussion in one shared with it.
