@@ -696,3 +696,36 @@ describe('list items with their own markers', () => {
     assert.deepStrictEqual(blocks.map((b) => b.markerId), ['intro.list']);
   });
 });
+
+describe('equations inside a sentence', () => {
+  it('joins an equation and its where-clause to the paragraph the sentence starts in', () => {
+    const md = 'The fixed-effect variance can be written as:\n\n$$\\sigma^2_f = var(X\\beta)$$\n\nwhere $X$ is the design matrix.\n\nA new paragraph.\n';
+    const blocks = parseManuscriptBlocks(md, 'm.md', 'Methods');
+    assert.strictEqual(blocks.length, 2);
+    assert.strictEqual(blocks[0].blockType, 'paragraph');
+    assert.match(blocks[0].text, /written as:\n\n\$\$.*\$\$\n\nwhere \$X\$/s);
+    assert.strictEqual(blocks[1].text, 'A new paragraph.');
+  });
+
+  it('keeps a stand-alone equation as its own unit, with the where-clause that follows it', () => {
+    const md = 'The model is below.\n\n$$y = a + b$$ {#eq:model}\n\nwhere $a$ is the intercept.\n';
+    const blocks = parseManuscriptBlocks(md, 'm.md', 'Methods');
+    assert.deepStrictEqual(blocks.map((b) => b.blockType), ['paragraph', 'equation']);
+    assert.match(blocks[1].text, /where \$a\$/);
+  });
+
+  it('never joins a block the author marked as its own', () => {
+    const md = 'The variance is:\n\n<!-- @p:eq.var -->\n$$v = s^2$$\n';
+    const blocks = parseManuscriptBlocks(md, 'm.md', 'Methods');
+    assert.deepStrictEqual(blocks.map((b) => b.markerId), [null, 'eq.var']);
+  });
+});
+
+describe('story problem and question', () => {
+  it('parses the Problem and Question sections', () => {
+    const { doc, errors } = parseStory('## Problem\nArchives lack header data.\n\n## Question\nTo learn which variables composition predicts, we trained models.\n');
+    assert.deepStrictEqual(errors, []);
+    assert.strictEqual(doc.problem, 'Archives lack header data.');
+    assert.match(doc.question, /^To learn which/);
+  });
+});

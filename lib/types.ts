@@ -611,6 +611,10 @@ export interface StoryDoc {
   title: string;
   claim: string;
   audience: string;
+  /** The larger problem the opening names, at the width the closer returns to. */
+  problem: string;
+  /** The paper's challenge in one sentence: "to learn X, we did Y". */
+  question: string;
   arcs: StoryArc[];
   terms: StoryTerm[];
   constraints: string[];

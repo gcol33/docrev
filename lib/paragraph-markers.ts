@@ -164,17 +164,30 @@ export function parseManuscriptBlocks(
     const text = bodyLines.join('\n').trim();
     if (!text) continue;
 
-    result.push({
-      file,
-      section,
-      blockType: classifyBlock(text),
-      markerId,
-      text,
-      line: block.startLineIdx + 1,
-    });
+    const unit: ManuscriptBlock = { file, section, blockType: classifyBlock(text), markerId, text, line: block.startLineIdx + 1 };
+    const prev = result[result.length - 1];
+    if (prev && prev.section === section && continuesSentence(prev, unit)) {
+      prev.text = `${prev.text}\n\n${text}`;
+      continue;
+    }
+    result.push(unit);
   }
 
   return result;
+}
+
+const SENTENCE_END = /[.!?]["'’”)\]]*$/;
+const ENDS_IN_EQUATION = /\$\$\s*(\{#[^}]*\})?\s*$/;
+
+/**
+ * A display equation set inside a sentence (the text before it ends without a full stop), and
+ * the text that continues the sentence after an equation (it starts in lower case: "where x
+ * is ..."), belong to the unit the sentence started in. A block the author marked stays its own.
+ */
+function continuesSentence(prev: ManuscriptBlock, block: ManuscriptBlock): boolean {
+  if (block.markerId || prev.listItem) return false;
+  if (block.blockType === 'equation') return prev.blockType === 'paragraph' && !SENTENCE_END.test(prev.text.trim());
+  return block.blockType === 'paragraph' && /^\p{Ll}/u.test(block.text) && ENDS_IN_EQUATION.test(prev.text);
 }
 
 /**

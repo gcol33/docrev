@@ -7,6 +7,8 @@
  *
  *   ## Claim
  *   ## Audience
+ *   ## Problem
+ *   ## Question
  *
  *   ## Arcs
  *
@@ -40,7 +42,11 @@ const ARC_HEADING = /^###\s+(\S+)\s*(.*)$/;
 const H1_TITLE = /^#\s+Story:\s*(.*)$/i;
 const H2_HEADING = /^##\s+(.+?)\s*$/;
 
-type StorySection = 'none' | 'claim' | 'audience' | 'arcs' | 'terms' | 'constraints' | 'open';
+/** Sections whose body is running prose, joined into one string. */
+const PROSE_SECTIONS = ['claim', 'audience', 'problem', 'question'] as const;
+type ProseSection = (typeof PROSE_SECTIONS)[number];
+type StorySection = 'none' | ProseSection | 'arcs' | 'terms' | 'constraints' | 'open';
+const SECTION_NAMES = new Set<string>([...PROSE_SECTIONS, 'arcs', 'terms', 'constraints', 'open']);
 
 function emptyArc(id: string, title: string, line: number): StoryArc {
   return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], line };
@@ -58,6 +64,8 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     title: '',
     claim: '',
     audience: '',
+    problem: '',
+    question: '',
     arcs: [],
     terms: [],
     constraints: [],
@@ -66,8 +74,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
 
   let section: StorySection = 'none';
   let currentArc: StoryArc | null = null;
-  const claimLines: string[] = [];
-  const audienceLines: string[] = [];
+  const prose: Record<ProseSection, string[]> = { claim: [], audience: [], problem: [], question: [] };
   const seenArcIds = new Set<string>();
 
   const closeArc = () => {
@@ -90,12 +97,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     if (h2) {
       closeArc();
       const name = (h2[1] || '').trim().toLowerCase();
-      if (name === 'claim') section = 'claim';
-      else if (name === 'audience') section = 'audience';
-      else if (name === 'arcs') section = 'arcs';
-      else if (name === 'terms') section = 'terms';
-      else if (name === 'constraints') section = 'constraints';
-      else if (name === 'open') section = 'open';
+      if (SECTION_NAMES.has(name)) section = name as StorySection;
       else {
         section = 'none';
         errors.push({ file, line: lineNo, message: `Unknown story section "${h2[1]}"` });
@@ -155,12 +157,8 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
       continue;
     }
 
-    if (section === 'claim') {
-      if (line) claimLines.push(line);
-      continue;
-    }
-    if (section === 'audience') {
-      if (line) audienceLines.push(line);
+    if ((PROSE_SECTIONS as readonly string[]).includes(section)) {
+      if (line) prose[section as ProseSection].push(line);
       continue;
     }
 
@@ -193,8 +191,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
   }
 
   closeArc();
-  doc.claim = claimLines.join(' ').trim();
-  doc.audience = audienceLines.join(' ').trim();
+  for (const key of PROSE_SECTIONS) doc[key] = prose[key].join(' ').trim();
 
   return { doc, errors };
 }

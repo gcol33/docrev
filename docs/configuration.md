@@ -76,11 +76,18 @@ One sentence: what the paper establishes.
 ## Audience
 Who reads it and what they already know.
 
+## Problem
+The larger problem the opening names, at the width the closer returns to.
+
+## Question
+The paper's challenge in one sentence: "To learn X, we did Y."
+
 ## Arcs
 
 ### S1 Checkable optimality
 - question: The reader's question, in their words.
 - answer: What the paper establishes.
+- payoff: What the audience can do, or knows, once the answer holds.
 - evidence: @fig:runtime
 - limits: Where the answer stops.
 - needs: S0
@@ -93,9 +100,12 @@ Who reads it and what they already know.
 ## Introduction
 
 ### intro.memory  [S1]
+- idea: memory sets the bound
 - job: One sentence: what this paragraph establishes.
 - support: example, reasoning, citation, or result it rests on
 - leaves: What the reader understands after it that they did not before.
+- warning: an open finding on the entry (repeatable)
+- accept: <check>: the reason a finding is overruled (repeatable)
 
 ### fig.headline  [S1]  (figure)
 - job: ...
@@ -105,7 +115,15 @@ A paragraph's ID lives in its section file as an HTML comment on the line
 before it — `<!-- @p:intro.memory -->` — in the same family as the
 `<!-- @section:file.md -->` marker. It is a semantic slug, not a position, so
 moving the paragraph keeps its ID; never dropped from a Word round-trip
-(`rev sync`/`rev import`), and never included in a build output.
+(`rev sync`/`rev import`), and never included in a build output. In a list
+whose items are paragraphs of their own (a numbered structured abstract), the
+marker sits right after the item's number, `1. <!-- @p:abs.problem -->`, and
+each item is its own unit. A display equation set inside a sentence, and the
+lower-case "where …" text that continues the sentence after it, belong to the
+paragraph the sentence starts in; an equation that stands as its own sentence
+is its own `(equation)` unit. `rev journey init` never rewrites a `journey.md`
+holding lines it cannot parse, since the rewrite would drop them. `rev journey
+check` takes the order of arcs (`needs:`) from the body, not from the abstract.
 
 Both files default to `story.md`/`journey.md` at the project root; override
 with the `story:`/`journey:` keys above. See
