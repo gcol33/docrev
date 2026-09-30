@@ -13,6 +13,7 @@
  *   ### S1 Some title
  *   - question: ...
  *   - answer: ...
+ *   - payoff: ...
  *   - evidence: ...
  *   - limits: ...
  *   - needs: S0
@@ -42,7 +43,7 @@ const H2_HEADING = /^##\s+(.+?)\s*$/;
 type StorySection = 'none' | 'claim' | 'audience' | 'arcs' | 'terms' | 'constraints' | 'open';
 
 function emptyArc(id: string, title: string, line: number): StoryArc {
-  return { id, title, question: '', answer: '', evidence: '', limits: '', needs: [], line };
+  return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], line };
 }
 
 /**
@@ -135,6 +136,9 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
           break;
         case 'answer':
           currentArc.answer = value;
+          break;
+        case 'payoff':
+          currentArc.payoff = value;
           break;
         case 'evidence':
           currentArc.evidence = value;

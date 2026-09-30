@@ -5,7 +5,18 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.3] - 2026-09-30
+## [0.14.4] - 2026-09-30
+
+### Added
+- **Journey sidecar: `idea`, `warning`, `accept` entry fields; story arc `payoff`.** A journey entry records its point in a few words (`idea:`), open findings against it (`warning:`, repeatable) and findings already considered and overruled (`accept:`, repeatable), so a re-check doesn't re-raise something already decided. A story arc records what the answer gets the reader (`payoff:`), alongside `question`/`answer`/`evidence`/`limits`/`needs`.
+- **Markers on list items.** `rev journey init` puts a paragraph marker inside a list item that doesn't have one yet (`2. <!-- @p:abs.p1 --> Second point.`), and `parseManuscriptBlocks` reads a list whose items already carry markers as one journey unit per item, not one unit for the whole list — for an abstract or highlights written as a numbered list.
+- `journeyCheck`'s arc-order check (`needs:`) skips front matter (abstract, summary, author summary, significance statement, highlights, graphical abstract, keywords): a summary read before the body states every arc at once, so it isn't evidence of the order the body itself introduces them in.
+
+### Fixed
+- **`rev journey init` corrupted a file with Windows line endings.** Marker insertion split on `\n` and rejoined the same way, turning every `\r\n` in the file into a bare `\n`. It now splits on `\r?\n` and rejoins with whatever the file used.
+- **A journey.md rewrite that hit an unparseable line used to continue silently**, keeping only the entries it could parse and dropping the rest without saying so. It now stops and exits nonzero, naming the file and telling you to fix the line and rerun.
+
+
 
 ### Fixed
 - **Statements had no per-journal setting, and back-matter headings truncated mid-file (#15).** `countForWordLimit`'s back-matter heading was matched as a prefix (`References?\b.*$`), so a mid-file `## Reference plots`, `### Funding of the survey`, `## Supporting Information` or `## Ethics` subsection dropped the rest of the section it was in from the count, with no warning. A heading is now matched only when it IS the whole heading text (an optional trailing "Statement" or colon is fine), and a back-matter span runs from its heading to the next heading of the same or higher level, not to the end of the file.

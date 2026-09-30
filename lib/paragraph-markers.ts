@@ -32,6 +32,26 @@ const PARAGRAPH_MARKER_GLOBAL = /<!--\s*@p:\S+?\s*-->\n?/g;
 
 const HEADING_LINE = /^(#{1,6})\s+(.+)$/;
 const FENCE_LINE = /^\s*(```+|~~~+)/;
+const LIST_ITEM = /^\s*(?:\d+[.)]|[-*+])\s+/;
+const LIST_ITEM_MARKER = /^\s*(?:\d+[.)]|[-*+])\s+<!--\s*@p:(\S+?)\s*-->\s*(.*)$/;
+
+/**
+ * Split a list block whose items carry their own markers (`1. <!-- @p:id -->`) into one unit
+ * per item, each starting at its item line. Items without a marker come back unmarked.
+ */
+function listItemBlocks(block: RawBlock): Array<{ markerId: string | null; text: string; line: number }> {
+  const items: Array<{ markerId: string | null; lines: string[]; line: number }> = [];
+  block.text.split('\n').forEach((l, k) => {
+    if (LIST_ITEM.test(l)) {
+      const m = l.match(LIST_ITEM_MARKER);
+      items.push({ markerId: m ? (m[1] ?? null) : null, lines: [m ? (m[2] ?? '') : l.replace(LIST_ITEM, '')],
+                   line: block.startLineIdx + k + 1 });
+    } else if (items.length > 0) {
+      items[items.length - 1]?.lines.push(l.trim());
+    }
+  });
+  return items.map((it) => ({ markerId: it.markerId, text: it.lines.join('\n').trim(), line: it.line }));
+}
 const MIN_REATTACH_SCORE = 0.3;
 const REATTACH_LOOKAHEAD = 6;
 
@@ -46,7 +66,7 @@ interface RawBlock {
  * blocks as atomic (a blank line inside a fence never splits it).
  */
 function splitIntoRawBlocks(content: string): RawBlock[] {
-  const lines = content.split('\n');
+  const lines = content.split(/\r?\n/);
   const blocks: RawBlock[] = [];
   let current: string[] = [];
   let currentStart = -1;
@@ -123,6 +143,14 @@ export function parseManuscriptBlocks(
         section = (heading[2] || '').replace(/\s*\{[^}]*\}\s*$/, '').trim();
         continue;
       }
+    }
+
+    if (lines.some((l) => LIST_ITEM_MARKER.test(l))) {
+      for (const item of listItemBlocks(block)) {
+        if (!item.text) continue;
+        result.push({ file, section, blockType: 'paragraph', markerId: item.markerId, text: item.text, line: item.line, listItem: true });
+      }
+      continue;
     }
 
     let markerId: string | null = null;

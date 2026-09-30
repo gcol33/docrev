@@ -10,9 +10,12 @@
  *   ## Introduction
  *
  *   ### intro.memory  [S1]
+ *   - idea: memory sets the bound
  *   - job: ...
  *   - support: ...
  *   - leaves: ...
+ *   - warning: <finding>          (repeatable)
+ *   - accept: <check>: <reason>   (repeatable)
  *
  *   ### fig.headline  [S2 S4]  (figure)
  *   - job: ...
@@ -38,8 +41,15 @@ const FIELD_LINE = /^-\s*([A-Za-z][\w-]*)\s*:\s*(.*)$/;
 
 const VALID_TYPES = new Set<JourneyEntryType>(['paragraph', 'figure', 'table', 'equation', 'code']);
 
+const FRONT_MATTER = /^(abstract|summary|author summary|significance( statement)?|highlights|graphical abstract|key ?words)$/i;
+
+/** A section read on its own before the text: abstract, summary, significance statement, highlights. */
+export function isFrontMatter(section: string): boolean {
+  return FRONT_MATTER.test(section.replace(/^\d+(\.\d+)*\s+/, '').trim());
+}
+
 function emptyEntry(id: string, section: string, arcs: string[], entryType: JourneyEntryType, line: number): JourneyEntry {
-  return { id, section, arcs, entryType, job: '', support: '', leaves: '', line };
+  return { id, section, arcs, entryType, idea: '', job: '', support: '', leaves: '', warnings: [], accepts: [], line };
 }
 
 /**
@@ -114,6 +124,9 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
     const key = (field[1] || '').toLowerCase();
     const value = (field[2] || '').trim();
     switch (key) {
+      case 'idea':
+        current.idea = value;
+        break;
       case 'job':
         current.job = value;
         break;
@@ -122,6 +135,12 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
         break;
       case 'leaves':
         current.leaves = value;
+        break;
+      case 'warning':
+        current.warnings.push(value);
+        break;
+      case 'accept':
+        current.accepts.push(value);
         break;
       default:
         errors.push({ file, line: lineNo, message: `Unknown entry field "${field[1]}"` });
@@ -139,9 +158,13 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
 export function formatJourneyEntry(entry: JourneyEntry): string {
   const arcTag = entry.arcs.length > 0 ? `  [${entry.arcs.join(' ')}]` : '';
   const typeTag = entry.entryType !== 'paragraph' ? `  (${entry.entryType})` : '';
-  const lines = [`### ${entry.id}${arcTag}${typeTag}`, `- job: ${entry.job}`];
+  const lines = [`### ${entry.id}${arcTag}${typeTag}`];
+  if (entry.idea) lines.push(`- idea: ${entry.idea}`);
+  lines.push(`- job: ${entry.job}`);
   if (entry.support) lines.push(`- support: ${entry.support}`);
   if (entry.leaves) lines.push(`- leaves: ${entry.leaves}`);
+  for (const warning of entry.warnings) lines.push(`- warning: ${warning}`);
+  for (const accept of entry.accepts) lines.push(`- accept: ${accept}`);
   return lines.join('\n');
 }
 
@@ -270,9 +293,12 @@ export function scaffoldJourneyEntries(
         section: block.section,
         arcs: [],
         entryType: block.blockType,
+        idea: '',
         job: firstSentence(block.text),
         support: '',
         leaves: '',
+        warnings: [],
+        accepts: [],
         line: 0,
       };
     });
@@ -417,10 +443,12 @@ export function journeyCheck(
     }
   }
 
-  // 4. Arc order respects `needs:`.
+  // 4. Arc order respects `needs:`. The abstract and the other summaries read before the text
+  // state every arc at once, so the order is taken from the body.
   if (story) {
     const firstEntryIndexOfArc = new Map<string, number>();
     journey.entries.forEach((entry, idx) => {
+      if (isFrontMatter(entry.section)) return;
       for (const arc of entry.arcs) {
         if (!firstEntryIndexOfArc.has(arc)) firstEntryIndexOfArc.set(arc, idx);
       }

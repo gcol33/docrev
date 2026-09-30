@@ -29,6 +29,8 @@ import { buildRegistry } from '../lib/crossref.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
 // ============================================================================
 // story.md parsing
@@ -107,6 +109,12 @@ Readers who already accept branch-and-price but not the certificate.
     assert.ok(errors.some((e) => /Unknown arc field "bogus"/.test(e.message) && e.line === 6));
   });
 
+  it('parses an arc payoff', () => {
+    const { doc, errors } = parseStory('## Arcs\n\n### S1 A\n- answer: a\n- payoff: Readers can fill the gaps.\n');
+    assert.deepStrictEqual(errors, []);
+    assert.strictEqual(doc.arcs[0].payoff, 'Readers can fill the gaps.');
+  });
+
   it('reports a duplicate arc id', () => {
     const { errors } = parseStory('## Arcs\n\n### S1 A\n- question: a\n\n### S1 B\n- question: b\n');
     assert.ok(errors.some((e) => /Duplicate arc id "S1"/.test(e.message)));
@@ -170,6 +178,27 @@ describe('parseJourney', () => {
     assert.deepStrictEqual(reparsed.entries[2].arcs, ['S2', 'S1']);
     assert.strictEqual(reparsed.entries[2].entryType, 'figure');
   });
+
+  it('keeps idea, warning and accept lines through a rewrite', () => {
+    const text = `# Journey: X
+
+## Abstract
+
+### abs.release  [S6]
+- idea: models released
+- job: Says what the released models do.
+- warning: off-job: the last sentence is about training data
+- warning: undelivered: the payoff is missing
+- accept: synonym-drift "fields": the header's own word
+`;
+    const { doc, errors } = parseJourney(text);
+    assert.deepStrictEqual(errors, []);
+    const [entry] = doc.entries;
+    assert.strictEqual(entry.idea, 'models released');
+    assert.strictEqual(entry.warnings.length, 2);
+    assert.deepStrictEqual(entry.accepts, ['synonym-drift "fields": the header\'s own word']);
+    assert.strictEqual(serializeJourney(doc.title, doc.entries), text);
+  });
 });
 
 // ============================================================================
@@ -226,6 +255,14 @@ An unmarked second paragraph.
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].section, 'Fallback');
   });
+
+  it('reads headings in a file with Windows line endings', () => {
+    const blocks = parseManuscriptBlocks(CONTENT.replace(/\n/g, '\r\n'), 'intro.md', 'intro');
+    assert.strictEqual(blocks.length, 4);
+    assert.strictEqual(blocks[0].section, 'Introduction');
+    assert.strictEqual(blocks[2].section, 'Results');
+    assert.ok(blocks.every((b) => !b.text.includes('\r')));
+  });
 });
 
 // ============================================================================
@@ -237,7 +274,8 @@ function makeBlock(overrides) {
 }
 
 function makeEntry(overrides) {
-  return { id: 'x', section: 'Introduction', arcs: [], entryType: 'paragraph', job: 'A job.', support: '', leaves: '', line: 1, ...overrides };
+  return { id: 'x', section: 'Introduction', arcs: [], entryType: 'paragraph', idea: '', job: 'A job.', support: '', leaves: '',
+           warnings: [], accepts: [], line: 1, ...overrides };
 }
 
 describe('journeyCheck', () => {
@@ -297,6 +335,27 @@ describe('journeyCheck', () => {
     const blocks = [makeBlock({ markerId: 'a' }), makeBlock({ markerId: 'b' })];
     const findings = journeyCheck(blocks, journey, { story });
     assert.ok(findings.some((f) => f.kind === 'needs-violation' && f.arcId === 'S2'));
+  });
+
+  it('takes the needs order from the body, not from the abstract that states every arc', () => {
+    const story = {
+      title: '', claim: '', audience: '',
+      arcs: [
+        { id: 'S1', title: 'A', question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], line: 1 },
+        { id: 'S2', title: 'B', question: '', answer: '', payoff: '', evidence: '', limits: '', needs: ['S1'], line: 2 },
+      ],
+      terms: [], constraints: [], open: [],
+    };
+    const entries = [
+      makeEntry({ id: 'abs', section: 'Abstract', arcs: ['S2', 'S1'] }),
+      makeEntry({ id: 'a', arcs: ['S1'] }),
+      makeEntry({ id: 'b', arcs: ['S2'] }),
+    ];
+    const blocks = entries.map((e) => makeBlock({ markerId: e.id }));
+    assert.ok(!journeyCheck(blocks, { title: '', entries }, { story }).some((f) => f.kind === 'needs-violation'));
+    const reversed = [entries[0], entries[2], entries[1]];
+    const reversedBlocks = reversed.map((e) => makeBlock({ markerId: e.id }));
+    assert.ok(journeyCheck(reversedBlocks, { title: '', entries: reversed }, { story }).some((f) => f.kind === 'needs-violation'));
   });
 
   it('does not flag needs order when satisfied', () => {
@@ -543,5 +602,97 @@ describe('reattachParagraphMarkers (OOXML sync path)', () => {
     const original = 'No markers here.';
     const reconstructed = 'No markers here, reconstructed.';
     assert.strictEqual(reattachParagraphMarkers(original, reconstructed), reconstructed);
+  });
+});
+
+// ============================================================================
+// rev journey init (CLI)
+// ============================================================================
+
+describe('rev journey init', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const rev = (dir) => {
+    try {
+      return { code: 0, out: execSync(`"${path.join(root, 'node_modules', '.bin', 'tsx')}" "${path.join(root, 'bin', 'rev.ts')}" journey init`,
+        { cwd: dir, encoding: 'utf-8', stdio: 'pipe', timeout: 30000 }) };
+    } catch (err) {
+      return { code: err.status, out: `${err.stdout}${err.stderr}` };
+    }
+  };
+  const project = (files) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-journey-'));
+    for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), content);
+    return dir;
+  };
+
+  it('marks paragraphs, not headings, in a file with Windows line endings, and keeps its line endings', () => {
+    const dir = project({
+      'rev.yaml': 'title: T\r\nsections:\r\n  - a.md\r\n',
+      'a.md': '# Abstract\r\n\r\nFirst paragraph.\r\n\r\n## Sub\r\n\r\nSecond paragraph.\r\n',
+    });
+    try {
+      assert.strictEqual(rev(dir).code, 0);
+      const a = fs.readFileSync(path.join(dir, 'a.md'), 'utf-8');
+      assert.deepStrictEqual(a.match(/-->\r\n.*/g), ['-->\r\nFirst paragraph.', '-->\r\nSecond paragraph.']);
+      assert.ok(!/[^\r]\n/.test(a), 'every line ends in CRLF');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('puts a new marker inside an unmarked item of a list whose items carry markers', () => {
+    const dir = project({
+      'rev.yaml': 'title: T\nsections:\n  - a.md\n',
+      'a.md': '# Abstract\n\n1. <!-- @p:abs.one -->\n   First point.\n2. Second point.\n',
+    });
+    try {
+      assert.strictEqual(rev(dir).code, 0);
+      assert.match(fs.readFileSync(path.join(dir, 'a.md'), 'utf-8'), /^2\. <!-- @p:abs\.p1 --> Second point\.$/m);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to rewrite a journey.md with lines it cannot parse', () => {
+    const journey = '# Journey: T\n\n## Abstract\n\n### abs.p1\n- job: First.\n- mystery: a field docrev does not know\n';
+    const dir = project({
+      'rev.yaml': 'title: T\nsections:\n  - a.md\n',
+      'a.md': '# Abstract\n\n<!-- @p:abs.p1 -->\nFirst paragraph.\n\nA new paragraph.\n',
+      'journey.md': journey,
+    });
+    try {
+      const { code, out } = rev(dir);
+      assert.strictEqual(code, 1);
+      assert.match(out, /Unknown entry field "mystery"/);
+      assert.strictEqual(fs.readFileSync(path.join(dir, 'journey.md'), 'utf-8'), journey);
+      assert.ok(!fs.readFileSync(path.join(dir, 'a.md'), 'utf-8').includes('abs.p2'));
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('list items with their own markers', () => {
+  const ABSTRACT = `# Abstract
+
+1. <!-- @p:abs.problem -->
+   Archives leave many variables unrecorded.
+   We ask which can be predicted.
+2. <!-- @p:abs.design -->
+   We trained networks on 1.9 million plots.
+3. Composition alone recovered habitat best.
+`;
+
+  it('makes each marked item its own unit, starting at its item line', () => {
+    const blocks = parseManuscriptBlocks(ABSTRACT, 'abstract.md', 'abstract');
+    assert.deepStrictEqual(blocks.map((b) => [b.markerId, b.line, b.listItem]),
+      [['abs.problem', 3, true], ['abs.design', 6, true], [null, 8, true]]);
+    assert.strictEqual(blocks[0].text, 'Archives leave many variables unrecorded.\nWe ask which can be predicted.');
+    assert.strictEqual(blocks[2].text, 'Composition alone recovered habitat best.');
+  });
+
+  it('keeps a list without item markers as one unit', () => {
+    const blocks = parseManuscriptBlocks('<!-- @p:intro.list -->\n1. One.\n2. Two.\n', 'x.md', 'x');
+    assert.deepStrictEqual(blocks.map((b) => b.markerId), ['intro.list']);
   });
 });

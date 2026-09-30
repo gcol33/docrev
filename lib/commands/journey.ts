@@ -78,15 +78,19 @@ function collectExistingMarkerIds(blocks: ManuscriptBlock[]): Set<string> {
  * immediately before it. Processed in descending line order so earlier
  * insertions don't shift later ones.
  */
-function applyMarkerInsertions(filePath: string, insertions: Array<{ line: number; markerLine: string }>): void {
+// A marker goes on its own line above a paragraph, and right after the list marker of an item
+// in a list whose items carry their own markers.
+function applyMarkerInsertions(filePath: string, insertions: Array<{ line: number; marker: string; listItem: boolean }>): void {
   if (insertions.length === 0) return;
   const content = fs.readFileSync(filePath, 'utf-8');
-  const lines = content.split('\n');
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = content.split(/\r?\n/);
   const sorted = [...insertions].sort((a, b) => b.line - a.line);
-  for (const { line, markerLine } of sorted) {
-    lines.splice(line - 1, 0, markerLine);
+  for (const { line, marker, listItem } of sorted) {
+    if (listItem) lines[line - 1] = (lines[line - 1] ?? '').replace(/^(\s*(?:\d+[.)]|[-*+])\s+)/, `$1${marker} `);
+    else lines.splice(line - 1, 0, marker);
   }
-  fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
+  fs.writeFileSync(filePath, lines.join(eol), 'utf-8');
 }
 
 function printParseErrors(errors: SidecarParseError[]): void {
@@ -148,7 +152,8 @@ export function register(program: Command): void {
         if (errors.length > 0) {
           console.log(fmt.header('Existing journey.md has errors'));
           printParseErrors(errors);
-          console.log();
+          console.error(chalk.red(`\nNot rewriting ${path.basename(journeyFile)}: a rewrite keeps only the lines it can parse. Fix the lines above, then rerun.`));
+          process.exit(1);
         }
         existingById = new Map(doc.entries.map((e) => [e.id, e]));
       }
@@ -173,11 +178,11 @@ export function register(program: Command): void {
         const fileBlocks = updated.slice(cursor, cursor + originalBlocks.length);
         cursor += originalBlocks.length;
 
-        const insertions: Array<{ line: number; markerLine: string }> = [];
+        const insertions: Array<{ line: number; marker: string; listItem: boolean }> = [];
         fileBlocks.forEach((block, i) => {
           const original = originalBlocks[i];
           if (original && !original.markerId && block.markerId) {
-            insertions.push({ line: original.line, markerLine: `<!-- @p:${block.markerId} -->` });
+            insertions.push({ line: original.line, marker: `<!-- @p:${block.markerId} -->`, listItem: !!original.listItem });
           }
         });
         if (insertions.length > 0) {
