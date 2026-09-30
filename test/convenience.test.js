@@ -86,7 +86,27 @@ describe('rev word-count', () => {
     const output = runRev('word-count -j no-such-journal', { expectError: true });
     assert.ok(output.includes('Unknown journal'));
   });
+
+  it('prints the counts and the limits as JSON, the journal read from rev.yaml', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'title: A test\njournal: nature\nsections:\n  - intro.md\n');
+    fs.writeFileSync(path.join(tempDir, 'intro.md'), [
+      '# Abstract', '', 'A short abstract of six words.', '',
+      '# Introduction', '', 'Body prose that the counter keeps.', '',
+      '![A figure caption the journal counts](fig.png)', '',
+    ].join('\n'));
+
+    const data = JSON.parse(runRev('word-count --json'));
+    assert.deepStrictEqual(data.sections.map(s => s.file), ['intro.md']);
+    assert.strictEqual(data.journal.id, 'nature');
+    assert.strictEqual(data.total, data.journal.count.wordCount);
+    assert.strictEqual(data.total, counted(runRev('word-count -j nature')));
+    assert.strictEqual(data.limit, data.journal.requirements.wordLimit.main);
+    assert.strictEqual(data.journal.count.abstractWords, 6);
+    assert.strictEqual(data.journal.keywords, 0);
+  });
 });
+
+const counted = (output) => Number(output.match(/Word count\D+(\d+)/)[1]);
 
 describe('rev stats', () => {
   it('should show project statistics', () => {

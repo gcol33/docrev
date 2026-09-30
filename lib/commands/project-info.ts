@@ -16,6 +16,8 @@ import {
   countAnnotations,
   getComments,
   countWords,
+  jsonMode,
+  jsonOutput,
 } from './context.js';
 
 // Use the actual BuildConfig from build.ts which allows string|Author[]
@@ -49,7 +51,7 @@ export function register(program: Command): void {
     .alias('wc')
     .description('Show word counts per section')
     .option('-l, --limit <number>', 'Warn if total exceeds limit', parseInt)
-    .option('-j, --journal <name>', 'Use journal word limit')
+    .option('-j, --journal <name>', 'Use journal word limit (default: the journal in rev.yaml)')
     .action(async (options: WordCountOptions) => {
       let config: Partial<BuildConfig> = {};
       try {
@@ -65,50 +67,53 @@ export function register(program: Command): void {
       }
 
       const texts = sections.map(section => fs.readFileSync(section, 'utf-8'));
-      let total = 0;
-      const rows: string[][] = [];
-
-      sections.forEach((section, i) => {
-        const words = countWords(texts[i]!);
-        total += words;
-        rows.push([section, words.toLocaleString()]);
-      });
-
-      rows.push(['', '']);
-      rows.push([chalk.bold('Total'), chalk.bold(total.toLocaleString())]);
-
-      console.log(fmt.header('Word Count'));
-      console.log(fmt.table(['Section', 'Words'], rows));
+      const perSection = sections.map((section, i) => ({ file: section, words: countWords(texts[i]!) }));
+      let total = perSection.reduce((sum, s) => sum + s.words, 0);
 
       // A journal limit is checked against what that journal counts, measured
       // exactly as `rev validate` measures it.
       let limit = options.limit;
-      if (options.journal) {
-        const { getJournalProfile, countForWordLimit, measureReferenceWords, referenceListWarning, wordLimitRows } =
-          await import('../journals.js');
-        const profile = getJournalProfile(options.journal);
-        if (!profile) {
-          console.error(chalk.red(`\nUnknown journal: ${options.journal}`));
-          console.error(chalk.dim('Use rev validate --list to see available profiles'));
-          process.exit(1);
-        }
+      const journalId = options.journal ?? (config as { journal?: string }).journal;
+      const journals = journalId ? await import('../journals.js') : null;
+      const profile = journals ? journals.getJournalProfile(journalId!) : null;
+      if (journals && !profile) {
+        console.error(chalk.red(`\nUnknown journal: ${journalId}`));
+        console.error(chalk.dim('Use rev validate --list to see available profiles'));
+        process.exit(1);
+      }
+      const count = journals && profile
+        ? journals.countForWordLimit(texts, profile.requirements.wordLimit, journals.measureReferenceWords(texts, profile, {
+            directory: process.cwd(),
+            bibliography: config.bibliography,
+            csl: config.csl,
+          }))
+        : null;
+      if (count) total = count.wordCount;
+      if (profile?.requirements.wordLimit?.main) limit = profile.requirements.wordLimit.main;
 
-        const referenceWords = measureReferenceWords(texts, profile, {
-          directory: process.cwd(),
-          bibliography: config.bibliography,
-          csl: config.csl,
-        });
-        const count = countForWordLimit(texts, profile.requirements.wordLimit, referenceWords);
-        total = count.wordCount;
+      if (jsonMode) {
+        const journal = journals && profile && count
+          ? { id: journalId, name: profile.name, requirements: profile.requirements, count,
+              keywords: journals.extractKeywords(texts.join('\n\n')).length,
+              warning: journals.referenceListWarning(profile, count) }
+          : null;
+        jsonOutput({ sections: perSection, total, limit: limit ?? null, journal });
+        return;
+      }
 
+      const rows = perSection.map(s => [s.file, s.words.toLocaleString()]);
+      rows.push(['', '']);
+      rows.push([chalk.bold('Total'), chalk.bold(perSection.reduce((sum, s) => sum + s.words, 0).toLocaleString())]);
+      console.log(fmt.header('Word Count'));
+      console.log(fmt.table(['Section', 'Words'], rows));
+
+      if (journals && profile && count) {
         console.log(chalk.cyan(`\n${profile.name} counts:`));
-        const warning = referenceListWarning(profile, count);
+        const warning = journals.referenceListWarning(profile, count);
         if (warning) console.log(chalk.yellow(`⚠ ${warning}`));
-        console.log(fmt.table(['Metric', 'Value'], wordLimitRows(count)));
-
+        console.log(fmt.table(['Metric', 'Value'], journals.wordLimitRows(count)));
         if (profile.requirements.wordLimit?.main) {
-          limit = profile.requirements.wordLimit.main;
-          console.log(chalk.dim(`\nUsing ${profile.name} word limit: ${limit.toLocaleString()}`));
+          console.log(chalk.dim(`\nUsing ${profile.name} word limit: ${limit!.toLocaleString()}`));
         }
       }
 

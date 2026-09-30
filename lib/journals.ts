@@ -366,7 +366,7 @@ const KEYWORD_LINE = /^[ \t]*(?:\*\*|__)?\s*Key[- ]?words?\s*:?(?:\*\*|__)?[ \t]
  * Extract the keyword list, wherever it sits: a `Keywords:` line in the
  * abstract or a section of its own.
  */
-function extractKeywords(text: string): string[] {
+export function extractKeywords(text: string): string[] {
   const match = /^[ \t]*(?:\*\*|__)?\s*Key[- ]?words?\s*:?(?:\*\*|__)?\s*:?[ \t]*(.*(?:\n(?!\s*\n)(?!#).*)*)/im.exec(text);
   if (!match || !match[1]) return [];
   return match[1]

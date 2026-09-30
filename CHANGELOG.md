@@ -5,6 +5,15 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-09-30
+
+### Fixed
+- **`countWords` counted HTML comments as prose (#13).** `<!-- ... -->` was left in place, so a paragraph anchor such as `<!-- @p:a.one -->` survived as `.problem` after the citation regex ran, and a comment left for a co-author had every word in it counted. Comments are now stripped before anything else, which also fixes the count inside table cells, figure captions and the extracted abstract, since all three call `countWords`.
+
+### Added
+- `rev word-count --json` prints per-section counts, the total, the limit and (when a journal applies) its requirements, count breakdown, keyword count and reference-list warning, as one JSON object.
+- `rev word-count -j` now defaults to the `journal:` set in `rev.yaml` when `-j`/`--journal` is omitted.
+
 ## [0.14.0] - 2026-09-29
 
 ### Added

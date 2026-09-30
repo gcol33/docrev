@@ -39,11 +39,16 @@ export function packageRoot(fromDir: string): string {
  * table-cell pattern came to delete whole paragraphs standing between two
  * tables.
  *
+ * HTML comments are dropped first: pandoc strips them from every output, so
+ * a paragraph anchor or a note left for a co-author never reaches the reader
+ * or the journal, and must not reach the count either.
+ *
  * @param text - Markdown text
  * @returns Word count
  */
 export function countWords(text: string): number {
-  const withoutFrontmatter = text.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '');
+  const withoutComments = text.replace(/<!--[\s\S]*?-->/g, '');
+  const withoutFrontmatter = withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '');
   const withoutCode = withoutFrontmatter.replace(/^[ \t]*```[\s\S]*?^[ \t]*```/gm, '');
   const withoutTables = withoutCode
     .split('\n')

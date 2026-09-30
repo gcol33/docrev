@@ -84,4 +84,9 @@ describe('countWords', () => {
   it('reads a hash inside a word as part of it', () => {
     assert.strictEqual(countWords('fixed in #10 today'), 4);
   });
+
+  it('drops an HTML comment, paragraph anchor or note alike', () => {
+    assert.strictEqual(countWords('<!-- @p:a.one -->\nTwo words.'), 2);
+    assert.strictEqual(countWords('<!-- a note left for a co-author -->\nTwo words.'), 2);
+  });
 });
