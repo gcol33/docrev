@@ -5,6 +5,15 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2026-09-30
+
+### Fixed
+- **`rev validate`/`rev word-count -j` counted back matter as body text (#14).** `countForWordLimit` summed `countWords` over every section file with no distinction between the sections a journal's limit covers (Abstract → Discussion) and Acknowledgements, Author Contributions, Competing/Conflict of Interest, Data/Code Availability, Funding, Supporting Information and the References heading — on a manuscript with ~500–800 words of back matter, `main` was checked against a body ~10% too high. Each section file is now counted only up to its first back-matter heading, whether that heading starts its own file or trails the discussion in one shared with it.
+- The one-line over-limit error now states the breakdown inline (`current: 8098 = body 7357 + abstract 343 + captions 398`), matching the parts already shown in the stats table, so a wrong number is visible without reading it.
+
+### Added
+- `wordCount.exclude` in `rev.yaml` drops named section files from `rev validate` and `rev word-count` entirely — for a section that is never part of the manuscript's word count, such as a reviewer-only note kept only so it lands in the anonymized build.
+
 ## [0.14.1] - 2026-09-30
 
 ### Fixed

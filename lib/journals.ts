@@ -481,6 +481,37 @@ function countReferences(text: string): number {
   return extractCitationKeys(text).length;
 }
 
+/**
+ * Headings that start a journal's back matter: sections a word limit covers
+ * the manuscript up to, not through. Matched loosely (a following "Statement"
+ * or colon is fine) since journals and templates spell these differently.
+ */
+const BACK_MATTER_HEADING =
+  /^#{1,6}[ \t]*(?:Acknowledge?ments?|Author(?:s'?)?\s+Contributions?|(?:Competing|Conflicts?\s+of)\s+Interests?|Data\s+(?:Availability|Accessibility)|Code\s+Availability|Funding|Supporting\s+Information|Supplementary\s+(?:Material|Information)|References?|Bibliography|Ethics(?:\s+Statement)?)\b.*$/im;
+
+/**
+ * Drop everything from a section file's first back-matter heading onward.
+ * Acknowledgements, author contributions, data/code availability and the
+ * reference heading are not main text, so a limit that checks the body
+ * should not see them — whether they live in their own file or trail after
+ * the discussion in one shared with it.
+ */
+export function stripBackMatter(text: string): string {
+  const match = BACK_MATTER_HEADING.exec(text);
+  return match ? text.slice(0, match.index) : text;
+}
+
+/**
+ * Drop section files a word count should never see, such as a reviewer-only
+ * note kept only so it lands in the anonymized build. Matched against the
+ * full path as it appears in `rev.yaml`/on the command line, or its basename.
+ */
+export function excludeFromWordCount(files: string[], exclude: string[] | undefined | null): string[] {
+  if (!exclude || exclude.length === 0) return files;
+  const names = new Set(exclude);
+  return files.filter(f => !names.has(f) && !names.has(path.basename(f)));
+}
+
 export interface WordLimitCount {
   /** The count checked against the limit: body plus whatever the profile counts. */
   wordCount: number;
@@ -516,7 +547,11 @@ export function countForWordLimit(
 ): WordLimitCount {
   const abstract = extractAbstract(texts.join('\n\n'));
   const abstractWords = abstract ? countWords(abstract) : 0;
-  const sum = (count: (text: string) => number) => texts.reduce((total, t) => total + count(t), 0);
+  // Back matter (acknowledgements, contributions, availability statements,
+  // references, ...) is stripped per file before any of the body parts are
+  // measured, so it never inflates a limit that covers the body alone.
+  const mainTexts = texts.map(stripBackMatter);
+  const sum = (count: (text: string) => number) => mainTexts.reduce((total, t) => total + count(t), 0);
   const tableCellWords = sum(countTableCellWords);
   const figureCaptionWords = sum(countFigureCaptionWords);
 
@@ -570,6 +605,20 @@ export function referenceListWarning(profile: JournalProfile, count: WordLimitCo
     `${profile.name} counts the reference list toward its word limit, and it could not be rendered ` +
     '(needs `bibliography:` in rev.yaml and pandoc on PATH), so the count below is short by its length'
   );
+}
+
+/**
+ * One-line breakdown of a word-limit count, for the headline error message —
+ * so an over-limit report shows what the total is made of, not just the
+ * total, and a part that looks wrong is visible without reading the table.
+ */
+export function wordLimitBreakdown(count: WordLimitCount): string {
+  const parts = [`body ${count.bodyWords}`];
+  if (count.counted.abstract) parts.push(`abstract ${count.abstractWords}`);
+  if (count.counted.figureCaptions) parts.push(`captions ${count.figureCaptionWords}`);
+  if (count.counted.tableCells) parts.push(`table cells ${count.tableCellWords}`);
+  if (count.counted.references && count.referenceWords !== null) parts.push(`references ${count.referenceWords}`);
+  return parts.join(' + ');
 }
 
 /** Table rows breaking a word-limit count into its parts, for CLI output. */
@@ -675,7 +724,7 @@ function validateTexts(
     const referenceWarning = referenceListWarning(profile, count);
     if (referenceWarning) warnings.push(referenceWarning);
     if (req.wordLimit.main && countedWords > req.wordLimit.main) {
-      errors.push(`Main text exceeds ${req.wordLimit.main} words (current: ${countedWords})`);
+      errors.push(`Main text exceeds ${req.wordLimit.main} words (current: ${countedWords} = ${wordLimitBreakdown(count)})`);
     }
     if (req.wordLimit.abstract && abstract && abstractWords > req.wordLimit.abstract) {
       errors.push(`Abstract exceeds ${req.wordLimit.abstract} words (current: ${abstractWords})`);

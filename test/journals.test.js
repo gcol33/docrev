@@ -9,6 +9,9 @@ import {
   getJournalProfile,
   validateManuscript,
   countForWordLimit,
+  stripBackMatter,
+  excludeFromWordCount,
+  wordLimitBreakdown,
   JOURNAL_PROFILES,
 } from '../lib/journals.js';
 
@@ -270,5 +273,44 @@ describe('countForWordLimit', () => {
     const count = countForWordLimit([text], getJournalProfile('nature').requirements.wordLimit);
     const stats = validateManuscript(text, 'nature').stats;
     assert.strictEqual(count.wordCount, stats.wordCount);
+  });
+
+  it('drops back matter from the body, whether it trails the discussion or fills its own file', () => {
+    const discussion = ['# Discussion', '', 'Five words end the discussion.', '', '# Acknowledgements', '', 'Thanks to everyone who helped with this.'].join('\n');
+    const backmatter = ['# Author contributions', '', 'GC did everything.', '', '# Data availability', '', 'Archived openly on Zenodo forever.'].join('\n');
+    const count = countForWordLimit([discussion, backmatter], { main: 100 });
+    // "Discussion" (the heading text) plus the five words of prose under it;
+    // the whole second file is back matter and contributes nothing.
+    assert.strictEqual(count.bodyWords, 6);
+  });
+
+  it('leaves a section with no back-matter heading untouched', () => {
+    assert.strictEqual(stripBackMatter('# Methods\n\nWe did the thing.'), '# Methods\n\nWe did the thing.');
+  });
+
+  it('does not truncate on the word "references" used in prose, only a References heading', () => {
+    const withNonHeading = '# Methods\n\nWe cite prior references here without a heading.';
+    assert.strictEqual(stripBackMatter(withNonHeading), withNonHeading);
+  });
+});
+
+describe('excludeFromWordCount', () => {
+  it('drops a file matched by exact path or by basename', () => {
+    const files = ['sections/intro.md', 'sections/peer_review.md', 'sections/methods.md'];
+    assert.deepStrictEqual(excludeFromWordCount(files, ['peer_review.md']), ['sections/intro.md', 'sections/methods.md']);
+    assert.deepStrictEqual(excludeFromWordCount(files, ['sections/peer_review.md']), ['sections/intro.md', 'sections/methods.md']);
+  });
+
+  it('returns the files unchanged when nothing is excluded', () => {
+    const files = ['a.md', 'b.md'];
+    assert.strictEqual(excludeFromWordCount(files, undefined), files);
+    assert.deepStrictEqual(excludeFromWordCount(files, []), files);
+  });
+});
+
+describe('wordLimitBreakdown', () => {
+  it('lists only the parts the profile counts', () => {
+    const count = countForWordLimit(['# Abstract', 'One two three.\n\n# Introduction\n\nFour five.'], { main: 100, includeFigureCaptions: false });
+    assert.strictEqual(wordLimitBreakdown(count), `body ${count.bodyWords} + abstract ${count.abstractWords}`);
   });
 });

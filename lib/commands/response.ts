@@ -118,7 +118,7 @@ export function register(program: Command): void {
     .option('-j, --journal <name>', 'Journal profile (e.g., nature, plos-one, science)')
     .option('--list', 'List available journal profiles')
     .action(async (files: string[] | undefined, options: ValidateOptions) => {
-      const { listJournals, validateProject, getJournalProfile, measureReferenceWords, wordLimitRows } = await import('../journals.js');
+      const { listJournals, validateProject, getJournalProfile, measureReferenceWords, wordLimitRows, excludeFromWordCount } = await import('../journals.js');
 
       if (options.list) {
         console.log(fmt.header('Available Journal Profiles'));
@@ -168,7 +168,8 @@ export function register(program: Command): void {
       const { loadConfig, findSections } = await import('../build.js');
       const config = loadConfig(process.cwd());
 
-      const mdFiles = files && files.length > 0 ? files : findSections('.', config.sections);
+      const allFiles = files && files.length > 0 ? files : findSections('.', config.sections);
+      const mdFiles = excludeFromWordCount(allFiles, config.wordCount?.exclude);
 
       if (mdFiles.length === 0) {
         console.error(fmt.status('error', 'No markdown files found'));

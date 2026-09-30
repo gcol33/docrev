@@ -115,6 +115,18 @@ export const revYamlSchema: Schema = {
       description: 'Ordered list of section files to include',
       items: { type: 'string', pattern: '.*\\.md$' },
     },
+    wordCount: {
+      type: 'object',
+      description: 'Word-count settings for `rev validate` and `rev word-count`',
+      properties: {
+        exclude: {
+          type: 'array',
+          description: 'Section files to leave out of every word count, matched by path or basename (e.g. a reviewer-only note kept only for the anonymized build)',
+          items: { type: 'string', pattern: '.*\\.md$' },
+        },
+      },
+      additionalProperties: false,
+    },
     bibliography: {
       type: 'string',
       description: 'Path to bibliography file (.bib)',

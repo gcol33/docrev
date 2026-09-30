@@ -292,7 +292,19 @@ rev validate -j nature           # Check against Nature requirements
 rev word-count -j ecology-letters  # Check the journal's word limit
 ```
 
-`validate` and `word-count -j` read the same files (the sections the build uses) and count the limit the same way: body prose, plus whatever the profile's `wordLimit` includes (see [Custom Profiles with Formatting](#custom-profiles-with-formatting)). Both print the parts, so a total that counts figure captions or the reference list shows where the words came from.
+`validate` and `word-count -j` read the same files (the sections the build uses) and count the limit the same way: body prose, plus whatever the profile's `wordLimit` includes (see [Custom Profiles with Formatting](#custom-profiles-with-formatting)). Both print the parts, so a total that counts figure captions or the reference list shows where the words came from. Over-limit errors state the same breakdown inline (`current: 8098 = body 7357 + abstract 343 + captions 398`), so a wrong number is visible without reading the table.
+
+Body prose stops at the manuscript's back matter: a section file is counted only up to its first Acknowledgements, Author Contributions, Competing/Conflict of Interest, Data/Code Availability, Funding, Supporting Information or References heading, whether that heading starts its own file or trails the discussion in a shared one.
+
+A section that should never be counted at all — a reviewer-only note kept only so it lands in the anonymized build, say — is dropped with `wordCount.exclude` in `rev.yaml`:
+
+```yaml
+wordCount:
+  exclude:
+    - peer_review.md
+```
+
+Entries match by exact section path or by basename. Excluded files are left out of `validate` and `word-count` entirely (word counts, section/figure/reference checks), not just the `main` total.
 
 Profiles include: nature, science, pnas, elife, cell, plos-one, ecology-letters, global-change-biology, etc.
 

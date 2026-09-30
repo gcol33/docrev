@@ -59,7 +59,8 @@ export function register(program: Command): void {
       } catch {
         // Not in a rev project, that's ok
       }
-      const sections = findSections('.', config.sections);
+      const { excludeFromWordCount } = await import('../journals.js');
+      const sections = excludeFromWordCount(findSections('.', config.sections), config.wordCount?.exclude);
 
       if (sections.length === 0) {
         console.error(chalk.red('No section files found. Run from a rev project directory.'));

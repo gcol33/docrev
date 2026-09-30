@@ -211,6 +211,13 @@ export interface BuildConfig {
    * values are appended last.
    */
   pandocArgs?: string[];
+  /**
+   * Files to leave out of every word count (`rev validate`, `rev word-count`),
+   * matched by exact section path or basename. For section files that never
+   * reach the published article, such as a reviewer-only note kept only so
+   * it lands in the anonymized build.
+   */
+  wordCount?: { exclude?: string[] };
   _configPath?: string | null;
 }
 
