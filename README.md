@@ -10,6 +10,14 @@ A CLI for writing documents in Markdown while collaborating with Word users.
 
 Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `rev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
 
+## Install
+
+```bash
+npm install -g docrev
+```
+
+Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), [LaTeX](#installing-dependencies) is also needed; simpler documents can build through pandoc alone with a non-LaTeX engine (e.g. `pdf.engine: typst` in `rev.yaml`).
+
 ## The Problem
 
 After a few rounds of feedback, the project directory looks like this:
@@ -35,14 +43,6 @@ docrev keeps the markdown as the canonical version, under git. The DOCX is rebui
 - **DOI tools**: validate, lookup, and auto-add references from DOIs
 - **21 journal styles**: Nature, Science, PNAS, and more
 - **Version control friendly**: plain text source, full git history
-
-## Install
-
-```bash
-npm install -g docrev
-```
-
-Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), [LaTeX](#installing-dependencies) is also needed; simpler documents can build through pandoc alone with a non-LaTeX engine (e.g. `pdf.engine: typst` in `rev.yaml`).
 
 ## Quick Example
 
