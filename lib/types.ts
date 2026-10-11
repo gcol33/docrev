@@ -679,4 +679,6 @@ export interface JourneyFinding {
   line?: number;
   entryIds?: string[];
   arcId?: string;
+  /** Reason from the matching `- accept:` line; set when the author has overruled the finding. */
+  accepted?: string;
 }

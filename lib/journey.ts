@@ -549,5 +549,78 @@ export function journeyCheck(
     checkCollection('eq', registry.equations);
   }
 
-  return findings;
+  return applyAccepts(findings, journey);
+}
+
+/** Display label of each finding kind, also accepted as the check name in an `accept:` line. */
+export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
+  'missing-marker': 'no marker',
+  'missing-entry': 'no journey entry',
+  'orphan-marker': 'no matching paragraph',
+  'order-mismatch': 'out of order',
+  'multi-sentence-job': 'job not one sentence',
+  'orphan-entry': 'no arc',
+  'unclaimed-arc': 'arc never made',
+  'needs-violation': 'introduced too early',
+  'unresolved-evidence': 'unresolved evidence',
+  'todo-evidence': 'TODO evidence',
+  'near-duplicate': 'near-duplicate',
+  'unlisted-float': 'float has no entry',
+};
+
+// `<check> [@p:<id>] ["<words>"]: <reason>`
+const ACCEPT_LINE = /^(.+?)(?:\s+@p:(\S+))?(?:\s+"([^"]*)")?\s*:\s*(.*)$/;
+
+interface AcceptRule {
+  check: string;
+  paragraph: string | null;
+  words: string | null;
+  reason: string;
+}
+
+function parseAccept(value: string): AcceptRule | null {
+  const m = value.match(ACCEPT_LINE);
+  if (!m) return null;
+  return { check: (m[1] || '').trim().toLowerCase(), paragraph: m[2] || null, words: m[3] || null, reason: (m[4] || '').trim() };
+}
+
+/**
+ * Mark each finding the author has overruled with an `- accept:` line on a
+ * journey entry it concerns: an entry it names, or for an arc-level finding
+ * the first body entry serving that arc. The check name is the finding's kind
+ * or its label; an `@p:<id>` restricts the line to that entry and quoted words
+ * to findings whose message contains them.
+ */
+function applyAccepts(findings: JourneyFinding[], journey: JourneyDoc): JourneyFinding[] {
+  const firstBodyEntryOfArc = new Map<string, JourneyEntry>();
+  for (const entry of journey.entries) {
+    if (isFrontMatter(entry.section)) continue;
+    for (const arc of entry.arcs) {
+      if (!firstBodyEntryOfArc.has(arc)) firstBodyEntryOfArc.set(arc, entry);
+    }
+  }
+  const entryById = new Map(journey.entries.map((e) => [e.id, e]));
+
+  return findings.map((finding) => {
+    const concerned = new Set<JourneyEntry>();
+    for (const id of finding.entryIds ?? []) {
+      const entry = entryById.get(id);
+      if (entry) concerned.add(entry);
+    }
+    if (finding.arcId) {
+      const entry = firstBodyEntryOfArc.get(finding.arcId);
+      if (entry) concerned.add(entry);
+    }
+    const names = new Set([finding.kind, FINDING_LABEL[finding.kind].toLowerCase()]);
+    for (const entry of concerned) {
+      for (const value of entry.accepts) {
+        const rule = parseAccept(value);
+        if (!rule || !names.has(rule.check)) continue;
+        if (rule.paragraph && rule.paragraph !== entry.id) continue;
+        if (rule.words && !finding.message.includes(rule.words)) continue;
+        return { ...finding, accepted: rule.reason };
+      }
+    }
+    return finding;
+  });
 }

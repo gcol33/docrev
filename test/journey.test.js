@@ -358,6 +358,30 @@ describe('journeyCheck', () => {
     assert.ok(journeyCheck(reversedBlocks, { title: '', entries: reversed }, { story }).some((f) => f.kind === 'needs-violation'));
   });
 
+  it('marks a finding overruled by an accept line on the entry it concerns', () => {
+    const story = {
+      title: '', claim: '', audience: '',
+      arcs: [
+        { id: 'S1', title: 'A', question: '', answer: '', evidence: '', limits: '', needs: [], line: 1 },
+        { id: 'S2', title: 'B', question: '', answer: '', evidence: '', limits: '', needs: ['S1'], line: 2 },
+      ],
+      terms: [], constraints: [], open: [],
+    };
+    const blocks = [makeBlock({ markerId: 'a' }), makeBlock({ markerId: 'b' })];
+    const check = (accepts) => journeyCheck(
+      blocks,
+      { title: '', entries: [makeEntry({ id: 'a', arcs: ['S2'], accepts }), makeEntry({ id: 'b', arcs: ['S1'] })] },
+      { story }
+    ).find((f) => f.kind === 'needs-violation');
+
+    assert.strictEqual(check([]).accepted, undefined);
+    assert.strictEqual(check(['needs-violation: the introduction previews S2']).accepted, 'the introduction previews S2');
+    assert.strictEqual(check(['introduced too early: by label']).accepted, 'by label');
+    assert.strictEqual(check(['needs-violation "needs \\"S9\\"": other words']).accepted, undefined);
+    assert.strictEqual(check(['needs-violation @p:b: other entry']).accepted, undefined);
+    assert.strictEqual(check(['undelivered: another check']).accepted, undefined);
+  });
+
   it('does not flag needs order when satisfied', () => {
     const story = {
       title: '', claim: '', audience: '',

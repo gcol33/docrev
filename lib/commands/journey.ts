@@ -27,6 +27,7 @@ import {
   assignParagraphIds,
   scaffoldJourneyEntries,
   serializeJourney,
+  FINDING_LABEL,
 } from '../journey.js';
 import { parseManuscriptBlocks } from '../paragraph-markers.js';
 import type { JourneyEntry, JourneyFinding, ManuscriptBlock, SidecarParseError } from '../types.js';
@@ -99,24 +100,15 @@ function printParseErrors(errors: SidecarParseError[]): void {
   }
 }
 
-const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
-  'missing-marker': 'no marker',
-  'missing-entry': 'no journey entry',
-  'orphan-marker': 'no matching paragraph',
-  'order-mismatch': 'out of order',
-  'multi-sentence-job': 'job not one sentence',
-  'orphan-entry': 'no arc',
-  'unclaimed-arc': 'arc never made',
-  'needs-violation': 'introduced too early',
-  'unresolved-evidence': 'unresolved evidence',
-  'todo-evidence': 'TODO evidence',
-  'near-duplicate': 'near-duplicate',
-  'unlisted-float': 'float has no entry',
-};
-
 function printFindings(findings: JourneyFinding[]): void {
   for (const finding of findings) {
     console.log(`  ${chalk.yellow('⚠')} ${chalk.dim(`[${FINDING_LABEL[finding.kind]}]`)} ${finding.message}`);
+  }
+}
+
+function printAccepted(findings: JourneyFinding[]): void {
+  for (const finding of findings) {
+    console.log(chalk.dim(`  ✓ [${FINDING_LABEL[finding.kind]}, accepted] ${finding.message}: ${finding.accepted}`));
   }
 }
 
@@ -263,12 +255,15 @@ export function register(program: Command): void {
 
       const blocks = collectManuscriptBlocks(dir, sections);
       const registry = buildRegistry(dir, sections);
-      const findings = journeyCheck(blocks, journeyDoc, { story, registry });
+      const allFindings = journeyCheck(blocks, journeyDoc, { story, registry });
+      const findings = allFindings.filter((f) => !f.accepted);
+      const accepted = allFindings.filter((f) => f.accepted);
 
       if (jsonMode) {
         jsonOutput({
           errors: parseErrors,
           findings,
+          accepted,
           summary: { blocks: blocks.length, entries: journeyDoc.entries.length, arcs: story?.arcs.length ?? 0 },
         });
         return;
@@ -289,6 +284,10 @@ export function register(program: Command): void {
         printFindings(findings);
         console.log();
         console.log(chalk.dim(`${findings.length} finding(s) — structure decisions made visible, not errors.`));
+      }
+      if (accepted.length > 0) {
+        console.log();
+        printAccepted(accepted);
       }
 
       if (parseErrors.length > 0) process.exit(1);

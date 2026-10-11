@@ -523,7 +523,7 @@ export function register(program: Command): void {
           parseManuscriptBlocks(fs.readFileSync(f, 'utf-8'), f, path.basename(f, '.md'))
         );
         const registry = buildRegistry('.', existingSections);
-        const findings = journeyCheck(blocks, journeyDoc, { story, registry });
+        const findings = journeyCheck(blocks, journeyDoc, { story, registry }).filter((f) => !f.accepted);
 
         if (journeyParseErrors.length > 0) {
           for (const err of journeyParseErrors) {
