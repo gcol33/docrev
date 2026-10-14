@@ -599,6 +599,8 @@ export interface StoryArc {
   limits: string;
   /** Arc IDs this arc's first journey entry must come after. */
   needs: string[];
+  /** PNAS notation: this arc is one the Significance statement carries. */
+  significance: boolean;
   line: number;
 }
 
@@ -615,6 +617,8 @@ export interface StoryDoc {
   problem: string;
   /** The paper's challenge in one sentence: "to learn X, we did Y". */
   question: string;
+  /** PNAS notation: the reader of the Significance statement, if narrower than `audience`. */
+  significanceAudience: string;
   arcs: StoryArc[];
   terms: StoryTerm[];
   constraints: string[];
@@ -670,7 +674,9 @@ export type JourneyFindingKind =
   | 'unresolved-evidence'
   | 'todo-evidence'
   | 'near-duplicate'
-  | 'unlisted-float';
+  | 'unlisted-float'
+  | 'significance-drift'
+  | 'si-only-evidence';
 
 export interface JourneyFinding {
   kind: JourneyFindingKind;

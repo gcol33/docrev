@@ -499,6 +499,51 @@ export function journeyCheck(
     }
   }
 
+  // 5b. PNAS notation (gcol33/docrev#20): `sig.*` journey entries must claim
+  // exactly the arcs story.md marks `significance: yes`, no more, no less.
+  if (story) {
+    const sigEntries = journey.entries.filter((e) => e.id.startsWith('sig.'));
+    const claimedBySig = new Set(sigEntries.flatMap((e) => e.arcs));
+    const markedSignificant = story.arcs.filter((a) => a.significance);
+    for (const arc of markedSignificant) {
+      if (!claimedBySig.has(arc.id)) {
+        findings.push({
+          kind: 'significance-drift',
+          message: `Arc "${arc.id} ${arc.title}" is marked significance: yes but no sig.* journey entry claims it`,
+          arcId: arc.id,
+        });
+      }
+    }
+    const markedIds = new Set(markedSignificant.map((a) => a.id));
+    for (const entry of sigEntries) {
+      for (const claimedArc of entry.arcs) {
+        if (arcIds.has(claimedArc) && !markedIds.has(claimedArc)) {
+          findings.push({
+            kind: 'significance-drift',
+            message: `"${entry.id}" (line ${entry.line}) claims arc "${claimedArc}", which story.md does not mark significance: yes`,
+            line: entry.line,
+            entryIds: [entry.id],
+            arcId: claimedArc,
+          });
+        }
+      }
+    }
+
+    // 5c. PNAS notation: an arc whose evidence lists only SI items can't
+    // carry the main text, which must stand without the SI.
+    for (const arc of story.arcs) {
+      const items = arc.evidence.split(';').map((item) => item.trim()).filter(Boolean);
+      if (items.length > 0 && items.every((item) => /^SI\s+Appendix\b/i.test(item))) {
+        findings.push({
+          kind: 'si-only-evidence',
+          message: `Arc "${arc.id}" evidence is only SI Appendix items: ${arc.evidence}`,
+          line: arc.line,
+          arcId: arc.id,
+        });
+      }
+    }
+  }
+
   // 6. Duplicate report: near-identical job/leaves across sections.
   const DUPLICATE_THRESHOLD = 0.75;
   for (let i = 0; i < journey.entries.length; i++) {
@@ -566,6 +611,8 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
   'todo-evidence': 'TODO evidence',
   'near-duplicate': 'near-duplicate',
   'unlisted-float': 'float has no entry',
+  'significance-drift': 'significance drift',
+  'si-only-evidence': 'SI-only evidence',
 };
 
 // `<check> [@p:<id>] ["<words>"]: <reason>`

@@ -801,3 +801,60 @@ describe('story problem and question', () => {
     assert.match(doc.question, /^To learn which/);
   });
 });
+
+// ============================================================================
+// PNAS sidecar notation (gcol33/docrev#20)
+// ============================================================================
+
+describe('story.md PNAS notation', () => {
+  it('parses the Significance audience section', () => {
+    const { doc, errors } = parseStory('## Significance audience\nAn undergraduate-educated scientist outside the field.\n');
+    assert.deepStrictEqual(errors, []);
+    assert.match(doc.significanceAudience, /^An undergraduate-educated scientist/);
+  });
+
+  it('parses the significance arc field', () => {
+    const { doc, errors } = parseStory('## Arcs\n\n### S1 Stake\n- question: q\n- significance: yes\n\n### S2 Other\n- question: q\n');
+    assert.deepStrictEqual(errors, []);
+    assert.strictEqual(doc.arcs[0].significance, true);
+    assert.strictEqual(doc.arcs[1].significance, false);
+  });
+});
+
+describe('journeyCheck PNAS notation', () => {
+  function makeStory(arcs) {
+    return { title: '', claim: '', audience: '', problem: '', question: '', significanceAudience: '', arcs, terms: [], constraints: [], open: [] };
+  }
+
+  it('flags an arc marked significance: yes with no sig.* entry', () => {
+    const story = makeStory([{ id: 'S1', title: 'Stake', question: '', answer: '', evidence: '', limits: '', needs: [], significance: true, line: 1 }]);
+    const findings = journeyCheck([], { title: '', entries: [] }, { story });
+    assert.ok(findings.some((f) => f.kind === 'significance-drift' && f.arcId === 'S1' && /no sig\.\* journey entry/.test(f.message)));
+  });
+
+  it('flags a sig.* entry claiming an arc not marked significance: yes', () => {
+    const story = makeStory([{ id: 'S1', title: 'Stake', question: '', answer: '', evidence: '', limits: '', needs: [], significance: false, line: 1 }]);
+    const entry = makeEntry({ id: 'sig.stake', arcs: ['S1'] });
+    const findings = journeyCheck([], { title: '', entries: [entry] }, { story });
+    assert.ok(findings.some((f) => f.kind === 'significance-drift' && f.entryIds.includes('sig.stake')));
+  });
+
+  it('is clean when sig.* entries exactly match significance: yes arcs', () => {
+    const story = makeStory([{ id: 'S1', title: 'Stake', question: '', answer: '', evidence: '', limits: '', needs: [], significance: true, line: 1 }]);
+    const entry = makeEntry({ id: 'sig.stake', arcs: ['S1'] });
+    const findings = journeyCheck([], { title: '', entries: [entry] }, { story });
+    assert.ok(!findings.some((f) => f.kind === 'significance-drift'));
+  });
+
+  it('flags an arc whose evidence is only SI Appendix items', () => {
+    const story = makeStory([{ id: 'S1', title: 'Stake', question: '', answer: '', evidence: 'SI Appendix, Fig. S4', limits: '', needs: [], significance: false, line: 1 }]);
+    const findings = journeyCheck([], { title: '', entries: [] }, { story });
+    assert.ok(findings.some((f) => f.kind === 'si-only-evidence' && f.arcId === 'S1'));
+  });
+
+  it('does not flag an arc whose evidence has a main-text item alongside an SI item', () => {
+    const story = makeStory([{ id: 'S1', title: 'Stake', question: '', answer: '', evidence: '@fig:emerging; SI Appendix, Fig. S4', limits: '', needs: [], significance: false, line: 1 }]);
+    const findings = journeyCheck([], { title: '', entries: [] }, { story });
+    assert.ok(!findings.some((f) => f.kind === 'si-only-evidence'));
+  });
+});

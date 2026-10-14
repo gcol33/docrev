@@ -45,11 +45,22 @@ const H2_HEADING = /^##\s+(.+?)\s*$/;
 /** Sections whose body is running prose, joined into one string. */
 const PROSE_SECTIONS = ['claim', 'audience', 'problem', 'question'] as const;
 type ProseSection = (typeof PROSE_SECTIONS)[number];
-type StorySection = 'none' | ProseSection | 'arcs' | 'terms' | 'constraints' | 'open';
-const SECTION_NAMES = new Set<string>([...PROSE_SECTIONS, 'arcs', 'terms', 'constraints', 'open']);
+
+/** PNAS notation (gcol33/docrev#20): the Significance statement's own, narrower audience. */
+const SIGNIFICANCE_AUDIENCE_SECTION = 'significance audience';
+
+type StorySection = 'none' | ProseSection | typeof SIGNIFICANCE_AUDIENCE_SECTION | 'arcs' | 'terms' | 'constraints' | 'open';
+const SECTION_NAMES = new Set<string>([
+  ...PROSE_SECTIONS,
+  SIGNIFICANCE_AUDIENCE_SECTION,
+  'arcs',
+  'terms',
+  'constraints',
+  'open',
+]);
 
 function emptyArc(id: string, title: string, line: number): StoryArc {
-  return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], line };
+  return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], significance: false, line };
 }
 
 /**
@@ -66,6 +77,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     audience: '',
     problem: '',
     question: '',
+    significanceAudience: '',
     arcs: [],
     terms: [],
     constraints: [],
@@ -75,6 +87,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
   let section: StorySection = 'none';
   let currentArc: StoryArc | null = null;
   const prose: Record<ProseSection, string[]> = { claim: [], audience: [], problem: [], question: [] };
+  const significanceAudience: string[] = [];
   const seenArcIds = new Set<string>();
 
   const closeArc = () => {
@@ -151,6 +164,9 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
         case 'needs':
           currentArc.needs = value.split(/[\s,]+/).filter(Boolean);
           break;
+        case 'significance':
+          currentArc.significance = /^yes$/i.test(value);
+          break;
         default:
           errors.push({ file, line: lineNo, message: `Unknown arc field "${field[1]}"` });
       }
@@ -159,6 +175,11 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
 
     if ((PROSE_SECTIONS as readonly string[]).includes(section)) {
       if (line) prose[section as ProseSection].push(line);
+      continue;
+    }
+
+    if (section === SIGNIFICANCE_AUDIENCE_SECTION) {
+      if (line) significanceAudience.push(line);
       continue;
     }
 
@@ -192,6 +213,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
 
   closeArc();
   for (const key of PROSE_SECTIONS) doc[key] = prose[key].join(' ').trim();
+  doc.significanceAudience = significanceAudience.join(' ').trim();
 
   return { doc, errors };
 }
