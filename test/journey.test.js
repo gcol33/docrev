@@ -708,6 +708,40 @@ describe('rev journey init', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('reads the rev.yaml sections list, not a stale sections.yaml import map (gcol33/docrev#18)', () => {
+    // sections.yaml is the Word-import header/alias map and lists bare names;
+    // rev.yaml's `sections:` lists the real build paths. journey must follow
+    // rev.yaml, the same source `rev build` uses, not sections.yaml.
+    const dir = project({
+      'rev.yaml': 'title: T\nsections:\n  - src/clean/abstract.md\n',
+      'sections.yaml': 'version: 1\nsections:\n  abstract.md:\n    header: Abstract\n',
+    });
+    fs.mkdirSync(path.join(dir, 'src', 'clean'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'src', 'clean', 'abstract.md'), '# Abstract\n\nFirst paragraph.\n');
+    try {
+      assert.strictEqual(rev(dir).code, 0);
+      const content = fs.readFileSync(path.join(dir, 'src', 'clean', 'abstract.md'), 'utf-8');
+      assert.match(content, /<!-- @p:/);
+      const journey = fs.readFileSync(path.join(dir, 'journey.md'), 'utf-8');
+      assert.match(journey, /### abs\./);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('errors on a rev.yaml section file that does not exist, instead of silently reading zero blocks', () => {
+    const dir = project({
+      'rev.yaml': 'title: T\nsections:\n  - src/clean/abstract.md\n',
+    });
+    try {
+      const { code, out } = rev(dir);
+      assert.strictEqual(code, 1);
+      assert.match(out, /Section file not found: src[\\/]clean[\\/]abstract\.md/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('list items with their own markers', () => {

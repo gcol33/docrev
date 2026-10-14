@@ -522,10 +522,15 @@ export function loadConfig(directory: string): BuildConfig {
  * Find section files in directory
  * @param directory - Project directory path
  * @param configSections - Sections from rev.yaml (optional)
+ * @param onMissing - Called for each listed section file (from rev.yaml or sections.yaml) that does not exist on disk
  * @returns Ordered list of section file names
  * @throws {TypeError} If directory is not a string
  */
-export function findSections(directory: string, configSections: string[] = []): string[] {
+export function findSections(
+  directory: string,
+  configSections: string[] = [],
+  onMissing?: (file: string) => void
+): string[] {
   if (typeof directory !== 'string') {
     throw new TypeError(`directory must be a string, got ${typeof directory}`);
   }
@@ -539,6 +544,7 @@ export function findSections(directory: string, configSections: string[] = []): 
         sections.push(section);
       } else {
         console.warn(`Warning: Section file not found: ${section}`);
+        onMissing?.(section);
       }
     }
     return sections;
@@ -550,10 +556,16 @@ export function findSections(directory: string, configSections: string[] = []): 
     try {
       const sectionsConfig = YAML.parse(fs.readFileSync(sectionsYamlPath, 'utf-8'));
       if (sectionsConfig.sections) {
-        return Object.entries(sectionsConfig.sections)
+        const listed = Object.entries(sectionsConfig.sections)
           .sort((a: [string, any], b: [string, any]) => (a[1].order ?? 999) - (b[1].order ?? 999))
-          .map(([file]) => file)
-          .filter((f) => fs.existsSync(path.join(directory, f)));
+          .map(([file]) => file as string);
+        const existing = listed.filter((f) => fs.existsSync(path.join(directory, f)));
+        if (onMissing) {
+          for (const f of listed) {
+            if (!fs.existsSync(path.join(directory, f))) onMissing(f);
+          }
+        }
+        return existing;
       }
     } catch (e) {
       if (process.env.DEBUG) {

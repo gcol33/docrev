@@ -16,8 +16,7 @@ import {
   jsonMode,
   jsonOutput,
   loadBuildConfig,
-  resolveSectionsConfig,
-  getOrderedSections,
+  findSections,
   buildRegistry,
 } from './context.js';
 import { parseStory } from '../story.js';
@@ -30,6 +29,7 @@ import {
   FINDING_LABEL,
 } from '../journey.js';
 import { parseManuscriptBlocks } from '../paragraph-markers.js';
+import type { BuildConfig } from '../build.js';
 import type { JourneyEntry, JourneyFinding, ManuscriptBlock, SidecarParseError } from '../types.js';
 
 interface JourneyOptions {
@@ -52,12 +52,26 @@ function collectManuscriptBlocks(dir: string, sections: string[]): ManuscriptBlo
   return blocks;
 }
 
-function resolveSections(dir: string): string[] {
-  const resolved = resolveSectionsConfig(dir);
-  if (resolved) return getOrderedSections(resolved.config);
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.md') && !['paper.md', 'README.md', 'CLAUDE.md'].includes(f));
+/**
+ * Resolve the section files journey commands read, in the same order and from
+ * the same source `rev build` uses (rev.yaml `sections:`, then `sections.yaml`,
+ * then a directory scan) — see gcol33/docrev#18. `sections.yaml` is the
+ * Word-import header/alias map; it is a fallback here, never the primary
+ * source, so journey never reads bare import-map names when rev.yaml lists
+ * the real build paths.
+ */
+function resolveSections(dir: string, config: BuildConfig): { sections: string[]; missing: string[] } {
+  const missing: string[] = [];
+  const sections = findSections(dir, config.sections, (file) => missing.push(file));
+  return { sections, missing };
+}
+
+function missingSectionErrors(missing: string[]): SidecarParseError[] {
+  return missing.map((file) => ({
+    file,
+    line: 0,
+    message: `Section file not found: ${file} (listed in rev.yaml/sections.yaml but missing on disk)`,
+  }));
 }
 
 function sidecarPath(dir: string, config: { story?: string; journey?: string }, kind: 'story' | 'journey'): string {
@@ -131,9 +145,16 @@ export function register(program: Command): void {
       }
 
       const config = loadBuildConfig(dir);
-      const sections = resolveSections(dir);
+      const { sections, missing } = resolveSections(dir, config);
       if (sections.length === 0) {
         console.error(chalk.red('No section files found.'));
+        process.exit(1);
+      }
+      if (missing.length > 0) {
+        console.log(fmt.header('Journey init'));
+        console.log();
+        printParseErrors(missingSectionErrors(missing));
+        console.error(chalk.red(`\n${missing.length} section file(s) listed but missing on disk. Fix the list, then rerun.`));
         process.exit(1);
       }
 
@@ -225,11 +246,11 @@ export function register(program: Command): void {
       }
 
       const config = loadBuildConfig(dir);
-      const sections = resolveSections(dir);
+      const { sections, missing } = resolveSections(dir, config);
       const storyFile = sidecarPath(dir, config, 'story');
       const journeyFile = sidecarPath(dir, config, 'journey');
 
-      const parseErrors: SidecarParseError[] = [];
+      const parseErrors: SidecarParseError[] = [...missingSectionErrors(missing)];
       const story = fs.existsSync(storyFile)
         ? (() => {
             const { doc, errors } = parseStory(fs.readFileSync(storyFile, 'utf-8'), path.basename(storyFile));
