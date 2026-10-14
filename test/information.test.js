@@ -113,9 +113,26 @@ describe('informationCheck', () => {
     assert.ok(check(info).findings.some((f) => f.kind === 'unresolved-anchor'));
   });
 
-  it('marks undefined and synonym-drift as blocking, use-before-define not', () => {
+  it('blocks undefined terms, avoided wording and use before definition', () => {
     assert.ok(BLOCKING.has('undefined') && BLOCKING.has('synonym-drift'));
-    assert.ok(!BLOCKING.has('use-before-define'));
+    assert.ok(BLOCKING.has('use-before-define'));
+  });
+});
+
+describe('definition order gate', () => {
+  it('blocks an early use and clears it when the definition precedes it', () => {
+    const early = check().findings.filter((f) => f.kind === 'use-before-define' && BLOCKING.has(f.kind) && !f.accepted);
+    assert.deepStrictEqual(early.map((f) => f.paragraph), ['intro.gap']);
+    const definedFirst = INFORMATION.replace('- defined: @p:intro.area', '- defined: @p:intro.gap');
+    assert.ok(!check(definedFirst).findings.some((f) => f.kind === 'use-before-define' && BLOCKING.has(f.kind) && !f.accepted));
+  });
+
+  it('honours an explicit paragraph-specific acceptance of early use', () => {
+    const info = INFORMATION.replace('- avoid: plot size', '- avoid: plot size\n- accept: use-before-define @p:intro.gap: author-approved preview');
+    const early = check(info).findings.filter((f) => f.kind === 'use-before-define');
+    assert.strictEqual(early.length, 1);
+    assert.ok(early[0].accepted);
+    assert.ok(!early.some((f) => BLOCKING.has(f.kind) && !f.accepted));
   });
 });
 

@@ -669,11 +669,11 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
 };
 
 /**
- * Findings a manuscript should not go out with: a term the text never defines, an avoided
+ * Findings a manuscript should not go out with: an undefined or prematurely used term, an avoided
  * wording back in the text, and a paragraph settled with a co-author that changed since.
  * `rev check` fails on them unless an `- accept:` line overrules them.
  */
-export const BLOCKING: ReadonlySet<JourneyFinding['kind']> = new Set(['undefined', 'synonym-drift', 'negotiated-changed']);
+export const BLOCKING: ReadonlySet<JourneyFinding['kind']> = new Set(['undefined', 'use-before-define', 'synonym-drift', 'negotiated-changed']);
 
 /** Short hash of a paragraph's text, whitespace collapsed: what a `negotiated` line pins. */
 export function paragraphHash(text: string): string {
