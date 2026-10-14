@@ -216,8 +216,8 @@ with `docx.translateRawFigures: false` in `rev.yaml`.
 
 ## Story & Journey Sidecars
 
-Two optional files sit beside a manuscript for its whole life and are never
-part of a build:
+Up to three optional files sit beside a manuscript for its whole life and are
+never part of a build:
 
 - **`story.md`** — the argument: a claim, an audience, and a few arcs. Each
   arc has a `question`, `answer`, `evidence` (a `@fig:`/`@tbl:`/`@eq:` label
@@ -226,7 +226,17 @@ part of a build:
 - **`journey.md`** — one entry per paragraph (and per figure, table,
   equation, or code block, at its reading position): a stable ID, the arc(s)
   it serves, its `job` in one sentence, and what the reader `leaves`
-  understanding.
+  understanding. Front matter (before the first level-1 heading), back
+  matter (acknowledgements, availability statements, references,
+  supplementary material) and bold-label lines (`**Keywords:** ...`) need
+  no entry unless given a marker.
+- **`supplement/journey.md`** — the supporting information's journey: one
+  entry per table, figure, appendix or unnumbered section (`### tbl.key  [arcs]`),
+  in print order, with its section `file` (under `supplement/sections/`),
+  `tier` (evidence, reference, development, archive) and the `@p:`
+  paragraphs it `supports`. SI text cites items by key
+  (`Table [[tbl:key]]`); position sets the labels (S1, S2, ... per kind,
+  A1, A2, ... for archive items).
 
 A paragraph's ID lives in the section file as `<!-- @p:id -->` on the line
 before it — a semantic slug (`intro.memory`), not a position, so moving the
@@ -244,13 +254,17 @@ rev build journey                    # journey.md → docx for co-authors
 `rev journey check` also runs as step 4 of `rev check` when `journey.md`
 exists. Findings (missing markers, orphan paragraphs, unclaimed arcs, arcs
 introduced before what they `need`, unresolved evidence, near-duplicate
-paragraphs, floats with no entry) are structure decisions made visible, not
-hard errors — the user decides which to act on. For drafting `story.md`/
+paragraphs, floats with no entry; for the supplement: section files missing
+or not placed, keys or literal `Table S<n>` labels that resolve to no item,
+the manuscript citing an archive item, evidence supporting no paragraph, a
+stale `supplement/numbers.json` label lock) are structure decisions made
+visible, not hard errors — the user decides which to act on. For drafting `story.md`/
 `journey.md` with the user, or reading a manuscript into them, use the
 `paper-sidecars` skill if available.
 
-Config: `story:`/`journey:` keys in `rev.yaml` override the default
-`story.md`/`journey.md` filenames.
+Config: `story:`/`journey:`/`supplementJourney:` keys in `rev.yaml` override
+the default `story.md`/`journey.md`/`supplement/journey.md` filenames, and
+`supplementSections:` the `supplement/sections` directory.
 
 ## Template Variables
 

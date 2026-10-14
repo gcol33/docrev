@@ -685,7 +685,56 @@ export type JourneyFindingKind =
   | 'near-duplicate'
   | 'unlisted-float'
   | 'significance-drift'
-  | 'si-only-evidence';
+  | 'si-only-evidence'
+  | 'supplement-missing-file'
+  | 'supplement-unplaced-file'
+  | 'supplement-missing-key'
+  | 'supplement-unknown-key'
+  | 'supplement-unresolved-label'
+  | 'supplement-archive-cited'
+  | 'supplement-dangling-support'
+  | 'supplement-no-support'
+  | 'supplement-unknown-arc'
+  | 'supplement-stale-lock';
+
+/** Kind prefix of a supplement item: table, figure, appendix, or an unnumbered section. */
+export type SupplementItemKind = 'tbl' | 'fig' | 'app' | 'sec';
+
+/**
+ * Why a supplement item is there. `evidence` backs a manuscript claim,
+ * `reference` holds what a reader needs to reproduce the work, `development`
+ * records model development the manuscript points to, `archive` goes to the
+ * linked development archive (A labels).
+ */
+export type SupplementTier = 'evidence' | 'reference' | 'development' | 'archive';
+
+/** One `### <kind>.<name>  [arcs]` entry of supplement/journey.md. */
+export interface SupplementItem {
+  /** As written in the heading: `tbl.transfer-paired`. */
+  id: string;
+  /** As cited in text: `tbl:transfer-paired`. */
+  key: string;
+  kind: SupplementItemKind;
+  /** The `## ` part of the document the item sits in. */
+  part: string;
+  arcs: string[];
+  title: string;
+  /** The section file that prints the item, relative to the supplement sections directory. */
+  file: string;
+  tier: SupplementTier | null;
+  /** Manuscript paragraph IDs (without `@p:`) whose claim the item backs. */
+  supports: string[];
+  configuration: string;
+  status: string;
+  source: string;
+  accepts: string[];
+  line: number;
+}
+
+export interface SupplementJourneyDoc {
+  title: string;
+  items: SupplementItem[];
+}
 
 export interface JourneyFinding {
   kind: JourneyFindingKind;

@@ -35,9 +35,9 @@ import type {
 } from './types.js';
 
 const H1_TITLE = /^#\s+Journey:\s*(.*)$/i;
-const H2_HEADING = /^##\s+(.+?)\s*$/;
-const ENTRY_HEADING = /^###\s+(\S+)\s*(?:\[([^\]]*)\])?\s*(?:\(([^)]*)\))?\s*$/;
-const FIELD_LINE = /^-\s*([A-Za-z][\w-]*)\s*:\s*(.*)$/;
+export const H2_HEADING = /^##\s+(.+?)\s*$/;
+export const ENTRY_HEADING = /^###\s+(\S+)\s*(?:\[([^\]]*)\])?\s*(?:\(([^)]*)\))?\s*$/;
+export const FIELD_LINE = /^-\s*([A-Za-z][\w-]*)\s*:\s*(.*)$/;
 
 const VALID_TYPES = new Set<JourneyEntryType>(['paragraph', 'figure', 'table', 'equation', 'code']);
 
@@ -605,7 +605,7 @@ export function journeyCheck(
     checkCollection('eq', registry.equations);
   }
 
-  return applyAccepts(findings, journey);
+  return applyAccepts(findings, journey.entries, firstBodyEntryOfArc(journey));
 }
 
 /** Display label of each finding kind, also accepted as the check name in an `accept:` line. */
@@ -624,6 +624,16 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
   'unlisted-float': 'float has no entry',
   'significance-drift': 'significance drift',
   'si-only-evidence': 'SI-only evidence',
+  'supplement-missing-file': 'section file missing',
+  'supplement-unplaced-file': 'section file not placed',
+  'supplement-missing-key': 'key not in its file',
+  'supplement-unknown-key': 'unknown item key',
+  'supplement-unresolved-label': 'no such supplement item',
+  'supplement-archive-cited': 'archive item cited',
+  'supplement-dangling-support': 'unknown paragraph',
+  'supplement-no-support': 'evidence backs nothing',
+  'supplement-unknown-arc': 'unknown arc',
+  'supplement-stale-lock': 'stale numbering lock',
 };
 
 // `<check> [@p:<id>] ["<words>"]: <reason>`
@@ -642,31 +652,34 @@ function parseAccept(value: string): AcceptRule | null {
   return { check: (m[1] || '').trim().toLowerCase(), paragraph: m[2] || null, words: m[3] || null, reason: (m[4] || '').trim() };
 }
 
+/** A sidecar entry that can overrule findings with `- accept:` lines. */
+export interface AcceptHolder {
+  id: string;
+  accepts: string[];
+}
+
 /**
- * Mark each finding the author has overruled with an `- accept:` line on a
- * journey entry it concerns: an entry it names, or for an arc-level finding
- * the first body entry serving that arc. The check name is the finding's kind
- * or its label; an `@p:<id>` restricts the line to that entry and quoted words
- * to findings whose message contains them.
+ * Mark each finding the author has overruled with an `- accept:` line on an
+ * entry it concerns: an entry it names, or for an arc-level finding the entry
+ * `entryOfArc` gives for that arc. The check name is the finding's kind or its
+ * label; an `@p:<id>` restricts the line to that entry and quoted words to
+ * findings whose message contains them.
  */
-function applyAccepts(findings: JourneyFinding[], journey: JourneyDoc): JourneyFinding[] {
-  const firstBodyEntryOfArc = new Map<string, JourneyEntry>();
-  for (const entry of journey.entries) {
-    if (isFrontMatter(entry.section)) continue;
-    for (const arc of entry.arcs) {
-      if (!firstBodyEntryOfArc.has(arc)) firstBodyEntryOfArc.set(arc, entry);
-    }
-  }
-  const entryById = new Map(journey.entries.map((e) => [e.id, e]));
+export function applyAccepts<E extends AcceptHolder>(
+  findings: JourneyFinding[],
+  entries: E[],
+  entryOfArc: Map<string, E> = new Map()
+): JourneyFinding[] {
+  const entryById = new Map(entries.map((e) => [e.id, e]));
 
   return findings.map((finding) => {
-    const concerned = new Set<JourneyEntry>();
+    const concerned = new Set<E>();
     for (const id of finding.entryIds ?? []) {
       const entry = entryById.get(id);
       if (entry) concerned.add(entry);
     }
     if (finding.arcId) {
-      const entry = firstBodyEntryOfArc.get(finding.arcId);
+      const entry = entryOfArc.get(finding.arcId);
       if (entry) concerned.add(entry);
     }
     const names = new Set([finding.kind, FINDING_LABEL[finding.kind].toLowerCase()]);
@@ -681,4 +694,16 @@ function applyAccepts(findings: JourneyFinding[], journey: JourneyDoc): JourneyF
     }
     return finding;
   });
+}
+
+/** The first body entry serving each arc: where an arc-level finding is accepted. */
+function firstBodyEntryOfArc(journey: JourneyDoc): Map<string, JourneyEntry> {
+  const out = new Map<string, JourneyEntry>();
+  for (const entry of journey.entries) {
+    if (isFrontMatter(entry.section)) continue;
+    for (const arc of entry.arcs) {
+      if (!out.has(arc)) out.set(arc, entry);
+    }
+  }
+  return out;
 }

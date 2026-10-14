@@ -17,18 +17,16 @@ import {
   jsonOutput,
   loadBuildConfig,
   findSections,
-  buildRegistry,
 } from './context.js';
-import { parseStory } from '../story.js';
 import {
   parseJourney,
-  journeyCheck,
   assignParagraphIds,
   scaffoldJourneyEntries,
   serializeJourney,
   FINDING_LABEL,
 } from '../journey.js';
 import { parseManuscript } from '../paragraph-markers.js';
+import { checkJourneyProject } from '../journey-project.js';
 import type { BuildConfig } from '../build.js';
 import type { JourneyEntry, JourneyFinding, ManuscriptBlock, SidecarParseError } from '../types.js';
 
@@ -226,7 +224,7 @@ export function register(program: Command): void {
 
   journey
     .command('check')
-    .description('Check the manuscript against story.md and journey.md')
+    .description('Check the manuscript against story.md, journey.md and supplement/journey.md')
     .option('-d, --dir <directory>', 'Project directory', '.')
     .action((options: JourneyOptions) => {
       const dir = path.resolve(options.dir);
@@ -237,46 +235,35 @@ export function register(program: Command): void {
 
       const config = loadBuildConfig(dir);
       const { sections, missing } = resolveSections(dir, config);
-      const storyFile = sidecarPath(dir, config, 'story');
-      const journeyFile = sidecarPath(dir, config, 'journey');
+      const result = checkJourneyProject(dir, config, sections);
+      const parseErrors = [...missingSectionErrors(missing), ...result.parseErrors];
 
-      const parseErrors: SidecarParseError[] = [...missingSectionErrors(missing)];
-      const story = fs.existsSync(storyFile)
-        ? (() => {
-            const { doc, errors } = parseStory(fs.readFileSync(storyFile, 'utf-8'), path.basename(storyFile));
-            parseErrors.push(...errors);
-            return doc;
-          })()
-        : null;
-
-      if (!fs.existsSync(journeyFile)) {
+      if (!result.journey && !result.supplement) {
+        const journeyFile = sidecarPath(dir, config, 'journey');
         if (jsonMode) {
-          jsonOutput({ error: `No journey file found at ${path.relative(dir, journeyFile)}`, findings: [], errors: [] });
+          jsonOutput({ error: `No journey file found at ${path.relative(dir, journeyFile)}`, findings: [], errors: parseErrors });
           return;
         }
         console.log(fmt.status('warning', `No journey file found at ${path.relative(dir, journeyFile)}. Run "rev journey init" first.`));
         return;
       }
 
-      const { doc: journeyDoc, errors: journeyErrors } = parseJourney(
-        fs.readFileSync(journeyFile, 'utf-8'),
-        path.basename(journeyFile)
-      );
-      parseErrors.push(...journeyErrors);
-
-      const blocks = collectManuscriptBlocks(dir, sections);
-      const registry = buildRegistry(dir, sections);
-      const allFindings = journeyCheck(blocks, journeyDoc, { story, registry });
-      const findings = allFindings.filter((f) => !f.accepted);
-      const accepted = allFindings.filter((f) => f.accepted);
+      const split = (findings: JourneyFinding[]) => ({
+        findings: findings.filter((f) => !f.accepted),
+        accepted: findings.filter((f) => f.accepted),
+      });
+      const main = split(result.journey?.findings ?? []);
+      const supplement = result.supplement ? { ...split(result.supplement.findings), file: result.supplement.file, summary: result.supplement.summary } : null;
 
       if (jsonMode) {
         jsonOutput({
           errors: parseErrors,
-          findings,
-          accepted,
-          summary: { blocks: blocks.length, entries: journeyDoc.entries.length, arcs: story?.arcs.length ?? 0 },
+          findings: main.findings,
+          accepted: main.accepted,
+          summary: result.journey?.summary ?? null,
+          supplement,
         });
+        if (parseErrors.length > 0) process.exit(1);
         return;
       }
 
@@ -289,16 +276,25 @@ export function register(program: Command): void {
         console.log();
       }
 
-      if (findings.length === 0) {
-        console.log(chalk.green('✓ No findings'));
-      } else {
-        printFindings(findings);
-        console.log();
-        console.log(chalk.dim(`${findings.length} finding(s) — structure decisions made visible, not errors.`));
-      }
-      if (accepted.length > 0) {
-        console.log();
-        printAccepted(accepted);
+      const report = (part: { findings: JourneyFinding[]; accepted: JourneyFinding[] }) => {
+        if (part.findings.length === 0) {
+          console.log(chalk.green('✓ No findings'));
+        } else {
+          printFindings(part.findings);
+          console.log();
+          console.log(chalk.dim(`${part.findings.length} finding(s) — structure decisions made visible, not errors.`));
+        }
+        if (part.accepted.length > 0) {
+          console.log();
+          printAccepted(part.accepted);
+        }
+      };
+
+      if (result.journey) report(main);
+      if (supplement) {
+        if (result.journey) console.log();
+        console.log(chalk.bold(`Supplement (${supplement.file}, ${supplement.summary.items} item(s))`));
+        report(supplement);
       }
 
       if (parseErrors.length > 0) process.exit(1);

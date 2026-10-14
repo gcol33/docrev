@@ -193,6 +193,18 @@ export interface BuildConfig {
    */
   journey?: string;
   /**
+   * Filename of the supplement journey: one entry per supporting-information
+   * table, figure, appendix or section, in print order. Default
+   * 'supplement/journey.md'. A `numbers.json` beside it is read as the
+   * supplement build's label lock. Never included in a build.
+   */
+  supplementJourney?: string;
+  /**
+   * Directory holding the supporting information's section files, which the
+   * supplement journey's `file:` fields name. Default 'supplement/sections'.
+   */
+  supplementSections?: string;
+  /**
    * Directory (relative to the project) where final outputs land. Created on
    * demand. Set to null/empty to keep outputs alongside paper.md (legacy
    * behavior).
@@ -370,6 +382,8 @@ export const DEFAULT_CONFIG: BuildConfig = {
   macros: [],
   story: 'story.md',
   journey: 'journey.md',
+  supplementJourney: 'supplement/journey.md',
+  supplementSections: 'supplement/sections',
   // Final outputs land here (created on demand). Set to null or '' to keep
   // outputs in the project root.
   outputDir: 'output',

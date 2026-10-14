@@ -11,11 +11,8 @@ import {
   fmt,
   loadBuildConfig,
   getComments,
-  buildRegistry,
 } from './context.js';
-import { parseStory } from '../story.js';
-import { parseJourney, journeyCheck } from '../journey.js';
-import { parseManuscript } from '../paragraph-markers.js';
+import { checkJourneyProject } from '../journey-project.js';
 
 // Use the actual BuildConfig from build.ts which allows string|Author[]
 type BuildConfig = ReturnType<typeof loadBuildConfig>;
@@ -508,19 +505,11 @@ export function register(program: Command): void {
 
       // 4. Run journey check (gcol33/docrev#12), only if the project has one
       console.log(chalk.cyan.bold('4. Journey check...'));
-      const journeyFile = (config as unknown as { journey?: string }).journey || 'journey.md';
-      if (fs.existsSync(journeyFile)) {
-        const storyFile = (config as unknown as { story?: string }).story || 'story.md';
-        const story = fs.existsSync(storyFile) ? parseStory(fs.readFileSync(storyFile, 'utf-8'), storyFile).doc : null;
-        const { doc: journeyDoc, errors: journeyParseErrors } = parseJourney(
-          fs.readFileSync(journeyFile, 'utf-8'),
-          journeyFile
-        );
-
-        const existingSections = sections.filter((f) => fs.existsSync(f));
-        const blocks = parseManuscript(existingSections.map((f) => ({ file: f, content: fs.readFileSync(f, 'utf-8') })));
-        const registry = buildRegistry('.', existingSections);
-        const findings = journeyCheck(blocks, journeyDoc, { story, registry }).filter((f) => !f.accepted);
+      const journeyResult = checkJourneyProject('.', config, sections);
+      if (journeyResult.journey || journeyResult.supplement) {
+        const journeyParseErrors = journeyResult.parseErrors;
+        const findings = [...(journeyResult.journey?.findings ?? []), ...(journeyResult.supplement?.findings ?? [])]
+          .filter((f) => !f.accepted);
 
         if (journeyParseErrors.length > 0) {
           for (const err of journeyParseErrors) {
