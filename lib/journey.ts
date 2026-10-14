@@ -233,7 +233,16 @@ export function firstSentence(text: string): string {
 }
 
 /**
- * Assign a fresh `<sectionSlug>.<type><n>` ID to every block missing one,
+ * True for a block of the argument. Front matter, back matter and bold-label
+ * metadata lines carry no argument, so they get a marker and a journey entry
+ * only when the author anchors them by hand (gcol33/docrev#21).
+ */
+export function needsMarker(block: ManuscriptBlock): boolean {
+  return (block.matter ?? 'body') === 'body';
+}
+
+/**
+ * Assign a fresh `<sectionSlug>.<type><n>` ID to every argument block missing one,
  * unique against `existingIds` (every marker already used anywhere in the
  * project). IDs are a scaffold, not a final name — `journey init`'s job is
  * to make every paragraph addressable, not to name it well; the semantic
@@ -252,6 +261,7 @@ export function assignParagraphIds(
       used.add(block.markerId);
       return block;
     }
+    if (!needsMarker(block)) return block;
     const slug = sectionSlug(block.section);
     const abbr = TYPE_ABBR[block.blockType];
     const counterKey = `${slug}.${abbr}`;
@@ -348,6 +358,7 @@ export function journeyCheck(
   //    order matches.
   for (const block of blocks) {
     if (!block.markerId) {
+      if (!needsMarker(block)) continue;
       findings.push({
         kind: 'missing-marker',
         message: `${block.blockType} at ${block.file}:${block.line} has no <!-- @p:id --> marker`,

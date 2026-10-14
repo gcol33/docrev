@@ -21,6 +21,7 @@ import {
 import {
   classifyBlock,
   parseManuscriptBlocks,
+  parseManuscript,
   stripParagraphMarkers,
   reattachParagraphMarkers,
 } from '../lib/paragraph-markers.js';
@@ -271,6 +272,37 @@ An unmarked second paragraph.
     assert.strictEqual(blocks[0].markerId, 'intro.here');
   });
 
+  it('tags front matter, back matter and metadata lines across files (gcol33/docrev#21)', () => {
+    const blocks = parseManuscript([
+      { file: 'src/pnas/header.md', content: '**Classification:** Biological Sciences; Ecology\n' },
+      { file: 'abstract.md', content: '# Abstract\n\nAlien floras broaden.\n\n**Keywords:** niche breadth, alien plants\n' },
+      { file: 'methods.md', content: '# Methods\n\n## Data availability\n\nData are on Zenodo.\n\n## Models\n\nWe fit a GLMM.\n' },
+      { file: 'end.md', content: '# Acknowledgments\n\nWe thank the plot owners.\n\n## Funding\n\nFWF grant.\n\n# References\n\n::: {#refs}\n:::\n' },
+    ]);
+    const matter = Object.fromEntries(blocks.map((b) => [b.text.split('\n')[0], b.matter]));
+    assert.deepStrictEqual(matter, {
+      '**Classification:** Biological Sciences; Ecology': 'front',
+      'Alien floras broaden.': 'body',
+      '**Keywords:** niche breadth, alien plants': 'metadata',
+      'Data are on Zenodo.': 'back',
+      'We fit a GLMM.': 'body',
+      'We thank the plot owners.': 'back',
+      'FWF grant.': 'back',
+      '::: {#refs}': 'back',
+    });
+    assert.strictEqual(blocks[0].section, 'header');
+  });
+
+  it('has no front matter when the manuscript has no level-1 heading', () => {
+    const blocks = parseManuscript([{ file: 'a.md', content: 'First paragraph.\n\n## Results\n\nSecond.\n' }]);
+    assert.ok(blocks.every((b) => b.matter === 'body'));
+  });
+
+  it('keeps a bold lead-in paragraph without a colon label in the body', () => {
+    const blocks = parseManuscript([{ file: 'a.md', content: '**Study area.** We sampled plots.\n' }]);
+    assert.strictEqual(blocks[0].matter, 'body');
+  });
+
   it('skips a multi-line HTML-comment-only block', () => {
     const md = 'A real paragraph.\n\n<!--\nA long note\nspanning lines.\n-->\n';
     const blocks = parseManuscriptBlocks(md, 'x.md', 'x');
@@ -296,6 +328,15 @@ describe('journeyCheck', () => {
   it('flags a paragraph with no marker', () => {
     const findings = journeyCheck([makeBlock({ markerId: null })], { title: '', entries: [] });
     assert.ok(findings.some((f) => f.kind === 'missing-marker'));
+  });
+
+  it('does not ask front/back matter or metadata for a marker, but checks an anchored one (gcol33/docrev#21)', () => {
+    const unmarked = ['front', 'back', 'metadata'].map((matter) => makeBlock({ markerId: null, matter }));
+    assert.deepStrictEqual(journeyCheck(unmarked, { title: '', entries: [] }), []);
+    const anchored = journeyCheck([makeBlock({ markerId: 'back.data', matter: 'back' })], { title: '', entries: [] });
+    assert.ok(anchored.some((f) => f.kind === 'missing-entry'));
+    const { newIds } = assignParagraphIds(unmarked, []);
+    assert.deepStrictEqual(newIds, []);
   });
 
   it('flags a marked paragraph with no journey entry', () => {

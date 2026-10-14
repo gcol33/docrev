@@ -28,7 +28,7 @@ import {
   serializeJourney,
   FINDING_LABEL,
 } from '../journey.js';
-import { parseManuscriptBlocks } from '../paragraph-markers.js';
+import { parseManuscript } from '../paragraph-markers.js';
 import type { BuildConfig } from '../build.js';
 import type { JourneyEntry, JourneyFinding, ManuscriptBlock, SidecarParseError } from '../types.js';
 
@@ -41,15 +41,11 @@ interface JourneyOptions {
  * blocks, in reading order across the whole project.
  */
 function collectManuscriptBlocks(dir: string, sections: string[]): ManuscriptBlock[] {
-  const blocks: ManuscriptBlock[] = [];
-  for (const file of sections) {
-    const filePath = path.join(dir, file);
-    if (!fs.existsSync(filePath)) continue;
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const fallback = path.basename(file, '.md');
-    blocks.push(...parseManuscriptBlocks(content, file, fallback));
-  }
-  return blocks;
+  return parseManuscript(
+    sections
+      .filter((file) => fs.existsSync(path.join(dir, file)))
+      .map((file) => ({ file, content: fs.readFileSync(path.join(dir, file), 'utf-8') }))
+  );
 }
 
 /**
@@ -171,15 +167,9 @@ export function register(program: Command): void {
         existingById = new Map(doc.entries.map((e) => [e.id, e]));
       }
 
+      const allBlocks = collectManuscriptBlocks(dir, sections);
       const perFile = new Map<string, ManuscriptBlock[]>();
-      for (const file of sections) {
-        const filePath = path.join(dir, file);
-        if (!fs.existsSync(filePath)) continue;
-        const content = fs.readFileSync(filePath, 'utf-8');
-        perFile.set(file, parseManuscriptBlocks(content, file, path.basename(file, '.md')));
-      }
-
-      const allBlocks = sections.flatMap((f) => perFile.get(f) || []);
+      for (const block of allBlocks) perFile.set(block.file, [...(perFile.get(block.file) || []), block]);
       const existingIds = new Set<string>([...collectExistingMarkerIds(allBlocks), ...existingById.keys()]);
       const { updated, newIds } = assignParagraphIds(allBlocks, existingIds);
 

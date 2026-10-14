@@ -660,7 +660,16 @@ export interface ManuscriptBlock {
   line: number;
   /** An item of a list whose items carry their own markers (`1. <!-- @p:id -->`). */
   listItem?: boolean;
+  /** Where the block sits; anything but `body` needs a marker only if the author gives it one. */
+  matter?: ManuscriptMatter;
 }
+
+/**
+ * `front`: before the first level-1 heading. `back`: under a back-matter heading
+ * (acknowledgements, data availability, references, ...). `metadata`: a block of
+ * bold-label lines such as `**Keywords:** ...`. `body`: the argument.
+ */
+export type ManuscriptMatter = 'front' | 'body' | 'back' | 'metadata';
 
 export type JourneyFindingKind =
   | 'missing-marker'

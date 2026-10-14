@@ -8,7 +8,6 @@ import type { Command } from 'commander';
 import {
   chalk,
   fs,
-  path,
   fmt,
   loadBuildConfig,
   getComments,
@@ -16,7 +15,7 @@ import {
 } from './context.js';
 import { parseStory } from '../story.js';
 import { parseJourney, journeyCheck } from '../journey.js';
-import { parseManuscriptBlocks } from '../paragraph-markers.js';
+import { parseManuscript } from '../paragraph-markers.js';
 
 // Use the actual BuildConfig from build.ts which allows string|Author[]
 type BuildConfig = ReturnType<typeof loadBuildConfig>;
@@ -519,9 +518,7 @@ export function register(program: Command): void {
         );
 
         const existingSections = sections.filter((f) => fs.existsSync(f));
-        const blocks = existingSections.flatMap((f) =>
-          parseManuscriptBlocks(fs.readFileSync(f, 'utf-8'), f, path.basename(f, '.md'))
-        );
+        const blocks = parseManuscript(existingSections.map((f) => ({ file: f, content: fs.readFileSync(f, 'utf-8') })));
         const registry = buildRegistry('.', existingSections);
         const findings = journeyCheck(blocks, journeyDoc, { story, registry }).filter((f) => !f.accepted);
 

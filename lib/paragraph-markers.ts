@@ -22,7 +22,8 @@
 
 import { stripAnnotations } from './annotations.js';
 import { wordOverlapSimilarity } from './anchor-match.js';
-import type { JourneyEntryType, ManuscriptBlock } from './types.js';
+import * as path from 'path';
+import type { JourneyEntryType, ManuscriptBlock, ManuscriptMatter } from './types.js';
 
 /** Matches a marker line on its own, e.g. `<!-- @p:intro.memory -->`. */
 export const PARAGRAPH_MARKER_LINE = /^<!--\s*@p:(\S+?)\s*-->\s*$/;
@@ -131,15 +132,66 @@ export function classifyBlock(text: string): JourneyEntryType {
 }
 
 /**
+ * Headings that open back matter: text outside the argument (declarations,
+ * reference list, supplement). The same set the paper-sidecars reader pass
+ * (`paper-live-preview/scripts/live_preview.py`, `BACKMATTER`) uses to end the
+ * main text, so the two tools agree on where the argument stops.
+ */
+export const BACK_MATTER_HEADING = new RegExp(
+  'acknowledg|author contributions|conflict of interest|competing interest|' +
+    'data availability|code availability|funding|references|bibliography|' +
+    'supporting information|supplementary',
+  'i'
+);
+
+/** A bold-label metadata line: `**Keywords:** ...`, `**Classification**: ...`. */
+const METADATA_LINE = /^\*\*[^*\n]+?(?::\*\*|\*\*:)(?:\s|$)/;
+
+/**
+ * Where the reader of a manuscript is as its files are parsed in build order:
+ * still before the first level-1 heading (front matter), and the level of the
+ * back-matter heading the current text sits under, if any.
+ */
+export interface ManuscriptMatterState {
+  inFrontMatter: boolean;
+  backMatterLevel: number | null;
+}
+
+function headingOf(block: RawBlock): { level: number; title: string } | null {
+  const lines = block.text.split('\n');
+  if (lines.length !== 1) return null;
+  const heading = (lines[0] ?? '').match(HEADING_LINE);
+  if (!heading) return null;
+  return { level: (heading[1] ?? '').length, title: (heading[2] || '').replace(/\s*\{[^}]*\}\s*$/, '').trim() };
+}
+
+/** Update `state` for a heading. Back matter runs until the next heading at its own level or above. */
+function enterHeading(state: ManuscriptMatterState, level: number, title: string): void {
+  if (level === 1) state.inFrontMatter = false;
+  if (state.backMatterLevel !== null && level > state.backMatterLevel) return;
+  state.backMatterLevel = BACK_MATTER_HEADING.test(title) ? level : null;
+}
+
+function matterOf(state: ManuscriptMatterState, text: string): ManuscriptMatter {
+  if (state.inFrontMatter) return 'front';
+  if (state.backMatterLevel !== null) return 'back';
+  const lines = text.split('\n').filter((l) => l.trim() !== '');
+  if (lines.length > 0 && lines.every((l) => METADATA_LINE.test(l.trim()))) return 'metadata';
+  return 'body';
+}
+
+/**
  * Segment a section file's content into the ordered paragraph/float units
  * journey.md entries correspond to. Headings update the running `section`
  * name (used to group entries under `## <Section>` in journey.md) but never
- * produce a block of their own.
+ * produce a block of their own. `state` carries front/back-matter position
+ * across the files of one manuscript; see {@link parseManuscript}.
  */
 export function parseManuscriptBlocks(
   content: string,
   file: string,
-  fallbackSection: string
+  fallbackSection: string,
+  state: ManuscriptMatterState = { inFrontMatter: false, backMatterLevel: null }
 ): ManuscriptBlock[] {
   const raw = splitIntoRawBlocks(content);
   const result: ManuscriptBlock[] = [];
@@ -149,18 +201,18 @@ export function parseManuscriptBlocks(
     const lines = block.text.split('\n');
     const first = lines[0] ?? '';
 
-    if (lines.length === 1) {
-      const heading = first.match(HEADING_LINE);
-      if (heading) {
-        section = (heading[2] || '').replace(/\s*\{[^}]*\}\s*$/, '').trim();
-        continue;
-      }
+    const heading = headingOf(block);
+    if (heading) {
+      section = heading.title;
+      enterHeading(state, heading.level, heading.title);
+      continue;
     }
 
     if (lines.some((l) => LIST_ITEM_MARKER.test(l))) {
       for (const item of listItemBlocks(block)) {
         if (!item.text) continue;
-        result.push({ file, section, blockType: 'paragraph', markerId: item.markerId, text: item.text, line: item.line, listItem: true });
+        result.push({ file, section, blockType: 'paragraph', markerId: item.markerId, text: item.text, line: item.line,
+                      listItem: true, matter: matterOf(state, item.text) });
       }
       continue;
     }
@@ -176,7 +228,8 @@ export function parseManuscriptBlocks(
     const text = bodyLines.join('\n').trim();
     if (!text || isCommentOnly(text)) continue;
 
-    const unit: ManuscriptBlock = { file, section, blockType: classifyBlock(text), markerId, text, line: block.startLineIdx + 1 };
+    const unit: ManuscriptBlock = { file, section, blockType: classifyBlock(text), markerId, text, line: block.startLineIdx + 1,
+                                    matter: matterOf(state, text) };
     const prev = result[result.length - 1];
     if (prev && prev.section === section && continuesSentence(prev, unit)) {
       prev.text = `${prev.text}\n\n${text}`;
@@ -186,6 +239,22 @@ export function parseManuscriptBlocks(
   }
 
   return result;
+}
+
+/**
+ * Segment a whole manuscript (its section files in build order) into journey
+ * units, tagging each with where it sits: front matter is everything before
+ * the first level-1 heading (none when the manuscript has no level-1 heading
+ * at all), back matter everything under a {@link BACK_MATTER_HEADING}.
+ */
+export function parseManuscript(sources: Array<{ file: string; content: string }>): ManuscriptBlock[] {
+  const hasTopHeading = sources.some(({ content }) =>
+    splitIntoRawBlocks(content).some((b) => headingOf(b)?.level === 1)
+  );
+  const state: ManuscriptMatterState = { inFrontMatter: hasTopHeading, backMatterLevel: null };
+  return sources.flatMap(({ file, content }) =>
+    parseManuscriptBlocks(content, file, path.basename(file, '.md'), state)
+  );
 }
 
 const SENTENCE_END = /[.!?]["'’”)\]]*$/;
