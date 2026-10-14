@@ -328,3 +328,41 @@ describe('CLI: rev help', () => {
     assert.ok(stdout.includes('{++') || stdout.includes('CriticMarkup') || stdout.length > 0);
   });
 });
+
+describe('rev lint / rev check cross-references', () => {
+  const body = 'Body text long enough that the section is not reported as empty by lint.\n\n';
+
+  function writeProject(files) {
+    fs.writeFileSync(
+      path.join(tempDir, 'rev.yaml'),
+      `title: Test\nsections:\n${Object.keys(files).map(f => `  - ${f}`).join('\n')}\n`
+    );
+    for (const [name, content] of Object.entries(files)) {
+      fs.writeFileSync(path.join(tempDir, name), body + content);
+    }
+  }
+
+  for (const command of ['lint', 'check']) {
+    it(`${command} accepts an anchor with attributes`, () => {
+      writeProject({ 'a.md': 'See @fig:demo.\n\n![Example](image.png){#fig:demo width="100%"}\n' });
+      const result = runCli(command, { expectError: true });
+      assert.ok(!result.stdout.includes('Broken reference'), result.stdout);
+    });
+
+    it(`${command} resolves a reference to an anchor in another section`, () => {
+      writeProject({
+        'a.md': 'See @fig:demo.\n',
+        'b.md': '![Example](image.png){#fig:demo}\n',
+      });
+      const result = runCli(command, { expectError: true });
+      assert.ok(!result.stdout.includes('Broken reference'), result.stdout);
+    });
+
+    it(`${command} fails on a genuinely missing label`, () => {
+      writeProject({ 'a.md': 'See @fig:missing.\n' });
+      const result = runCli(command, { expectError: true });
+      assert.ok(result.stdout.includes('Broken reference: @fig:missing'), result.stdout);
+      assert.notStrictEqual(result.code, 0);
+    });
+  }
+});

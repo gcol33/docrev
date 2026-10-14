@@ -15,6 +15,7 @@ import {
   resolveForwardRefs,
   convertHardcodedRefs,
   resolveSupplementaryRefs,
+  checkCrossRefs,
 } from '../lib/crossref.js';
 
 // Helper to extract number strings from parsed refs
@@ -608,5 +609,44 @@ describe('convertHardcodedRefs', () => {
 
     assert.strictEqual(converted, '@fig:chart @fig:map shows something else.');
     assert.strictEqual(conversions.length, 1);
+  });
+});
+
+describe('checkCrossRefs', () => {
+  it('strips Pandoc attributes from anchor labels', () => {
+    const result = checkCrossRefs([{
+      file: 'a.md',
+      content: 'See @fig:demo.\n\n![Example](image.png){#fig:demo width="100%"}\n',
+    }]);
+    assert.deepStrictEqual(result.broken, []);
+    assert.deepStrictEqual(result.unreferencedFigures, []);
+  });
+
+  it('finds an id that is not the first attribute', () => {
+    const result = checkCrossRefs([{
+      file: 'a.md',
+      content: '# Methods {.unnumbered #sec:methods}\n\nAs in @sec:methods.\n',
+    }]);
+    assert.deepStrictEqual(result.broken, []);
+  });
+
+  it('resolves references across sources', () => {
+    const result = checkCrossRefs([
+      { file: 'a.md', content: 'See @fig:demo and @Tbl:summary.\n' },
+      { file: 'b.md', content: '![Example](image.png){#fig:demo}\n\n: Summary {#tbl:summary}\n' },
+    ]);
+    assert.deepStrictEqual(result.broken, []);
+  });
+
+  it('reports genuinely missing labels with their file', () => {
+    const result = checkCrossRefs([
+      { file: 'a.md', content: 'See @fig:missing and @eq:energy.\n' },
+      { file: 'b.md', content: '![Unused](u.png){#fig:unused}\n' },
+    ]);
+    assert.deepStrictEqual(result.broken, [
+      { file: 'a.md', key: 'fig:missing' },
+      { file: 'a.md', key: 'eq:energy' },
+    ]);
+    assert.deepStrictEqual(result.unreferencedFigures, [{ file: 'b.md', key: 'fig:unused' }]);
   });
 });

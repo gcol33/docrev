@@ -126,14 +126,34 @@ const EXCLUSION_PATTERNS = [
 ];
 
 /**
+ * Anchor pattern for the given label types. The id may sit anywhere inside a
+ * Pandoc attribute block and is cut at the first whitespace, so
+ * `{#fig:demo width="100%"}` and `{.unnumbered #sec:intro}` yield the bare label.
+ */
+function anchorPattern(types: string): RegExp {
+  return new RegExp(`\\{(?:[^{}#]*\\s)?#(${types}):([a-zA-Z0-9_-]+)`, 'gi');
+}
+
+/**
+ * Pattern for @-style references of the given label types, including the
+ * capitalised pandoc-crossref form `@Fig:label`.
+ */
+function refPattern(types: string): RegExp {
+  return new RegExp(`@(${types}):([a-zA-Z0-9_-]+)`, 'gi');
+}
+
+/**
  * Pattern for extracting anchors from markdown: {#fig:label}, {#tbl:label}
  */
-const ANCHOR_PATTERN = /\{#(fig|tbl|eq):([a-zA-Z0-9_-]+)/gi;
+const ANCHOR_PATTERN = anchorPattern('fig|tbl|eq');
 
 /**
  * Pattern for @-style references: @fig:label, @tbl:label
  */
-const REF_PATTERN = /@(fig|tbl|eq):([a-zA-Z0-9_-]+)/gi;
+const REF_PATTERN = refPattern('fig|tbl|eq');
+
+/** Label types that `rev lint` and `rev check` resolve. */
+const CHECKED_REF_TYPES = 'fig|tbl|eq|sec';
 
 // =============================================================================
 // Public API
@@ -542,6 +562,50 @@ export function detectDynamicRefs(text: string): DynamicRef[] {
   }
 
   return refs;
+}
+
+export interface CrossRefSource {
+  file: string;
+  content: string;
+}
+
+export interface CrossRefLocation {
+  file: string;
+  /** Normalised key, e.g. `fig:demo` */
+  key: string;
+}
+
+export interface CrossRefCheck {
+  /** References whose label has no anchor in any source */
+  broken: CrossRefLocation[];
+  /** Figure anchors that no source references */
+  unreferencedFigures: CrossRefLocation[];
+}
+
+/**
+ * Resolve @fig/@tbl/@eq/@sec references against the anchors of all sources
+ * together, so a reference in one section may point at an anchor in another.
+ */
+export function checkCrossRefs(sources: CrossRefSource[]): CrossRefCheck {
+  const anchors: CrossRefLocation[] = [];
+  const refs: CrossRefLocation[] = [];
+  const collect = (pattern: RegExp, into: CrossRefLocation[], file: string, content: string): void => {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(content)) !== null) {
+      into.push({ file, key: `${match[1]!.toLowerCase()}:${match[2]}` });
+    }
+  };
+  for (const { file, content } of sources) {
+    collect(anchorPattern(CHECKED_REF_TYPES), anchors, file, content);
+    collect(refPattern(CHECKED_REF_TYPES), refs, file, content);
+  }
+
+  const anchorKeys = new Set(anchors.map((a) => a.key));
+  const refKeys = new Set(refs.map((r) => r.key));
+  return {
+    broken: refs.filter((r) => !anchorKeys.has(r.key)),
+    unreferencedFigures: anchors.filter((a) => a.key.startsWith('fig:') && !refKeys.has(a.key)),
+  };
 }
 
 /**

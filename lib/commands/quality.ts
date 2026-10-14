@@ -14,6 +14,7 @@ import {
 } from './context.js';
 import { checkJourneyProject } from '../journey-project.js';
 import { BLOCKING, FINDING_LABEL } from '../journey.js';
+import { checkCrossRefs, type CrossRefSource } from '../crossref.js';
 
 // Use the actual BuildConfig from build.ts which allows string|Author[]
 type BuildConfig = ReturnType<typeof loadBuildConfig>;
@@ -84,6 +85,27 @@ interface FullBuildResult {
 }
 
 /**
+ * Section files of the project: the configured sections, or every top-level
+ * markdown file except README.md, CLAUDE.md and the built paper.md.
+ */
+function resolveSectionFiles(config: Partial<BuildConfig>): string[] {
+  const sections = config.sections || [];
+  if (sections.length > 0) return sections;
+  return fs.readdirSync('.').filter(f =>
+    f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
+  );
+}
+
+/**
+ * Read the existing section files as cross-reference sources.
+ */
+function readSources(sections: string[]): CrossRefSource[] {
+  return sections
+    .filter(file => fs.existsSync(file))
+    .map(file => ({ file, content: fs.readFileSync(file, 'utf-8') }));
+}
+
+/**
  * Register quality commands with the program
  */
 export function register(program: Command): void {
@@ -102,62 +124,33 @@ export function register(program: Command): void {
       } catch {
         // Not in a rev project, that's ok
       }
-      let sections = config.sections || [];
-
-      if (sections.length === 0) {
-        sections = fs.readdirSync('.').filter(f =>
-          f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
-        );
-      }
+      const sections = resolveSectionFiles(config);
 
       const issues: LintIssue[] = [];
       const warnings: LintIssue[] = [];
 
-      // Collect all content
-      let allText = '';
-      for (const section of sections) {
-        if (fs.existsSync(section)) {
-          allText += fs.readFileSync(section, 'utf-8') + '\n';
-        }
+      const sources = readSources(sections);
+      const allText = sources.map(s => s.content + '\n').join('');
+
+      // Check 1 and 2: broken cross-references and orphaned figures
+      const crossRefs = checkCrossRefs(sources);
+      for (const ref of crossRefs.broken) {
+        issues.push({
+          type: 'error',
+          message: `Broken reference: @${ref.key}`,
+          fix: null,
+          file: ref.file,
+        });
+      }
+      for (const anchor of crossRefs.unreferencedFigures) {
+        warnings.push({
+          type: 'warning',
+          message: `Unreferenced figure: {#${anchor.key}}`,
+          file: anchor.file,
+        });
       }
 
-      // Check 1: Broken cross-references
-      const figAnchors = new Set<string>();
-      const tblAnchors = new Set<string>();
-      const eqAnchors = new Set<string>();
-
-      const anchorPattern = /\{#(fig|tbl|eq):([^}]+)\}/g;
       let match: RegExpExecArray | null;
-      while ((match = anchorPattern.exec(allText)) !== null) {
-        if (match[1] === 'fig') figAnchors.add(match[2]);
-        else if (match[1] === 'tbl') tblAnchors.add(match[2]);
-        else if (match[1] === 'eq') eqAnchors.add(match[2]);
-      }
-
-      const refPattern = /@(fig|tbl|eq):([a-zA-Z0-9_-]+)/g;
-      while ((match = refPattern.exec(allText)) !== null) {
-        const type = match[1];
-        const label = match[2];
-        const anchors = type === 'fig' ? figAnchors : type === 'tbl' ? tblAnchors : eqAnchors;
-
-        if (!anchors.has(label)) {
-          issues.push({
-            type: 'error',
-            message: `Broken reference: @${type}:${label}`,
-            fix: null
-          });
-        }
-      }
-
-      // Check 2: Orphaned figures
-      for (const label of figAnchors) {
-        if (!allText.includes(`@fig:${label}`)) {
-          warnings.push({
-            type: 'warning',
-            message: `Unreferenced figure: {#fig:${label}}`,
-          });
-        }
-      }
 
       // Check 3: Missing citations
       const bibPath = config.bibliography || 'references.bib';
@@ -192,15 +185,12 @@ export function register(program: Command): void {
       }
 
       // Check 5: Empty sections
-      for (const section of sections) {
-        if (fs.existsSync(section)) {
-          const content = fs.readFileSync(section, 'utf-8').trim();
-          if (content.length < 50) {
-            warnings.push({
-              type: 'warning',
-              message: `Section appears empty: ${section}`,
-            });
-          }
+      for (const { file, content } of sources) {
+        if (content.trim().length < 50) {
+          warnings.push({
+            type: 'warning',
+            message: `Section appears empty: ${file}`,
+          });
         }
       }
 
@@ -214,7 +204,7 @@ export function register(program: Command): void {
       }
 
       for (const issue of issues) {
-        console.log(chalk.red(`  ✗ ${issue.message}`));
+        console.log(chalk.red(`  ✗ ${issue.file ? `${issue.file}: ` : ''}${issue.message}`));
       }
 
       for (const warning of warnings) {
@@ -315,13 +305,7 @@ export function register(program: Command): void {
         } catch {
           // Not in a rev project
         }
-        mdFiles = config.sections || [];
-
-        if (mdFiles.length === 0) {
-          mdFiles = fs.readdirSync('.').filter(f =>
-            f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
-          );
-        }
+        mdFiles = resolveSectionFiles(config);
       }
 
       if (mdFiles.length === 0) {
@@ -401,32 +385,14 @@ export function register(program: Command): void {
         // Not in a rev project
       }
 
-      let sections = config.sections || [];
-      if (sections.length === 0) {
-        sections = fs.readdirSync('.').filter(f =>
-          f.endsWith('.md') && !['README.md', 'CLAUDE.md', 'paper.md'].includes(f)
-        );
-      }
+      const sections = resolveSectionFiles(config);
+      const sources = readSources(sections);
 
-      const lintIssues: { file: string; message: string }[] = [];
+      const lintIssues: { file: string; message: string }[] = checkCrossRefs(sources).broken
+        .map(ref => ({ file: ref.file, message: `Broken reference: @${ref.key}` }));
       const lintWarnings: { file: string; message: string }[] = [];
 
-      for (const file of sections) {
-        if (!fs.existsSync(file)) continue;
-        const content = fs.readFileSync(file, 'utf-8');
-
-        // Check for broken cross-references
-        const refs = content.match(/@(fig|tbl|eq|sec):\w+/g) || [];
-        const anchors = content.match(/\{#(fig|tbl|eq|sec):[^}]+\}/g) || [];
-        const anchorLabels = anchors.map(a => a.match(/#([^}]+)/)![1]);
-
-        for (const ref of refs) {
-          const label = ref.slice(1);
-          if (!anchorLabels.includes(label)) {
-            lintIssues.push({ file, message: `Broken reference: ${ref}` });
-          }
-        }
-
+      for (const { file, content } of sources) {
         // Check for unresolved comments
         const unresolvedComments = (content.match(/\{>>[\s\S]*?<<\}/g) || [])
           .filter(c => !c.includes('[RESOLVED]'));
