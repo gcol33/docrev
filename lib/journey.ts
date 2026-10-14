@@ -21,6 +21,7 @@
  *   - job: ...
  */
 
+import { createHash } from 'crypto';
 import { detectDynamicRefs } from './crossref.js';
 import { wordOverlapSimilarity } from './anchor-match.js';
 import type {
@@ -141,6 +142,9 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
         break;
       case 'accept':
         current.accepts.push(value);
+        break;
+      case 'negotiated':
+        (current.negotiated ??= []).push(value);
         break;
       default:
         errors.push({ file, line: lineNo, message: `Unknown entry field "${field[1]}"` });
@@ -403,6 +407,24 @@ export function journeyCheck(
     }
   }
 
+  // A paragraph whose wording was settled with a co-author: a change since the decision is
+  // recorded, and `rev journey ack` takes it as reconfirmed.
+  for (const entry of journey.entries) {
+    const block = blockById.get(entry.id);
+    if (!block) continue;
+    for (const value of entry.negotiated ?? []) {
+      const n = parseNegotiated(value);
+      const decided = `negotiated with ${n.who}${n.decision ? `: ${n.decision}` : ''}`;
+      if (!n.hash) {
+        findings.push({ kind: 'negotiated-unpinned', line: entry.line, entryIds: [entry.id],
+                        message: `"${entry.id}" ${decided}; run "rev journey ack ${entry.id}" to pin its text` });
+      } else if (n.hash !== paragraphHash(block.text)) {
+        findings.push({ kind: 'negotiated-changed', file: block.file, line: block.line, entryIds: [entry.id],
+                        message: `"${entry.id}" changed since it was ${decided}; reconfirm, then "rev journey ack ${entry.id}"` });
+      }
+    }
+  }
+
   // 2. `job` is one sentence.
   for (const entry of journey.entries) {
     if (entry.job && countSentences(entry.job) > 1) {
@@ -634,7 +656,60 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
   'supplement-no-support': 'evidence backs nothing',
   'supplement-unknown-arc': 'unknown arc',
   'supplement-stale-lock': 'stale numbering lock',
+  'negotiated-changed': 'negotiated paragraph changed',
+  'negotiated-unpinned': 'negotiated paragraph not pinned',
+  'undefined': 'not defined',
+  'unresolved-anchor': 'unresolved anchor',
+  'form-collision': 'form under two entries',
+  'circular-definition': 'circular definition',
+  'gloss-order': 'gloss relies on a later term',
+  'synonym-drift': 'avoided wording',
+  'use-before-define': 'used before defined',
+  'unused-entry': 'unused entry',
 };
+
+/**
+ * Findings a manuscript should not go out with: a term the text never defines, an avoided
+ * wording back in the text, and a paragraph settled with a co-author that changed since.
+ * `rev check` fails on them unless an `- accept:` line overrules them.
+ */
+export const BLOCKING: ReadonlySet<JourneyFinding['kind']> = new Set(['undefined', 'synonym-drift', 'negotiated-changed']);
+
+/** Short hash of a paragraph's text, whitespace collapsed: what a `negotiated` line pins. */
+export function paragraphHash(text: string): string {
+  return createHash('sha256').update(text.replace(/\s+/g, ' ').trim()).digest('hex').slice(0, 8);
+}
+
+// `<who> <date> [#<hash>]: <decision>`
+const NEGOTIATED_LINE = /^(.*?)(?:\s+#([0-9a-f]{8}))?\s*:\s*(.*)$/;
+
+export function parseNegotiated(value: string): { who: string; hash: string | null; decision: string } {
+  const m = value.match(NEGOTIATED_LINE);
+  return m ? { who: (m[1] || '').trim(), hash: m[2] || null, decision: (m[3] || '').trim() }
+           : { who: value.trim(), hash: null, decision: '' };
+}
+
+/** `- negotiated:` lines of the given entries with their hash set to the paragraph's current text. */
+export function pinNegotiated(content: string, hashes: Map<string, string>): { content: string; pinned: string[] } {
+  const lines = content.split(/\r?\n/);
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
+  const pinned: string[] = [];
+  let id: string | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i] ?? '';
+    const heading = raw.match(ENTRY_HEADING);
+    if (heading) { id = heading[1] || null; continue; }
+    if (H2_HEADING.test(raw)) { id = null; continue; }
+    const field = raw.trim().match(FIELD_LINE);
+    const hash = id ? hashes.get(id) : undefined;
+    if (!field || !hash || (field[1] || '').toLowerCase() !== 'negotiated') continue;
+    const n = parseNegotiated(field[2] || '');
+    if (n.hash === hash) continue;
+    lines[i] = `${raw.slice(0, raw.indexOf('-'))}- negotiated: ${n.who} #${hash}: ${n.decision}`;
+    pinned.push(id as string);
+  }
+  return { content: lines.join(eol), pinned };
+}
 
 // `<check> [@p:<id>] ["<words>"]: <reason>`
 const ACCEPT_LINE = /^(.+?)(?:\s+@p:(\S+))?(?:\s+"([^"]*)")?\s*:\s*(.*)$/;
@@ -687,7 +762,7 @@ export function applyAccepts<E extends AcceptHolder>(
       for (const value of entry.accepts) {
         const rule = parseAccept(value);
         if (!rule || !names.has(rule.check)) continue;
-        if (rule.paragraph && rule.paragraph !== entry.id) continue;
+        if (rule.paragraph && rule.paragraph !== (finding.paragraph ?? entry.id)) continue;
         if (rule.words && !finding.message.includes(rule.words)) continue;
         return { ...finding, accepted: rule.reason };
       }

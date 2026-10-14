@@ -1,5 +1,5 @@
 /**
- * Journey commands: init, check
+ * Journey commands: init, check, ack
  *
  * Story and journey sidecars (gcol33/docrev#12): story.md records the
  * paper's argument as a handful of arcs, journey.md records how each
@@ -24,6 +24,8 @@ import {
   scaffoldJourneyEntries,
   serializeJourney,
   FINDING_LABEL,
+  paragraphHash,
+  pinNegotiated,
 } from '../journey.js';
 import { parseManuscript } from '../paragraph-markers.js';
 import { checkJourneyProject } from '../journey-project.js';
@@ -238,7 +240,7 @@ export function register(program: Command): void {
       const result = checkJourneyProject(dir, config, sections);
       const parseErrors = [...missingSectionErrors(missing), ...result.parseErrors];
 
-      if (!result.journey && !result.supplement) {
+      if (!result.journey && !result.supplement && !result.information) {
         const journeyFile = sidecarPath(dir, config, 'journey');
         if (jsonMode) {
           jsonOutput({ error: `No journey file found at ${path.relative(dir, journeyFile)}`, findings: [], errors: parseErrors });
@@ -254,6 +256,7 @@ export function register(program: Command): void {
       });
       const main = split(result.journey?.findings ?? []);
       const supplement = result.supplement ? { ...split(result.supplement.findings), file: result.supplement.file, summary: result.supplement.summary } : null;
+      const information = result.information ? { ...split(result.information.findings), file: result.information.file, summary: result.information.summary } : null;
 
       if (jsonMode) {
         jsonOutput({
@@ -262,6 +265,7 @@ export function register(program: Command): void {
           accepted: main.accepted,
           summary: result.journey?.summary ?? null,
           supplement,
+          information,
         });
         if (parseErrors.length > 0) process.exit(1);
         return;
@@ -296,7 +300,52 @@ export function register(program: Command): void {
         console.log(chalk.bold(`Supplement (${supplement.file}, ${supplement.summary.items} item(s))`));
         report(supplement);
       }
+      if (information) {
+        if (result.journey || supplement) console.log();
+        console.log(chalk.bold(`Information (${information.file}, ${information.summary.terms} term(s))`));
+        report(information);
+      }
 
       if (parseErrors.length > 0) process.exit(1);
+    });
+
+  // ==========================================================================
+  // JOURNEY ACK - reconfirm paragraphs settled with a co-author
+  // ==========================================================================
+
+  journey
+    .command('ack')
+    .description('Pin the current text of negotiated paragraphs: the change since the decision is reconfirmed')
+    .argument('<ids...>', 'paragraph ids whose `- negotiated:` lines to pin')
+    .option('-d, --dir <directory>', 'Project directory', '.')
+    .action((ids: string[], options: JourneyOptions) => {
+      const dir = path.resolve(options.dir);
+      const config = loadBuildConfig(dir);
+      const journeyFile = sidecarPath(dir, config, 'journey');
+      if (!fs.existsSync(journeyFile)) {
+        console.error(chalk.red(`No journey file found at ${path.relative(dir, journeyFile)}`));
+        process.exit(1);
+      }
+      const { sections } = resolveSections(dir, config);
+      const blocks = collectManuscriptBlocks(dir, sections);
+      const hashes = new Map<string, string>();
+      const unknown: string[] = [];
+      for (const id of ids) {
+        const block = blocks.find((b) => b.markerId === id);
+        if (block) hashes.set(id, paragraphHash(block.text));
+        else unknown.push(id);
+      }
+      const { content, pinned } = pinNegotiated(fs.readFileSync(journeyFile, 'utf-8'), hashes);
+      if (pinned.length > 0) fs.writeFileSync(journeyFile, content, 'utf-8');
+      if (jsonMode) {
+        jsonOutput({ pinned, unknown });
+      } else {
+        for (const id of pinned) console.log(chalk.green(`  ✓ ${id} pinned`));
+        for (const id of ids.filter((i) => !pinned.includes(i) && !unknown.includes(i))) {
+          console.log(chalk.dim(`  - ${id}: no negotiated line to change`));
+        }
+        for (const id of unknown) console.log(chalk.red(`  ✗ ${id}: no paragraph carries this id`));
+      }
+      if (unknown.length > 0) process.exit(1);
     });
 }

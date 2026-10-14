@@ -13,6 +13,7 @@ import {
   getComments,
 } from './context.js';
 import { checkJourneyProject } from '../journey-project.js';
+import { BLOCKING, FINDING_LABEL } from '../journey.js';
 
 // Use the actual BuildConfig from build.ts which allows string|Author[]
 type BuildConfig = ReturnType<typeof loadBuildConfig>;
@@ -506,10 +507,12 @@ export function register(program: Command): void {
       // 4. Run journey check (gcol33/docrev#12), only if the project has one
       console.log(chalk.cyan.bold('4. Journey check...'));
       const journeyResult = checkJourneyProject('.', config, sections);
-      if (journeyResult.journey || journeyResult.supplement) {
+      if (journeyResult.journey || journeyResult.supplement || journeyResult.information) {
         const journeyParseErrors = journeyResult.parseErrors;
-        const findings = [...(journeyResult.journey?.findings ?? []), ...(journeyResult.supplement?.findings ?? [])]
+        const findings = [...(journeyResult.journey?.findings ?? []), ...(journeyResult.supplement?.findings ?? []),
+                          ...(journeyResult.information?.findings ?? [])]
           .filter((f) => !f.accepted);
+        const blocking = findings.filter((f) => BLOCKING.has(f.kind));
 
         if (journeyParseErrors.length > 0) {
           for (const err of journeyParseErrors) {
@@ -518,6 +521,10 @@ export function register(program: Command): void {
           hasErrors = true;
           totalIssues += journeyParseErrors.length;
         }
+        for (const f of blocking) {
+          console.log(chalk.red(`   ✗ [${FINDING_LABEL[f.kind]}] ${f.message}`));
+        }
+        if (blocking.length > 0) hasErrors = true;
         if (findings.length > 0) {
           console.log(chalk.yellow(`   ⚠ ${findings.length} journey finding(s) — run "rev journey check" for details`));
           totalIssues += findings.length;

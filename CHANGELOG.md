@@ -5,6 +5,13 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`information.md` is checked against the manuscript.** Its Terms and Populations (`forms`, `as`, `defined`, `avoid`, `glossed`, `abstract`/`caption`/`supplement`/`reminder`, `accept`), as the paper-sidecars skill writes them, are read by `rev journey check` and step 4 of `rev check`, reported in their own block and under `information` in `--json`: a term with `defined: none` or no definition that is not `known`, a definition anchor no paragraph carries, a form listed under two entries, a gloss using its own name or relying on a term the text defines later, an avoided wording in the text (with its paragraph and sentence), a use before the paragraph that introduces the term (once per paragraph; abstract, captions and the entry's read-alone anchors exempt), and an entry no form of which occurs. `accept:` lines on the entry overrule a finding; an `@p:` in them names the paragraph the finding sits in. New `rev.yaml` key `information` overrides the default path.
+- **Paragraphs settled with a co-author are pinned.** A journey entry may carry `- negotiated: <who> <date> [#<hash>]: <decision>`. Without a hash the check asks for one; with one, a change to the paragraph's text since (whitespace aside) is reported as `negotiated-changed`. `rev journey ack <ids...>` writes the current text's hash into those lines: the change is reconfirmed.
+- **`rev check` fails on what a draft should not go out with:** an undefined term, an avoided wording and a negotiated paragraph changed since its decision, unless an `accept:` line overrules them. Every other sidecar finding stays a warning.
+
 ## [0.15.0] - 2026-10-14
 
 ### Added

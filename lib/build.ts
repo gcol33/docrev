@@ -200,6 +200,12 @@ export interface BuildConfig {
    */
   supplementJourney?: string;
   /**
+   * Filename of the information sidecar: the terms and populations a reader must hold,
+   * checked against the manuscript by `rev journey check`. Default 'information.md'.
+   * Never included in a build.
+   */
+  information?: string;
+  /**
    * Directory holding the supporting information's section files, which the
    * supplement journey's `file:` fields name. Default 'supplement/sections'.
    */
@@ -383,6 +389,7 @@ export const DEFAULT_CONFIG: BuildConfig = {
   story: 'story.md',
   journey: 'journey.md',
   supplementJourney: 'supplement/journey.md',
+  information: 'information.md',
   supplementSections: 'supplement/sections',
   // Final outputs land here (created on demand). Set to null or '' to keep
   // outputs in the project root.

@@ -230,6 +230,14 @@ never part of a build:
   matter (acknowledgements, availability statements, references,
   supplementary material) and bold-label lines (`**Keywords:** ...`) need
   no entry unless given a marker.
+- **`information.md`** — the terms and populations a reader must hold:
+  `forms`, `as`, one `defined: @p:id` (or `known`, or `none`), `avoid`.
+  Checked for undefined terms, avoided wordings, use before definition,
+  form collisions and unused entries. A journey entry's
+  `- negotiated: <who> <date> #<hash>: <decision>` pins a paragraph settled
+  with a co-author; `rev check` fails when it changes until
+  `rev journey ack <id>`, as it does on an undefined term or an avoided
+  wording.
 - **`supplement/journey.md`** — the supporting information's journey: one
   entry per table, figure, appendix or unnumbered section (`### tbl.key  [arcs]`),
   in print order, with its section `file` (under `supplement/sections/`),
@@ -247,6 +255,7 @@ from every build.
 rev journey init                     # assign IDs, scaffold journey.md
 rev journey check                    # check the manuscript against story/journey
 rev journey check --json             # same, as structured findings
+rev journey ack <ids...>             # reconfirm negotiated paragraphs after an edit
 rev build story                      # story.md → docx for co-authors
 rev build journey                    # journey.md → docx for co-authors
 ```

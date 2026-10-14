@@ -126,7 +126,9 @@ holding lines it cannot parse, since the rewrite would drop them. `rev journey
 check` takes the order of arcs (`needs:`) from the body, not from the abstract.
 
 Both files default to `story.md`/`journey.md` at the project root; override
-with the `story:`/`journey:` keys above. See
+with the `story:`/`journey:` keys above. `information.md` (the terms and
+populations a reader must hold) is read from the project root too, or from
+the `information:` key. See
 [Story & Journey Sidecars](commands.md#story--journey-sidecars) for
 `rev journey init`/`rev journey check` and `rev build story`/`rev build journey`.
 

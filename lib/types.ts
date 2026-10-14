@@ -642,6 +642,11 @@ export interface JourneyEntry {
   warnings: string[];
   /** Findings overruled on the entry, one per `- accept:` line. */
   accepts: string[];
+  /**
+   * Wording settled with a co-author, one per `- negotiated: <who> <date> [#<hash>]: <decision>`
+   * line. The hash pins the paragraph's text when the decision was taken (`rev journey ack`).
+   */
+  negotiated?: string[];
   line: number;
 }
 
@@ -695,7 +700,17 @@ export type JourneyFindingKind =
   | 'supplement-dangling-support'
   | 'supplement-no-support'
   | 'supplement-unknown-arc'
-  | 'supplement-stale-lock';
+  | 'supplement-stale-lock'
+  | 'negotiated-changed'
+  | 'negotiated-unpinned'
+  | 'undefined'
+  | 'unresolved-anchor'
+  | 'form-collision'
+  | 'circular-definition'
+  | 'gloss-order'
+  | 'synonym-drift'
+  | 'use-before-define'
+  | 'unused-entry';
 
 /** Kind prefix of a supplement item: table, figure, appendix, or an unnumbered section. */
 export type SupplementItemKind = 'tbl' | 'fig' | 'app' | 'sec';
@@ -743,6 +758,8 @@ export interface JourneyFinding {
   line?: number;
   entryIds?: string[];
   arcId?: string;
+  /** Paragraph the finding sits in, when that is not the entry it is recorded on (information.md). */
+  paragraph?: string;
   /** Reason from the matching `- accept:` line; set when the author has overruled the finding. */
   accepted?: string;
 }

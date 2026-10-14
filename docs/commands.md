@@ -197,6 +197,7 @@ file format and `rev.yaml` keys.
 | `rev journey init` | Assign `<!-- @p:id -->` markers to unmarked paragraphs/floats and scaffold `journey.md` |
 | `rev journey check` | Check the manuscript against `story.md` and `journey.md` |
 | `rev journey check --json` | Same, as structured JSON (parse errors + findings) |
+| `rev journey ack <ids...>` | Pin the current text of paragraphs whose `- negotiated:` decision was reconfirmed |
 
 `rev journey init` is idempotent: re-running it only fills gaps (a paragraph
 that lost its marker after a heavy Word edit gets a fresh one; existing
@@ -206,6 +207,9 @@ them to something semantic once you know what each paragraph does.
 
 `rev journey check` is also run as step 4 of `rev check`, but only when
 `journey.md` exists — projects that don't use the sidecars are unaffected.
+`information.md`, when present, is checked in the same step. `rev check`
+fails on an undefined term, an avoided wording and a negotiated paragraph
+changed since its decision; every other finding is a warning.
 
 ## Multi-Reviewer & Git
 
