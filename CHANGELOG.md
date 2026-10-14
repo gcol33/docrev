@@ -5,6 +5,15 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.6] - 2026-10-14
+
+### Added
+- **PNAS sidecar notation: `Significance audience`, `significance: yes`, `sig.*` entries (#20).** `story.md` now accepts a `## Significance audience` section (the reader of the PNAS Significance statement, narrower than `Audience`) and a `significance: yes` field on an arc the Significance statement carries. `rev journey check` flags drift between the arcs marked `significance: yes` and the arcs `sig.*` journey entries claim (`significance-drift`), and flags an arc whose `evidence` lists only `SI Appendix, ...` items (`si-only-evidence`), since PNAS requires the main text to stand without the SI.
+
+### Fixed
+- **`rev journey check`/`init` read `sections.yaml` before the `rev.yaml` `sections:` list, so a project with both read zero manuscript blocks (#18).** `sections.yaml` is the Word-import header/alias map and can list bare names (`abstract.md`) that don't exist once `rev.yaml` lists the real build paths (`src/clean/abstract.md`); journey silently skipped every missing file and reported every journey entry as an orphan. Journey commands now resolve sections the same way `rev build` does — `rev.yaml` `sections:` first, `sections.yaml` only as a fallback — and a listed section file that doesn't exist on disk is now a reported error instead of a silent skip.
+- **An HTML-comment-only block was counted as an unmarked paragraph (#19).** `parseManuscriptBlocks` now skips a block whose content, once HTML comments are stripped, is empty. Pandoc drops such a block entirely, so it is never a printed paragraph and needs no `<!-- @p:id -->` marker or journey entry.
+
 ## [0.14.5] - 2026-09-30
 
 ### Added
