@@ -5,6 +5,14 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-14
+
+### Added
+- **The supporting information is checked against its own journey, `supplement/journey.md`.** One entry per SI table, figure, appendix or unnumbered section (`### tbl.key  [arcs]`, then `file`, `tier`, `supports`, `title`, `configuration`, `status`, `source`, `accept`), in print order, as the paper-sidecars skill writes it. `rev journey check` (and step 4 of `rev check`) now also reports, in its own block and under `supplement` in `--json`: a named section file that is missing, a file in `supplement/sections/` no entry places, a file that does not print its item's key (`[[tbl:key]]` or `{#tbl:key}`), a `[[key]]` or literal `Table S<n>`/`Figure A<n>` reference that resolves to no item, a manuscript section citing an `archive` item, an `evidence` item that supports no paragraph, a `supports: @p:id` no manuscript paragraph carries, an arc story.md does not define, and a `supplement/numbers.json` label lock that differs from the journey's order. Labels follow position: S1, S2, ... per kind, A1, A2, ... per kind for archive items, none for `sec.` entries. `accept:` lines on an item overrule its findings as in journey.md. New `rev.yaml` keys `supplementJourney` and `supplementSections` override the default paths.
+
+### Changed
+- `rev journey check` and `rev check` run the sidecar checks through one shared function, so the two can no longer differ in what they read.
+
 ## [0.14.7] - 2026-10-14
 
 ### Fixed
