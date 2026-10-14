@@ -263,6 +263,20 @@ An unmarked second paragraph.
     assert.strictEqual(blocks[2].section, 'Results');
     assert.ok(blocks.every((b) => !b.text.includes('\r')));
   });
+
+  it('skips a block that is only an HTML comment (gcol33/docrev#19)', () => {
+    const md = '<!-- @p:intro.here -->\nHere, we asked ...\n\n<!-- Notes about orphaned annotations, never printed. -->\n';
+    const blocks = parseManuscriptBlocks(md, 'intro.md', 'intro');
+    assert.strictEqual(blocks.length, 1);
+    assert.strictEqual(blocks[0].markerId, 'intro.here');
+  });
+
+  it('skips a multi-line HTML-comment-only block', () => {
+    const md = 'A real paragraph.\n\n<!--\nA long note\nspanning lines.\n-->\n';
+    const blocks = parseManuscriptBlocks(md, 'x.md', 'x');
+    assert.strictEqual(blocks.length, 1);
+    assert.match(blocks[0].text, /^A real paragraph/);
+  });
 });
 
 // ============================================================================

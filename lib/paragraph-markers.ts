@@ -34,6 +34,18 @@ const HEADING_LINE = /^(#{1,6})\s+(.+)$/;
 const FENCE_LINE = /^\s*(```+|~~~+)/;
 const LIST_ITEM = /^\s*(?:\d+[.)]|[-*+])\s+/;
 const LIST_ITEM_MARKER = /^\s*(?:\d+[.)]|[-*+])\s+<!--\s*@p:(\S+?)\s*-->\s*(.*)$/;
+const HTML_COMMENT_GLOBAL = /<!--[\s\S]*?-->/g;
+
+/**
+ * True when `text` is nothing but one or more HTML comments (and whitespace).
+ * Pandoc drops such a block entirely, so it is never a printed paragraph and
+ * needs no marker or journey entry — unlike a `<!-- @p:id -->` marker, which
+ * is itself a comment but is stripped and matched separately before this
+ * check runs.
+ */
+function isCommentOnly(text: string): boolean {
+  return text.replace(HTML_COMMENT_GLOBAL, '').trim() === '';
+}
 
 /**
  * Split a list block whose items carry their own markers (`1. <!-- @p:id -->`) into one unit
@@ -162,7 +174,7 @@ export function parseManuscriptBlocks(
     }
 
     const text = bodyLines.join('\n').trim();
-    if (!text) continue;
+    if (!text || isCommentOnly(text)) continue;
 
     const unit: ManuscriptBlock = { file, section, blockType: classifyBlock(text), markerId, text, line: block.startLineIdx + 1 };
     const prev = result[result.length - 1];
