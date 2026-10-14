@@ -5,7 +5,10 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.16.0] - 2026-10-14
+
+### Fixed
+- **`rev lint` and `rev check` resolve cross-references across all configured sections and ignore Pandoc attributes** ([#22](https://github.com/gcol33/docrev/issues/22)). `@fig:demo` next to `![...](...){#fig:demo width="100%"}` no longer reports a broken reference, and a reference in one section to an anchor in another passes `rev check` as it already did `rev lint`. Both commands share one resolver covering `fig`, `tbl`, `eq` and `sec` labels, including an id placed after other attributes (`{.unnumbered #sec:intro}`) and the capitalised `@Fig:` form; broken references are reported with their file.
 
 ### Added
 - **`information.md` is checked against the manuscript.** Its Terms and Populations (`forms`, `as`, `defined`, `avoid`, `glossed`, `abstract`/`caption`/`supplement`/`reminder`, `accept`), as the paper-sidecars skill writes them, are read by `rev journey check` and step 4 of `rev check`, reported in their own block and under `information` in `--json`: a term with `defined: none` or no definition that is not `known`, a definition anchor no paragraph carries, a form listed under two entries, a gloss using its own name or relying on a term the text defines later, an avoided wording in the text (with its paragraph and sentence), a use before the paragraph that introduces the term (once per paragraph; abstract, captions and the entry's read-alone anchors exempt), and an entry no form of which occurs. `accept:` lines on the entry overrule a finding; an `@p:` in them names the paragraph the finding sits in. New `rev.yaml` key `information` overrides the default path.
