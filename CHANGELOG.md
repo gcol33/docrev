@@ -5,6 +5,11 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.7] - 2026-10-14
+
+### Fixed
+- **`rev journey check` reported `[no marker]` for front and back matter (#21).** Paragraphs before the first level-1 heading (title-page lines), paragraphs under a back-matter heading (acknowledgements, author contributions, conflict/competing interests, data and code availability, funding, references, bibliography, supporting information, supplementary; the same set the paper-sidecars reader pass uses), and bold-label metadata lines (`**Keywords:** ...`, `**Classification:** ...`) no longer need a marker, and `rev journey init` no longer assigns them one. Back matter runs until the next heading at its own level or above. A paragraph there that the author anchors with `<!-- @p:id -->` is still checked as usual. Front-matter position is tracked across section files in build order; a manuscript with no level-1 heading has no front matter.
+
 ## [0.14.6] - 2026-10-14
 
 ### Added
