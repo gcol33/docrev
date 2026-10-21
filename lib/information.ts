@@ -173,14 +173,26 @@ function isAcronymOf(acronym: string, form: string): boolean {
 }
 
 /**
- * The distinct names among an entry's forms: a form containing a shorter form is that name
- * written out ("constant prediction" of "constant"), and an acronym is its expansion's name.
+ * The distinct names among an entry's forms, each given by its first-listed form. Two forms are
+ * one name when one shortens the other ("constant" of "constant prediction") or is its acronym,
+ * and through any chain of such forms ("level-1 group" and "habitat group" both of
+ * "level-1 habitat group").
  */
 export function entryNames(forms: string[]): string[] {
-  const ws = [...new Map(forms.map((f) => [formWords(f).join(' '), f])).entries()]
-    .filter(([w]) => w).map(([w, f]) => ({ w: w.split(' '), f }));
-  const minimal = ws.filter((a) => !ws.some((b) => b !== a && b.w.length < a.w.length && shortens(a.w, b.w)));
-  return minimal.filter((a) => !ws.some((b) => b !== a && isAcronymOf(a.f, b.f))).map((a) => a.f);
+  const first = new Map<string, string>();
+  for (const f of forms) {
+    const w = formWords(f).join(' ');
+    if (w && !first.has(w)) first.set(w, f);
+  }
+  const ws = [...first.entries()].map(([w, f]) => ({ w: w.split(' '), f }));
+  const root = ws.map((_, i) => i);
+  const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i] as number)));
+  ws.forEach((a, i) => ws.forEach((b, j) => {
+    const same = (b.w.length < a.w.length && shortens(a.w, b.w)) || isAcronymOf(a.f, b.f) || isAcronymOf(b.f, a.f);
+    if (i !== j && same) root[find(i)] = find(j);
+  }));
+  const seen = new Set<number>();
+  return ws.filter((_, i) => !seen.has(find(i)) && seen.add(find(i))).map((a) => a.f);
 }
 
 /** The other number of a form: "settings" for "setting", "fit" for "fits"; last word only. */

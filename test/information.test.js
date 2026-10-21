@@ -114,7 +114,8 @@ describe('informationCheck', () => {
   });
 
   it('counts shortenings and an acronym of the expansion as one name, a second head word as two', () => {
-    assert.deepStrictEqual(entryNames(['constant prediction', 'constant', 'constant predictions']), ['constant']);
+    assert.deepStrictEqual(entryNames(['constant prediction', 'constant', 'constant predictions']), ['constant prediction']);
+    assert.deepStrictEqual(entryNames(['habitat group', 'level-1 group', 'level-1 habitat group']), ['habitat group']);
     assert.deepStrictEqual(entryNames(['European Vegetation Archive', 'EVA']), ['European Vegetation Archive']);
     assert.deepStrictEqual(entryNames(['network', 'neural network', 'multilayer perceptron (MLP)', 'MLP']),
       ['network', 'multilayer perceptron (MLP)']);
