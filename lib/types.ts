@@ -710,7 +710,11 @@ export type JourneyFindingKind =
   | 'gloss-order'
   | 'synonym-drift'
   | 'use-before-define'
-  | 'unused-entry';
+  | 'unused-entry'
+  | 'many-names'
+  | 'unlisted-variant'
+  | 'single-use-term'
+  | 'unused-acronym';
 
 /** Kind prefix of a supplement item: table, figure, appendix, or an unnumbered section. */
 export type SupplementItemKind = 'tbl' | 'fig' | 'app' | 'sec';
