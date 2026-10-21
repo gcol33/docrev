@@ -841,6 +841,15 @@ describe('story problem and question', () => {
     assert.strictEqual(doc.problem, 'Archives lack header data.');
     assert.match(doc.question, /^To learn which/);
   });
+
+  it('parses the Stakes, Idea, Design logic and Meaning sections', () => {
+    const { doc, errors } = parseStory('## Stakes\nGaps bias comparisons.\n\n## Idea\nComposition carries the metadata.\n\n## Design logic\nThree settings separate the sources.\n\n## Meaning\nHabitat transfers, survey metadata do not.\n');
+    assert.deepStrictEqual(errors, []);
+    assert.strictEqual(doc.stakes, 'Gaps bias comparisons.');
+    assert.strictEqual(doc.idea, 'Composition carries the metadata.');
+    assert.strictEqual(doc.designLogic, 'Three settings separate the sources.');
+    assert.strictEqual(doc.meaning, 'Habitat transfers, survey metadata do not.');
+  });
 });
 
 // ============================================================================
@@ -864,7 +873,7 @@ describe('story.md PNAS notation', () => {
 
 describe('journeyCheck PNAS notation', () => {
   function makeStory(arcs) {
-    return { title: '', claim: '', audience: '', problem: '', question: '', significanceAudience: '', arcs, terms: [], constraints: [], open: [] };
+    return { title: '', claim: '', audience: '', problem: '', question: '', stakes: '', idea: '', designLogic: '', meaning: '', significanceAudience: '', arcs, terms: [], constraints: [], open: [] };
   }
 
   it('flags an arc marked significance: yes with no sig.* entry', () => {

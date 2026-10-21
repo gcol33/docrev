@@ -9,6 +9,10 @@
  *   ## Audience
  *   ## Problem
  *   ## Question
+ *   ## Stakes
+ *   ## Idea
+ *   ## Design logic
+ *   ## Meaning
  *
  *   ## Arcs
  *
@@ -42,22 +46,31 @@ const ARC_HEADING = /^###\s+(\S+)\s*(.*)$/;
 const H1_TITLE = /^#\s+Story:\s*(.*)$/i;
 const H2_HEADING = /^##\s+(.+?)\s*$/;
 
-/** Sections whose body is running prose, joined into one string. */
-const PROSE_SECTIONS = ['claim', 'audience', 'problem', 'question'] as const;
-type ProseSection = (typeof PROSE_SECTIONS)[number];
+/**
+ * Sections whose body is running prose, joined into one string, keyed by
+ * their lower-cased heading. "Significance audience" is PNAS notation
+ * (gcol33/docrev#20): the Significance statement's own, narrower audience.
+ */
+const PROSE_SECTIONS = {
+  claim: 'claim',
+  audience: 'audience',
+  problem: 'problem',
+  question: 'question',
+  stakes: 'stakes',
+  idea: 'idea',
+  'design logic': 'designLogic',
+  meaning: 'meaning',
+  'significance audience': 'significanceAudience',
+} as const;
+type ProseSection = keyof typeof PROSE_SECTIONS;
+type ProseKey = (typeof PROSE_SECTIONS)[ProseSection];
 
-/** PNAS notation (gcol33/docrev#20): the Significance statement's own, narrower audience. */
-const SIGNIFICANCE_AUDIENCE_SECTION = 'significance audience';
+function isProseSection(name: string): name is ProseSection {
+  return Object.prototype.hasOwnProperty.call(PROSE_SECTIONS, name);
+}
 
-type StorySection = 'none' | ProseSection | typeof SIGNIFICANCE_AUDIENCE_SECTION | 'arcs' | 'terms' | 'constraints' | 'open';
-const SECTION_NAMES = new Set<string>([
-  ...PROSE_SECTIONS,
-  SIGNIFICANCE_AUDIENCE_SECTION,
-  'arcs',
-  'terms',
-  'constraints',
-  'open',
-]);
+type StorySection = 'none' | ProseSection | 'arcs' | 'terms' | 'constraints' | 'open';
+const SECTION_NAMES = new Set<string>([...Object.keys(PROSE_SECTIONS), 'arcs', 'terms', 'constraints', 'open']);
 
 function emptyArc(id: string, title: string, line: number): StoryArc {
   return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], significance: false, line };
@@ -77,6 +90,10 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     audience: '',
     problem: '',
     question: '',
+    stakes: '',
+    idea: '',
+    designLogic: '',
+    meaning: '',
     significanceAudience: '',
     arcs: [],
     terms: [],
@@ -86,8 +103,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
 
   let section: StorySection = 'none';
   let currentArc: StoryArc | null = null;
-  const prose: Record<ProseSection, string[]> = { claim: [], audience: [], problem: [], question: [] };
-  const significanceAudience: string[] = [];
+  const prose = Object.fromEntries(Object.values(PROSE_SECTIONS).map((key) => [key, [] as string[]])) as Record<ProseKey, string[]>;
   const seenArcIds = new Set<string>();
 
   const closeArc = () => {
@@ -173,13 +189,8 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
       continue;
     }
 
-    if ((PROSE_SECTIONS as readonly string[]).includes(section)) {
-      if (line) prose[section as ProseSection].push(line);
-      continue;
-    }
-
-    if (section === SIGNIFICANCE_AUDIENCE_SECTION) {
-      if (line) significanceAudience.push(line);
+    if (isProseSection(section)) {
+      if (line) prose[PROSE_SECTIONS[section]].push(line);
       continue;
     }
 
@@ -212,8 +223,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
   }
 
   closeArc();
-  for (const key of PROSE_SECTIONS) doc[key] = prose[key].join(' ').trim();
-  doc.significanceAudience = significanceAudience.join(' ').trim();
+  for (const key of Object.values(PROSE_SECTIONS)) doc[key] = prose[key].join(' ').trim();
 
   return { doc, errors };
 }

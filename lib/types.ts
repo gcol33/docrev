@@ -617,6 +617,14 @@ export interface StoryDoc {
   problem: string;
   /** The paper's challenge in one sentence: "to learn X, we did Y". */
   question: string;
+  /** Why the gap matters, in the reader's terms. */
+  stakes: string;
+  /** The idea that fills the gap, in plain words. */
+  idea: string;
+  /** Why the design answers the question: each choice and what it rules out. */
+  designLogic: string;
+  /** What each result means for the reader. */
+  meaning: string;
   /** PNAS notation: the reader of the Significance statement, if narrower than `audience`. */
   significanceAudience: string;
   arcs: StoryArc[];
