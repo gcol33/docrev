@@ -46,8 +46,33 @@ export function packageRoot(fromDir: string): string {
  * @param text - Markdown text
  * @returns Word count
  */
+const ORDERED_MARKER = /^([ \t]*)(?:\(?\d+[.)]|#\.)[ \t]+/;
+
+/**
+ * Drop the numbers of ordered-list items, which pandoc renders as list
+ * numbering rather than text. A list starts only after a blank line or at the
+ * start of the text and runs until the next blank line that is not followed by
+ * an item or an indented continuation, so a wrapped line of prose that happens
+ * to begin with "2023." keeps its number.
+ */
+function stripListMarkers(text: string): string {
+  let inList = false;
+  let previousBlank = true;
+  return text.split('\n').map(line => {
+    const blank = line.trim() === '';
+    const marker = ORDERED_MARKER.test(line);
+    if (marker && (previousBlank || inList)) {
+      inList = true;
+    } else if (previousBlank && !blank && !/^[ \t]+/.test(line)) {
+      inList = false;
+    }
+    previousBlank = blank;
+    return marker && inList ? line.replace(ORDERED_MARKER, '$1') : line;
+  }).join('\n');
+}
+
 export function countWords(text: string): number {
-  const withoutComments = text.replace(/<!--[\s\S]*?-->/g, '');
+  const withoutComments = stripListMarkers(text.replace(/<!--[\s\S]*?-->/g, ''));
   const withoutFrontmatter = withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '');
   const withoutCode = withoutFrontmatter.replace(/^[ \t]*```[\s\S]*?^[ \t]*```/gm, '');
   const withoutTables = withoutCode

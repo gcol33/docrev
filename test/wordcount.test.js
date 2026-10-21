@@ -85,6 +85,15 @@ describe('countWords', () => {
     assert.strictEqual(countWords('fixed in #10 today'), 4);
   });
 
+  it('drops the numbers of an ordered list, as pandoc renders them as numbering', () => {
+    assert.strictEqual(countWords('1. alpha beta\n   gamma\n2. delta\n3) epsilon'), 5);
+    assert.strictEqual(countWords('Intro text.\n\n1. <!-- @p:abs.one -->\n   alpha beta\n2. gamma'), 5);
+  });
+
+  it('keeps a number that opens a wrapped line of prose', () => {
+    assert.strictEqual(countWords('surveyed until\n2023. Then more'), 5);
+  });
+
   it('drops an HTML comment, paragraph anchor or note alike', () => {
     assert.strictEqual(countWords('<!-- @p:a.one -->\nTwo words.'), 2);
     assert.strictEqual(countWords('<!-- a note left for a co-author -->\nTwo words.'), 2);
