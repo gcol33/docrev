@@ -6,7 +6,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 
-import { parseInformation, informationCheck } from '../lib/information.js';
+import { parseInformation, informationCheck, entryNames } from '../lib/information.js';
 import { parseManuscript } from '../lib/paragraph-markers.js';
 import { journeyCheck, parseJourney, paragraphHash, pinNegotiated, BLOCKING } from '../lib/journey.js';
 
@@ -111,6 +111,42 @@ describe('informationCheck', () => {
   it('flags a definition anchor no paragraph carries', () => {
     const info = INFORMATION.replace('- defined: @p:intro.area', '- defined: @p:intro.nowhere');
     assert.ok(check(info).findings.some((f) => f.kind === 'unresolved-anchor'));
+  });
+
+  it('counts shortenings and an acronym of the expansion as one name, a second head word as two', () => {
+    assert.deepStrictEqual(entryNames(['constant prediction', 'constant', 'constant predictions']), ['constant']);
+    assert.deepStrictEqual(entryNames(['European Vegetation Archive', 'EVA']), ['European Vegetation Archive']);
+    assert.deepStrictEqual(entryNames(['network', 'neural network', 'multilayer perceptron (MLP)', 'MLP']),
+      ['network', 'multilayer perceptron (MLP)']);
+    assert.deepStrictEqual(entryNames(['constant prediction', 'baseline', 'constant baseline']), ['constant prediction', 'baseline']);
+    const info = INFORMATION.replace('- forms: relevé area; relevé areas', '- forms: relevé area; relevé areas; sampled surface');
+    const many = check(info).findings.filter((f) => f.kind === 'many-names');
+    assert.deepStrictEqual(many.map((f) => f.entryIds[0]), ['releve-area']);
+  });
+
+  it('flags the other number of a form when no entry lists it', () => {
+    const text = MANUSCRIPT + '\n<!-- @p:meth.more -->\nTwo targets differ. Model settings were tuned. The setting matters.\n';
+    const info = INFORMATION.replace('- forms: target; targets', '- forms: target; targets\n- glossed: @p:intro.gap')
+      .replace('### embedding\n- forms: embedding', '### setting\n- forms: setting\n- as: how test plots are drawn\n- defined: known\n\n### embedding\n- forms: embedding');
+    const variants = check(info, text).findings.filter((f) => f.kind === 'unlisted-variant');
+    assert.deepStrictEqual(variants.map((f) => f.entryIds[0]), ['setting']);
+    assert.match(variants[0].message, /"settings" occurs 1x/);
+  });
+
+  it('flags a term not used after its definition and an acronym used in one paragraph', () => {
+    const text = [
+      '<!-- @p:a -->', 'The gain is the share of error removed, by a multilayer perceptron (MLP).', '',
+      '<!-- @p:b -->', 'The multilayer perceptron predicts.', '',
+    ].join('\n');
+    const info = [
+      '## Terms', '',
+      '### gain', '- forms: gain', '- as: the share of error removed', '- defined: @p:a', '',
+      '### mlp', '- forms: multilayer perceptron; MLP', '- as: a layered network', '- defined: @p:a', '',
+    ].join('\n');
+    const kinds = check(info, text).findings.map((f) => [f.kind, f.entryIds[0]]);
+    assert.ok(kinds.some(([k, e]) => k === 'single-use-term' && e === 'gain'));
+    assert.ok(!kinds.some(([k, e]) => k === 'single-use-term' && e === 'mlp'));
+    assert.ok(kinds.some(([k, e]) => k === 'unused-acronym' && e === 'mlp'));
   });
 
   it('blocks undefined terms, avoided wording and use before definition', () => {

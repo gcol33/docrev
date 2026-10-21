@@ -666,6 +666,10 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
   'synonym-drift': 'avoided wording',
   'use-before-define': 'used before defined',
   'unused-entry': 'unused entry',
+  'many-names': 'several names for one term',
+  'unlisted-variant': 'unlisted plural or singular',
+  'single-use-term': 'term not used after its definition',
+  'unused-acronym': 'acronym used once',
 };
 
 /**

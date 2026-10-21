@@ -5,6 +5,14 @@ All notable changes to docrev will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`information.md` checks whether a term is reused under one name.** `many-names`: an entry whose forms are more than one name (a shortening that drops words, a plural or an acronym of the expansion counts as the same name; "constant prediction; baseline" does not). `unlisted-variant`: the plural or singular of a form occurs in the text but no entry lists it, so the word is used unchecked, often in another sense ("settings" for tuning choices beside the form "evaluation setting"). `single-use-term`: a term defined in one paragraph and not used after it. `unused-acronym`: an acronym used in one paragraph only. None of them blocks `rev check`; an `accept:` line overrules them as before.
+
+### Fixed
+- **Term checks read the text without CriticMarkup comments and deletions.** Reviewer comments no longer count as uses of a term or as avoided wording.
+
 ## [0.16.0] - 2026-10-14
 
 ### Fixed

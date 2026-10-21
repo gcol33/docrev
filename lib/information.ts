@@ -19,6 +19,12 @@
  * lower case also matches with a capital first letter; one holding capitals matches
  * only as written. The abstract, captions and an entry's read-alone anchors are never
  * early.
+ *
+ * Reuse checks: `many-names` (an entry whose forms are more than one name: shortenings
+ * that drop words, plurals and an acronym of its expansion are one name), `unlisted-variant` (the plural
+ * or singular of a form occurs but is listed under no entry, so the text uses the word
+ * unchecked, often in another sense), `single-use-term` (a defined term no paragraph
+ * uses after its definition) and `unused-acronym` (an acronym used in one paragraph only).
  */
 
 import { applyAccepts, isFrontMatter } from './journey.js';
@@ -103,10 +109,13 @@ function formPattern(form: string): string {
   return form === form.toLowerCase() && /\p{Ll}/u.test(first) ? `[${first}${first.toUpperCase()}]` + body.slice(1) : body;
 }
 
-/** The text a reader reads: no comments, inline code, math or citation keys. */
+/** The text a reader reads: no comments, CriticMarkup comments or deletions, inline code, math or citation keys. */
 function readable(text: string): string {
   return text
     .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\{>>[\s\S]*?<<\}|\{--[\s\S]*?--\}/g, ' ')
+    .replace(/\{\+\+([\s\S]*?)\+\+\}/g, '$1')
+    .replace(/\{~~[\s\S]*?~>([\s\S]*?)~~\}/g, '$1')
     .replace(/`[^`]*`/g, ' ')
     .replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$/g, ' ')
     .replace(/\[@[^\]]*\]|@[\w:-]+/g, ' ')
@@ -130,6 +139,60 @@ interface Hit {
   avoid: boolean;
 }
 
+const singular = (w: string) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
+
+/** A form's words, lower case and singular, parentheses, hyphens and symbols dropped. */
+function formWords(form: string): string[] {
+  return form.replace(/\([^)]*\)/g, ' ').toLowerCase().split(/[^\p{L}\p{N}']+/u).filter(Boolean).map(singular);
+}
+
+/** The short form's words appear in the long one in order: "macro-F1" of "macro-averaged F1". */
+function shortens(long: string[], short: string[]): boolean {
+  let at = 0;
+  for (const w of short) {
+    at = long.indexOf(w, at);
+    if (at < 0) return false;
+    at++;
+  }
+  return true;
+}
+
+/** "EVA" of "European Vegetation Archive", "MLP" of "multilayer perceptron": its letters in order, first first. */
+function isAcronymOf(acronym: string, form: string): boolean {
+  if (!/^\p{Lu}[\p{Lu}\p{N}]+s?$/u.test(acronym)) return false;
+  const letters = acronym.replace(/s$/, '').toLowerCase();
+  const long = formWords(form).join(' ');
+  if (long[0] !== letters[0] || !long.includes(' ')) return false;
+  let at = 0;
+  for (const c of letters) {
+    at = long.indexOf(c, at);
+    if (at < 0) return false;
+    at++;
+  }
+  return true;
+}
+
+/**
+ * The distinct names among an entry's forms: a form containing a shorter form is that name
+ * written out ("constant prediction" of "constant"), and an acronym is its expansion's name.
+ */
+export function entryNames(forms: string[]): string[] {
+  const ws = [...new Map(forms.map((f) => [formWords(f).join(' '), f])).entries()]
+    .filter(([w]) => w).map(([w, f]) => ({ w: w.split(' '), f }));
+  const minimal = ws.filter((a) => !ws.some((b) => b !== a && b.w.length < a.w.length && shortens(a.w, b.w)));
+  return minimal.filter((a) => !ws.some((b) => b !== a && isAcronymOf(a.f, b.f))).map((a) => a.f);
+}
+
+/** The other number of a form: "settings" for "setting", "fit" for "fits"; last word only. */
+function otherNumber(form: string): string | null {
+  const m = form.match(/^(.*?)(\p{Ll}+)$/u);
+  if (!m || /\p{Lu}/u.test(m[2] as string)) return null;
+  const last = m[2] as string;
+  if (last.length < 4) return null;
+  const other = last.endsWith('s') && !last.endsWith('ss') ? last.slice(0, -1) : /(s|x|ch|sh)$/.test(last) ? null : `${last}s`;
+  return other ? (m[1] as string) + other : null;
+}
+
 /**
  * Check information.md's terms against the manuscript. Findings carry the entry id
  * in `entryIds`, so `- accept:` lines on that entry overrule them.
@@ -147,6 +210,10 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
   const lexicon = new Map<string, Hit>();
   for (const entry of entries) {
     if (!entry.defined && !entry.known) add('undefined', entry, `"${entry.forms[0]}" has no definition in the text (defined: none or missing)`);
+    const names = entryNames(entry.forms);
+    if (names.length > 1) {
+      add('many-names', entry, `"${entry.forms[0]}" goes by ${names.length} names (${names.join('; ')}): keep one, move the others to avoid`);
+    }
     for (const id of [entry.defined, ...entry.glossed, ...entry.alone]) {
       if (id && !position.has(id)) add('unresolved-anchor', entry, `"${entry.id}" points to @p:${id}, which no paragraph carries`);
     }
@@ -191,6 +258,19 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
     if (at.length) intro.set(entry, Math.min(...at));
   }
   const used = new Set<InformationEntry>();
+  const entryBlocks = new Map<InformationEntry, Set<number>>();
+  const acronymBlocks = new Map<string, { entry: InformationEntry; at: Set<number> }>();
+  const variants = new Map<string, InformationEntry>();
+  for (const entry of entries) {
+    for (const form of entry.forms) {
+      const other = otherNumber(form);
+      if (other && !lexicon.has(other) && !variants.has(other)) variants.set(other, entry);
+    }
+  }
+  const variantRe = variants.size
+    ? new RegExp(`(?<![\\p{L}\\p{N}_\\-])(?:${[...variants.keys()].sort((a, b) => b.length - a.length).map(formPattern).join('|')})(?![\\p{L}\\p{N}_\\-])`, 'gu')
+    : null;
+  const variantUses = new Map<string, { count: number; first: string }>();
   blocks.forEach((block, i) => {
     if (block.matter === 'back' || block.matter === 'metadata') return;
     // one early-use finding per term and paragraph: its first use there
@@ -198,6 +278,16 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
     const alone = isFrontMatter(block.section) || block.matter === 'front' || block.blockType === 'figure' ||
       block.blockType === 'table';
     const text = readable(block.text);
+    if (variantRe) {
+      const rest = text.replace(termRe, (s) => ' '.repeat(s.length));
+      for (const m of rest.matchAll(variantRe)) {
+        const said = m[0].split(/\s+/).join(' ');
+        const key = variants.has(said) ? said : (said[0] as string).toLowerCase() + said.slice(1);
+        const seen = variantUses.get(key);
+        if (seen) seen.count++;
+        else variantUses.set(key, { count: 1, first: `${block.markerId ? `@p:${block.markerId}` : `${block.file}:${block.line}`}: ${sentenceAt(text, m.index ?? 0)}` });
+      }
+    }
     for (const m of text.matchAll(termRe)) {
       const hit = lookup(m[0]);
       if (!hit) continue;
@@ -209,6 +299,12 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
         continue;
       }
       used.add(entry);
+      if (!entryBlocks.has(entry)) entryBlocks.set(entry, new Set());
+      (entryBlocks.get(entry) as Set<number>).add(i);
+      if (/^\p{Lu}[\p{Lu}\p{N}]+s?$/u.test(said) && entry.forms.some((f) => f !== said && isAcronymOf(said, f))) {
+        if (!acronymBlocks.has(said)) acronymBlocks.set(said, { entry, at: new Set() });
+        (acronymBlocks.get(said) as { at: Set<number> }).at.add(i);
+      }
       const start = intro.get(entry);
       if (start !== undefined && i < start && !alone && !(block.markerId && entry.alone.includes(block.markerId)) &&
           !earlyHere.has(entry)) {
@@ -219,6 +315,18 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
   });
   for (const entry of entries) {
     if (!used.has(entry)) add('unused-entry', entry, `no form of "${entry.forms[0]}" occurs in the text`);
+    const at = entryBlocks.get(entry);
+    const def = entry.defined ? position.get(entry.defined) : undefined;
+    if (at && def !== undefined && ![...at].some((i) => i > def)) {
+      add('single-use-term', entry, `"${entry.forms[0]}" is named at @p:${entry.defined} and not used after it: use the name, or say it there without one`);
+    }
+  }
+  for (const [acronym, { entry, at }] of acronymBlocks) {
+    if (at.size === 1) add('unused-acronym', entry, `"${acronym}" occurs in one paragraph only: drop it and write "${entry.forms[0]}"`);
+  }
+  for (const [variant, { count, first }] of variantUses) {
+    const entry = variants.get(variant) as InformationEntry;
+    add('unlisted-variant', entry, `"${variant}" occurs ${count}x but is listed under no entry; add it to the forms of "${entry.forms[0]}" or reword where it means something else. First at ${first}`);
   }
   return applyAccepts(findings, entries);
 }
