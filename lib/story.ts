@@ -50,6 +50,8 @@ const H2_HEADING = /^##\s+(.+?)\s*$/;
  * Sections whose body is running prose, joined into one string, keyed by
  * their lower-cased heading. "Significance audience" is PNAS notation
  * (gcol33/docrev#20): the Significance statement's own, narrower audience.
+ * "Funnel" is the paper-funnel skill's spec (claim sentence, headline and scope
+ * numbers, section orders, recurrence), kept as written and not checked here.
  */
 const PROSE_SECTIONS = {
   claim: 'claim',
@@ -61,6 +63,7 @@ const PROSE_SECTIONS = {
   'design logic': 'designLogic',
   meaning: 'meaning',
   'significance audience': 'significanceAudience',
+  funnel: 'funnel',
 } as const;
 type ProseSection = keyof typeof PROSE_SECTIONS;
 type ProseKey = (typeof PROSE_SECTIONS)[ProseSection];
@@ -95,6 +98,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     designLogic: '',
     meaning: '',
     significanceAudience: '',
+    funnel: '',
     arcs: [],
     terms: [],
     constraints: [],

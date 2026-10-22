@@ -850,6 +850,12 @@ describe('story problem and question', () => {
     assert.strictEqual(doc.designLogic, 'Three settings separate the sources.');
     assert.strictEqual(doc.meaning, 'Habitat transfers, survey metadata do not.');
   });
+
+  it('parses the paper-funnel spec section', () => {
+    const { doc, errors } = parseStory('## Funnel\n- claim-sentence: "X limits Y."\n- scope-number: 33,830 species\n');
+    assert.deepStrictEqual(errors, []);
+    assert.match(doc.funnel, /claim-sentence: "X limits Y\."/);
+  });
 });
 
 // ============================================================================
@@ -873,7 +879,7 @@ describe('story.md PNAS notation', () => {
 
 describe('journeyCheck PNAS notation', () => {
   function makeStory(arcs) {
-    return { title: '', claim: '', audience: '', problem: '', question: '', stakes: '', idea: '', designLogic: '', meaning: '', significanceAudience: '', arcs, terms: [], constraints: [], open: [] };
+    return { title: '', claim: '', audience: '', problem: '', question: '', stakes: '', idea: '', designLogic: '', meaning: '', significanceAudience: '', funnel: '', arcs, terms: [], constraints: [], open: [] };
   }
 
   it('flags an arc marked significance: yes with no sig.* entry', () => {

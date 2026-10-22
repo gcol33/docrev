@@ -627,6 +627,8 @@ export interface StoryDoc {
   meaning: string;
   /** PNAS notation: the reader of the Significance statement, if narrower than `audience`. */
   significanceAudience: string;
+  /** The paper-funnel spec, as written: claim sentence, headline and scope numbers, orders, recurrence. */
+  funnel: string;
   arcs: StoryArc[];
   terms: StoryTerm[];
   constraints: string[];
