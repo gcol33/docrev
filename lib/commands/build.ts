@@ -695,7 +695,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
       const spin = fmt.spinner('Building...').start();
 
       try {
-        const { results, paperPath, forwardRefsResolved, refsAutoInjected, warnings } = await build(dir, targetFormats, {
+        const { results, paperPath, externalRefsResolved, refsAutoInjected, warnings } = await build(dir, targetFormats, {
           crossref: options.crossref,
           config,
           verbose: options.verbose,
@@ -707,8 +707,8 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
         console.log(chalk.cyan('Combined sections → paper.md'));
         console.log(chalk.dim(`  ${paperPath}`));
-        if (forwardRefsResolved > 0) {
-          console.log(chalk.dim(`  ${forwardRefsResolved} forward reference(s) pre-resolved`));
+        if (externalRefsResolved > 0) {
+          console.log(chalk.dim(`  ${externalRefsResolved} reference(s) to anchors outside the document resolved`));
         }
         if (refsAutoInjected) {
           console.log(chalk.dim(`  References section auto-injected before supplementary`));

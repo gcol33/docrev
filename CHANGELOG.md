@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Figure and table references build as pandoc-crossref prints them.** `rev build` rewrote every reference that came before its anchor as a hardcoded "Figure N", so a paper whose figures sit after the text (Nature format) built "Fig. [-@fig:a]" as "Fig. [-Figure 1]" and ignored `figPrefix`. pandoc-crossref resolves a reference before or after its anchor in the combined document itself, so the pre-pass now resolves only references whose anchor is outside the text (`resolveExternalRefs`, was `resolveForwardRefs`). That pass, the supplementary pass and the DOCX conversion share one replacement, `replaceRefs`, which reads the citation syntax (`[-@fig:a]` the number alone, `[@fig:a]` and `@fig:a` prefix and number, `[@fig:a; @fig:b]` the plural prefix, `@Fig:a` capitalised) and takes the prefixes from rev.yaml's `crossref` block (`refPrefixes`).
+
 ## [0.16.1] - 2026-10-21
 
 ### Added

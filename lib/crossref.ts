@@ -413,20 +413,130 @@ export function buildRegistry(directory: string, sections?: string[]): Registry 
 export function labelToDisplay(
   type: 'fig' | 'tbl' | 'eq',
   label: string,
-  registry: Registry
+  registry: Registry,
+  prefixes: RefPrefixes = DEFAULT_REF_PREFIXES
 ): string | null {
-  if (!registry || !registry.figures) return null;
+  const numStr = labelToNumber(type, label, registry);
+  return numStr === null ? null : `${prefixes[type][0]} ${numStr}`;
+}
 
+/**
+ * The number a label prints as, without its prefix ("1", "S2"), or null when the
+ * registry does not hold it.
+ */
+export function labelToNumber(type: 'fig' | 'tbl' | 'eq', label: string, registry: Registry): string | null {
+  if (!registry || !registry.figures) return null;
   const collection =
     type === 'fig' ? registry.figures : type === 'tbl' ? registry.tables : registry.equations;
-
   const info = collection.get(label);
   if (!info) return null;
+  return info.isSupp ? `S${info.num}` : `${info.num}`;
+}
 
-  const prefix = type === 'fig' ? 'Figure' : type === 'tbl' ? 'Table' : 'Equation';
-  const numStr = info.isSupp ? `S${info.num}` : `${info.num}`;
+/** Singular and plural prefix per label type, as pandoc-crossref prints them. */
+export interface RefPrefixes {
+  fig: [string, string];
+  tbl: [string, string];
+  eq: [string, string];
+}
 
-  return `${prefix} ${numStr}`;
+export const DEFAULT_REF_PREFIXES: RefPrefixes = {
+  fig: ['Figure', 'Figures'],
+  tbl: ['Table', 'Tables'],
+  eq: ['Equation', 'Equations'],
+};
+
+/**
+ * The prefixes a pandoc-crossref config sets (`figPrefix`, `tblPrefix`, `eqnPrefix`), each a
+ * string or a [singular, plural] list, falling back to the defaults where one is not set.
+ */
+export function refPrefixes(
+  crossref?: { figPrefix?: string | string[]; tblPrefix?: string | string[]; eqnPrefix?: string | string[] } | null
+): RefPrefixes {
+  const pick = (value: string | string[] | undefined, fallback: [string, string]): [string, string] => {
+    if (value === undefined || value === null) return fallback;
+    const list = Array.isArray(value) ? value : [value];
+    const singular = list[0] ?? fallback[0];
+    return [singular, list[1] ?? singular];
+  };
+  return {
+    fig: pick(crossref?.figPrefix, DEFAULT_REF_PREFIXES.fig),
+    tbl: pick(crossref?.tblPrefix, DEFAULT_REF_PREFIXES.tbl),
+    eq: pick(crossref?.eqnPrefix, DEFAULT_REF_PREFIXES.eq),
+  };
+}
+
+const CITATION_GROUP = /\[\s*(-?@(?:fig|tbl|eq):[A-Za-z0-9_-]+(?:\s*;\s*-?@(?:fig|tbl|eq):[A-Za-z0-9_-]+)*)\s*\]/gi;
+const CITATION_ITEM = /^(-?)@(fig|tbl|eq):([A-Za-z0-9_-]+)$/i;
+
+/**
+ * Replace the references `select` accepts with the text pandoc-crossref prints for them.
+ *
+ * A citation group is replaced whole: `[-@fig:a]` prints the number alone, `[@fig:a]` the
+ * singular prefix and the number, and `[@fig:a; @fig:b]` the plural prefix and the numbers
+ * joined by commas. A bare `@fig:a` prints the singular prefix and the number. A capitalised
+ * type (`@Fig:a`) capitalises the prefix. A group is replaced only when every reference in it
+ * is selected, of one type and in the registry; otherwise it is left for pandoc-crossref.
+ */
+export function replaceRefs(
+  text: string,
+  registry: Registry,
+  prefixes: RefPrefixes,
+  select: (ref: { type: 'fig' | 'tbl' | 'eq'; label: string }) => boolean
+): {
+  text: string;
+  resolved: Array<{ from: string; to: string; position: number }>;
+  unresolved: Array<{ ref: string; position: number }>;
+} {
+  const edits: Array<{ start: number; end: number; from: string; to: string }> = [];
+  const unresolved: Array<{ ref: string; position: number }> = [];
+  const groupSpans: Array<[number, number]> = [];
+  const withCase = (prefix: string, typed: string): string =>
+    typed[0] === typed[0]!.toUpperCase() ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : prefix;
+
+  CITATION_GROUP.lastIndex = 0;
+  let group: RegExpExecArray | null;
+  while ((group = CITATION_GROUP.exec(text)) !== null) {
+    const start = group.index;
+    const end = start + group[0].length;
+    groupSpans.push([start, end]);
+    const items = group[1]!.split(';').map((s) => CITATION_ITEM.exec(s.trim())!);
+    const refs = items.map((m) => ({
+      suppress: m[1] === '-',
+      typed: m[2]!,
+      type: m[2]!.toLowerCase() as 'fig' | 'tbl' | 'eq',
+      label: m[3]!,
+    }));
+    if (!refs.every((r) => select(r))) continue;
+    const type = refs[0]!.type;
+    const numbers = refs.map((r) => labelToNumber(r.type, r.label, registry));
+    if (refs.some((r) => r.type !== type) || numbers.some((n) => n === null)) {
+      unresolved.push({ ref: group[0], position: start });
+      continue;
+    }
+    const nums = (numbers as string[]).join(', ');
+    const prefix = withCase(prefixes[type][refs.length > 1 ? 1 : 0], refs[0]!.typed);
+    edits.push({ start, end, from: group[0], to: refs[0]!.suppress ? nums : `${prefix} ${nums}` });
+  }
+
+  for (const ref of detectDynamicRefs(text)) {
+    if (groupSpans.some(([s, e]) => ref.position >= s && ref.position < e)) continue;
+    const type = ref.type.toLowerCase() as 'fig' | 'tbl' | 'eq';
+    if (!select({ type, label: ref.label })) continue;
+    const num = labelToNumber(type, ref.label, registry);
+    if (num === null) {
+      unresolved.push({ ref: ref.match, position: ref.position });
+      continue;
+    }
+    const prefix = withCase(prefixes[type][0], ref.match.slice(1));
+    edits.push({ start: ref.position, end: ref.position + ref.match.length, from: ref.match, to: `${prefix} ${num}` });
+  }
+
+  edits.sort((a, b) => b.start - a.start);
+  let result = text;
+  for (const e of edits) result = result.slice(0, e.start) + e.to + result.slice(e.end);
+  const resolved = edits.reverse().map((e) => ({ from: e.from, to: e.to, position: e.start }));
+  return { text: result, resolved, unresolved };
 }
 
 /**
@@ -674,46 +784,23 @@ export function detectForwardRefs(text: string): {
 }
 
 /**
- * Resolve forward references to display format
- * Only resolves refs that appear before their anchor definition
- * Leaves other refs for pandoc-crossref to handle (preserves clickable links)
+ * Resolve references whose anchor is not in the text to display format.
+ *
+ * pandoc-crossref resolves every reference whose anchor is in the document it is given,
+ * whether the reference comes before or after the anchor, and keeps it a link. Only a
+ * reference to an anchor outside the combined text needs resolving here, from the registry.
  */
-export function resolveForwardRefs(
+export function resolveExternalRefs(
   text: string,
-  registry: Registry
+  registry: Registry,
+  prefixes: RefPrefixes = DEFAULT_REF_PREFIXES
 ): {
   text: string;
   resolved: Array<{ from: string; to: string; position: number }>;
   unresolved: Array<{ ref: string; position: number }>;
 } {
-  const { forwardRefs } = detectForwardRefs(text);
-  const resolved: Array<{ from: string; to: string; position: number }> = [];
-  const unresolved: Array<{ ref: string; position: number }> = [];
-
-  // Process in reverse order to preserve positions
-  let result = text;
-  for (let i = forwardRefs.length - 1; i >= 0; i--) {
-    const ref = forwardRefs[i];
-    if (!ref) continue;
-    const display = labelToDisplay(ref.type as 'fig' | 'tbl' | 'eq', ref.label, registry);
-
-    if (display) {
-      result =
-        result.slice(0, ref.position) + display + result.slice(ref.position + ref.match.length);
-      resolved.push({
-        from: ref.match,
-        to: display,
-        position: ref.position,
-      });
-    } else {
-      unresolved.push({
-        ref: ref.match,
-        position: ref.position,
-      });
-    }
-  }
-
-  return { text: result, resolved, unresolved };
+  const { anchorPositions } = detectForwardRefs(text);
+  return replaceRefs(text, registry, prefixes, (ref) => !anchorPositions.has(`${ref.type}:${ref.label}`));
 }
 
 /**
@@ -726,7 +813,8 @@ export function resolveForwardRefs(
  */
 export function resolveSupplementaryRefs(
   text: string,
-  registry: Registry
+  registry: Registry,
+  prefixes: RefPrefixes = DEFAULT_REF_PREFIXES
 ): {
   text: string;
   resolved: Array<{ from: string; to: string }>;
@@ -746,21 +834,9 @@ export function resolveSupplementaryRefs(
   if (suppLabels.size === 0) return { text: result, resolved };
 
   // 1. Replace all @fig:label / @tbl:label references to supplementary items
-  const refs = detectDynamicRefs(result);
-  // Process in reverse to preserve positions
-  for (let i = refs.length - 1; i >= 0; i--) {
-    const ref = refs[i];
-    if (!ref) continue;
-    const key = `${ref.type}:${ref.label}`;
-    if (!suppLabels.has(key)) continue;
-
-    const display = labelToDisplay(ref.type as 'fig' | 'tbl' | 'eq', ref.label, registry);
-    if (display) {
-      result =
-        result.slice(0, ref.position) + display + result.slice(ref.position + ref.match.length);
-      resolved.push({ from: ref.match, to: display });
-    }
-  }
+  const supp = replaceRefs(result, registry, prefixes, (ref) => suppLabels.has(`${ref.type}:${ref.label}`));
+  result = supp.text;
+  for (const r of supp.resolved) resolved.push({ from: r.from, to: r.to });
 
   // 2. Strip the {#fig:label} / {#tbl:label} anchor from supplementary items
   //    so pandoc-crossref does not re-number them, but keep any other

@@ -12,7 +12,9 @@ import {
   parseRefNumber,
   getRefStatus,
   detectForwardRefs,
-  resolveForwardRefs,
+  resolveExternalRefs,
+  replaceRefs,
+  refPrefixes,
   convertHardcodedRefs,
   resolveSupplementaryRefs,
   checkCrossRefs,
@@ -416,8 +418,7 @@ describe('detectForwardRefs', () => {
   });
 });
 
-describe('resolveForwardRefs', () => {
-  // Mock registry for testing
+describe('resolveExternalRefs', () => {
   const mockRegistry = {
     figures: new Map([
       ['map', { label: 'map', num: 1, isSupp: false, file: 'methods.md' }],
@@ -437,65 +438,101 @@ describe('resolveForwardRefs', () => {
     },
   };
 
-  it('should resolve forward reference to display format', () => {
-    const text = 'See @fig:map.\n\n![Map](map.png){#fig:map}';
-    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+  it('leaves a forward reference whose anchor is in the text to pandoc-crossref', () => {
+    const text = 'See @fig:map and [-@fig:map].\n\n![Map](map.png){#fig:map}';
+    const { text: result, resolved } = resolveExternalRefs(text, mockRegistry);
 
-    assert.ok(result.includes('Figure 1'));
-    assert.ok(!result.includes('@fig:map'));
-    assert.strictEqual(resolved.length, 1);
-    assert.strictEqual(resolved[0].from, '@fig:map');
-    assert.strictEqual(resolved[0].to, 'Figure 1');
-  });
-
-  it('should not resolve backward references', () => {
-    const text = '![Map](map.png){#fig:map}\n\nSee @fig:map.';
-    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
-
-    // Backward ref should remain as @fig:map for pandoc-crossref
-    assert.ok(result.includes('@fig:map'));
+    assert.strictEqual(result, text);
     assert.strictEqual(resolved.length, 0);
   });
 
-  it('should resolve supplementary figure correctly', () => {
-    const text = 'See @fig:suppfig.\n\n![Supp](s.png){#fig:suppfig}';
-    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+  it('leaves a backward reference to pandoc-crossref', () => {
+    const text = '![Map](map.png){#fig:map}\n\nSee @fig:map.';
+    const { text: result, resolved } = resolveExternalRefs(text, mockRegistry);
 
-    assert.ok(result.includes('Figure S1'));
-    assert.strictEqual(resolved.length, 1);
+    assert.strictEqual(result, text);
+    assert.strictEqual(resolved.length, 0);
   });
 
-  it('should resolve tables too', () => {
-    const text = 'See @tbl:data.\n\n| Col |{#tbl:data}';
-    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+  it('resolves a reference whose anchor is outside the text', () => {
+    const text = 'As shown in @fig:map, the results...';
+    const { text: result, resolved } = resolveExternalRefs(text, mockRegistry);
 
-    assert.ok(result.includes('Table 1'));
+    assert.strictEqual(result, 'As shown in Figure 1, the results...');
     assert.strictEqual(resolved.length, 1);
+    assert.strictEqual(resolved[0].from, '@fig:map');
   });
 
-  it('should track unresolved refs', () => {
+  it('resolves supplementary and table references outside the text', () => {
+    const { text: result } = resolveExternalRefs('See @fig:suppfig and @tbl:data.', mockRegistry);
+    assert.strictEqual(result, 'See Figure S1 and Table 1.');
+  });
+
+  it('tracks references the registry does not hold', () => {
     const text = 'See @fig:nonexistent.\n\n![Other](o.png){#fig:other}';
-    const { unresolved } = resolveForwardRefs(text, mockRegistry);
+    const { unresolved } = resolveExternalRefs(text, mockRegistry);
 
     assert.strictEqual(unresolved.length, 1);
     assert.strictEqual(unresolved[0].ref, '@fig:nonexistent');
   });
 
-  it('should handle multiple forward refs in correct order', () => {
-    const text = 'See @fig:chart then @fig:map.\n\n![Map](m.png){#fig:map}\n![Chart](c.png){#fig:chart}';
-    const { text: result, resolved } = resolveForwardRefs(text, mockRegistry);
+  it('prints the configured prefix', () => {
+    const prefixes = refPrefixes({ figPrefix: ['Fig.', 'Figs.'] });
+    const { text: result } = resolveExternalRefs('See @fig:map.', mockRegistry, prefixes);
+    assert.strictEqual(result, 'See Fig. 1.');
+  });
+});
 
-    assert.ok(result.includes('Figure 2'));  // chart
-    assert.ok(result.includes('Figure 1'));  // map
-    assert.strictEqual(resolved.length, 2);
+describe('replaceRefs', () => {
+  const registry = {
+    figures: new Map([
+      ['a', { label: 'a', num: 1, isSupp: false }],
+      ['b', { label: 'b', num: 2, isSupp: false }],
+      ['s', { label: 's', num: 3, isSupp: true }],
+    ]),
+    tables: new Map([['t', { label: 't', num: 1, isSupp: false }]]),
+    equations: new Map(),
+    byNumber: {},
+  };
+  const prefixes = refPrefixes({ figPrefix: ['Fig.', 'Figs.'] });
+  const all = () => true;
+
+  it('prints the number alone for a prefix-suppressed citation', () => {
+    assert.strictEqual(replaceRefs('Fig. [-@fig:b]a shows', registry, prefixes, all).text, 'Fig. 2a shows');
   });
 
-  it('should preserve text around resolved refs', () => {
-    const text = 'As shown in @fig:map, the results...';
-    const { text: result } = resolveForwardRefs(text, mockRegistry);
+  it('prints prefix and number for a bracketed or bare reference', () => {
+    assert.strictEqual(replaceRefs('[@fig:a] and @fig:b', registry, prefixes, all).text, 'Fig. 1 and Fig. 2');
+  });
 
-    assert.ok(result.startsWith('As shown in Figure 1'));
-    assert.ok(result.includes(', the results...'));
+  it('prints the plural prefix for a group', () => {
+    assert.strictEqual(replaceRefs('(see [@fig:a; @fig:b])', registry, prefixes, all).text, '(see Figs. 1, 2)');
+  });
+
+  it('capitalises the prefix for a capitalised type', () => {
+    const lower = refPrefixes({ figPrefix: ['fig.', 'figs.'] });
+    assert.strictEqual(replaceRefs('@Fig:a and @fig:a', registry, lower, all).text, 'Fig. 1 and fig. 1');
+  });
+
+  it('prints a supplementary number with its S', () => {
+    assert.strictEqual(replaceRefs('[-@fig:s]', registry, prefixes, all).text, 'S3');
+  });
+
+  it('leaves a group alone unless every reference in it is selected', () => {
+    const text = 'see [@fig:a; @fig:s] and @fig:s';
+    const onlySupp = (r) => r.label === 's';
+    assert.strictEqual(replaceRefs(text, registry, prefixes, onlySupp).text, 'see [@fig:a; @fig:s] and Fig. S3');
+  });
+
+  it('leaves a mixed-type group to pandoc-crossref and reports it', () => {
+    const { text, unresolved } = replaceRefs('[@fig:a; @tbl:t]', registry, prefixes, all);
+    assert.strictEqual(text, '[@fig:a; @tbl:t]');
+    assert.strictEqual(unresolved.length, 1);
+  });
+
+  it('falls back to the default prefixes where the config sets none', () => {
+    assert.deepStrictEqual(refPrefixes({}).tbl, ['Table', 'Tables']);
+    assert.deepStrictEqual(refPrefixes({ figPrefix: 'Fig.' }).fig, ['Fig.', 'Fig.']);
   });
 });
 

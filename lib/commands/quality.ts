@@ -80,7 +80,7 @@ interface FullBuildResult {
   results: BuildResult[];
   paperPath: string;
   warnings: string[];
-  forwardRefsResolved: number;
+  externalRefsResolved: number;
   refsAutoInjected?: boolean;
 }
 

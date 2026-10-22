@@ -16,7 +16,7 @@ import YAML from 'yaml';
 import { stripAnnotations } from './annotations.js';
 import { criticToNativeTrackChanges, enableTrackRevisions, type NativeTrackChangeStats } from './trackchanges.js';
 import { prepareMarkdownWithMarkers, injectCommentsAtMarkers } from './wordcomments.js';
-import { buildRegistry, labelToDisplay, detectDynamicRefs, resolveForwardRefs, resolveSupplementaryRefs } from './crossref.js';
+import { buildRegistry, replaceRefs, refPrefixes, resolveExternalRefs, resolveSupplementaryRefs, type RefPrefixes } from './crossref.js';
 import { processVariables, hasVariables } from './variables.js';
 import { processSlideMarkdown, hasSlideSyntax } from './slides.js';
 import { generatePptxTemplate, templateNeedsRegeneration, injectMediaIntoPptx, injectSlideNumbers, applyThemeFonts, applyCentering, applyBuildupColors } from './pptx-template.js';
@@ -271,7 +271,7 @@ interface BuildOptions {
   /** Extra pandoc args from CLI (--pandoc-arg). Appended after config args. */
   pandocArgs?: string[];
   _refsAutoInjected?: boolean;
-  _forwardRefsResolved?: number;
+  _externalRefsResolved?: number;
 }
 
 interface CombineOptions extends BuildOptions {
@@ -293,7 +293,7 @@ interface FullBuildResult {
   results: BuildResult[];
   paperPath: string;
   warnings: string[];
-  forwardRefsResolved: number;
+  externalRefsResolved: number;
   refsAutoInjected?: boolean;
 }
 
@@ -686,22 +686,23 @@ export function combineSections(directory: string, config: BuildConfig, options:
     paperContent = processVariables(paperContent, config as any, { sectionContents });
   }
 
-  // Resolve forward references (refs that appear before their anchor definition)
-  // This fixes pandoc-crossref limitation with multi-file documents
+  // Resolve references whose anchor is not in the combined text. pandoc-crossref resolves the
+  // rest itself, before or after their anchor, so they stay links in the output.
   if (hasPandocCrossref()) {
     const registry = buildRegistry(directory, sections);
-    const { text, resolved } = resolveForwardRefs(paperContent, registry);
+    const prefixes = refPrefixes(config.crossref);
+    const { text, resolved } = resolveExternalRefs(paperContent, registry, prefixes);
     if (resolved.length > 0) {
       paperContent = text;
       // Store resolved count for optional reporting
-      options._forwardRefsResolved = resolved.length;
+      options._externalRefsResolved = resolved.length;
     }
 
     // Resolve supplementary references and strip their anchors.
     // pandoc-crossref cannot produce "Figure S1" numbering — it numbers all
     // figures sequentially. We resolve supplementary refs to plain text and
     // remove the {#fig:...} attributes so crossref ignores them.
-    const supp = resolveSupplementaryRefs(paperContent, registry);
+    const supp = resolveSupplementaryRefs(paperContent, registry, prefixes);
     if (supp.resolved.length > 0) {
       paperContent = supp.text;
     }
@@ -991,7 +992,7 @@ export function applyFormatTransforms(
       });
     }
   } else if (format === 'docx') {
-    content = convertDynamicRefsToDisplay(content, registry);
+    content = convertDynamicRefsToDisplay(content, registry, refPrefixes(config.crossref));
 
     // Pandoc strips raw LaTeX in docx output. Translate the common
     // `\begin{figure}...\end{figure}` shape to portable markdown so figures
@@ -1437,24 +1438,10 @@ export async function buildCommentsPdf(
 }
 
 /**
- * Convert @fig:label references to display format (Figure 1)
+ * Convert @fig:label references to the display text pandoc-crossref prints (Fig. 1)
  */
-function convertDynamicRefsToDisplay(text: string, registry: Registry): string {
-  const refs = detectDynamicRefs(text);
-
-  // Process in reverse order to preserve positions
-  let result = text;
-  for (let i = refs.length - 1; i >= 0; i--) {
-    const ref = refs[i];
-    if (!ref) continue;
-    const display = labelToDisplay(ref.type, ref.label, registry as any);
-
-    if (display) {
-      result = result.slice(0, ref.position) + display + result.slice(ref.position + ref.match.length);
-    }
-  }
-
-  return result;
+function convertDynamicRefsToDisplay(text: string, registry: Registry, prefixes: RefPrefixes): string {
+  return replaceRefs(text, registry as any, prefixes, () => true).text;
 }
 
 // =============================================================================
@@ -2276,7 +2263,7 @@ export async function build(
   options: BuildOptions = {}
 ): Promise<FullBuildResult> {
   const warnings: string[] = [];
-  let forwardRefsResolved = 0;
+  let externalRefsResolved = 0;
 
   // Check pandoc
   if (!hasPandoc()) {
@@ -2300,7 +2287,7 @@ export async function build(
   // Combine sections → paper.md
   const buildOptions: CombineOptions = { ...options };
   const paperPath = combineSections(directory, config, buildOptions);
-  forwardRefsResolved = buildOptions._forwardRefsResolved || 0;
+  externalRefsResolved = buildOptions._externalRefsResolved || 0;
   const refsAutoInjected = buildOptions._refsAutoInjected || false;
 
   // Expand 'all' to all formats
@@ -2346,7 +2333,7 @@ export async function build(
     }
   }
 
-  return { results, paperPath, warnings, forwardRefsResolved, refsAutoInjected };
+  return { results, paperPath, warnings, externalRefsResolved, refsAutoInjected };
 }
 
 /**
