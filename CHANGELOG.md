@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **docrev requires Node.js 20.16 or later.** Its PDF reader, pdfjs-dist 5, requires that version, so `engines` declared Node 18 support that the dependency did not have. CI tests Node 20, 22 and 24.
 
+### Fixed
+- **A PDF built with characters its font lacks is reported.** xelatex leaves such a character off the page and only notes it in its log; `docrev build` now lists the missing characters as a build warning (`missingGlyphWarning`).
+- **Windows paths in `bibliography` and `csl` survive.** Pandoc reads header metadata as markdown, so in `C:\Users\...` every backslash segment parsed as a raw TeX command and vanished ("File C:Colling-in-ecology-and-evolution.csl not found"). Both paths are now written with forward slashes.
+
 ## [0.17.3] - 2026-10-23
 
 ### Fixed
