@@ -95,7 +95,7 @@
     "build:watch": "tsc --watch",
     "dev": "tsx bin/rev.ts",
     "test": "node scripts/run-tests.js",
-    "test:watch": "node --test --watch test/*.test.js",
+    "test:watch": "node scripts/run-tests.js --watch",
     "test:coverage": "c8 --reporter=text --reporter=lcov node scripts/run-tests.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
