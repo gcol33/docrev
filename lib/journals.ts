@@ -264,10 +264,25 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
     url: 'https://besjournals.onlinelibrary.wiley.com/hub/journal/2041210x/author-guidelines',
     requirements: {
       // "Research articles should have a maximum of 7000-8000 words (including
-      // tables/figure captions, statements and references list)."
-      wordLimit: { main: 7000, abstract: 350, includeStatements: true },
+      // tables/figure captions, statements and references list)." The top of
+      // the range is the cap; tables, captions, statements and the rendered
+      // reference list all count toward it.
+      // "The abstract should be numbered, aim not to exceed 350 words."
+      wordLimit: {
+        main: 8000,
+        abstract: 350,
+        includeAbstract: true,
+        includeTableCells: true,
+        includeFigureCaptions: true,
+        includeStatements: true,
+        includeReferences: true,
+      },
       references: { doiRequired: true },
       sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+      // "Key-words: A list in alphabetical order not exceeding eight words or
+      // short phrases."
+      keywords: { max: 8 },
+      dataAvailability: true,
     },
     formatting: {
       csl: 'methods-in-ecology-and-evolution',

@@ -52,6 +52,27 @@ describe('getJournalProfile', () => {
     assert.ok(profile);
   });
 
+  it('counts tables, captions, statements and references for Methods in Ecology and Evolution', () => {
+    const wordLimit = getJournalProfile('methods-ecology-evolution').requirements.wordLimit;
+    assert.strictEqual(wordLimit.main, 8000);
+    const text = [
+      '# Abstract', '', 'One two three.', '',
+      '# Introduction', '', 'Body words here.', '',
+      '| Col | Val |', '|-----|-----|', '| alpha | beta |', '',
+      '# Acknowledgements', '', 'We thank the funder.',
+    ].join('\n');
+    const count = countForWordLimit([text], wordLimit, 5);
+    assert.deepStrictEqual(count.counted, {
+      abstract: true, tableCells: true, figureCaptions: true, statements: true, references: true,
+    });
+    assert.ok(count.tableCellWords > 0);
+    assert.ok(count.statementWords > 0);
+    assert.strictEqual(
+      count.wordCount,
+      count.bodyWords + count.abstractWords + count.tableCellWords + count.figureCaptionWords + count.statementWords + 5
+    );
+  });
+
   it('should handle spaces as hyphens', () => {
     const profile = getJournalProfile('plos one');
     assert.ok(profile);
