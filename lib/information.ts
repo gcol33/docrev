@@ -28,12 +28,12 @@
  */
 
 import { applyAccepts, isFrontMatter } from './journey.js';
+import { paragraphRefs as refs } from './paragraph-markers.js';
 import type { JourneyFinding, ManuscriptBlock, SidecarParseError } from './types.js';
 
 const SECTION = /^##\s+(.+?)\s*$/;
 const ENTRY = /^###\s+(\S+)\s*$/;
 const FIELD = /^-\s*([A-Za-z][\w-]*)\s*:\s*(.*)$/;
-const REF = /@p:([\w.:-]*[\w-])/g;
 const CHECKED = new Set(['Terms', 'Populations']);
 const ALONE_KEYS = ['abstract', 'caption', 'supplement', 'reminder'];
 
@@ -55,7 +55,6 @@ export interface InformationEntry {
 }
 
 const list = (value: string) => value.split(';').map((s) => s.trim().replace(/’/g, "'")).filter(Boolean);
-const refs = (value: string) => [...value.matchAll(REF)].map((m) => m[1] as string);
 
 /** Parse the Terms and Populations of information.md. Never throws. */
 export function parseInformation(content: string, file = 'information.md'): { entries: InformationEntry[]; errors: SidecarParseError[] } {

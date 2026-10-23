@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **story.md's `## Spine` section and journey.md's `- assumes:` field are parsed.** Both are written by the paper-assumed-knowledge skill and were rejected as an unknown story section and an unknown entry field. The Spine (the opening's belief, question, explanation, A- and B-plot as decided with the author) is kept as written in `spine`; an `@p:` anchor in it that no paragraph carries is reported as `unresolved-anchor` by `docrev journey check`. `assumes` is kept on the entry and survives `docrev journey init`.
+
+### Fixed
+- **`docrev journey init` keeps `- negotiated:` lines.** The rewrite of journey.md dropped them, so re-running init deleted every paragraph pin settled with a co-author.
+
 ## [0.17.0] - 2026-10-23
 
 ### Added

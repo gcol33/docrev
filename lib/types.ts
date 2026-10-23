@@ -629,6 +629,8 @@ export interface StoryDoc {
   significanceAudience: string;
   /** The paper-funnel spec, as written: claim sentence, headline and scope numbers, orders, recurrence. */
   funnel: string;
+  /** The opening's moves as decided with the author (belief, question, explanation, A- and B-plot), with the `@p:` anchors that carry each. */
+  spine: string;
   arcs: StoryArc[];
   terms: StoryTerm[];
   constraints: string[];
@@ -648,6 +650,8 @@ export interface JourneyEntry {
   job: string;
   support: string;
   leaves: string;
+  /** What the paragraph expects the reader to know already. */
+  assumes: string;
   /** Open findings recorded on the entry, one per `- warning:` line. */
   warnings: string[];
   /** Findings overruled on the entry, one per `- accept:` line. */

@@ -13,6 +13,7 @@
  *   ## Idea
  *   ## Design logic
  *   ## Meaning
+ *   ## Spine
  *
  *   ## Arcs
  *
@@ -52,6 +53,8 @@ const H2_HEADING = /^##\s+(.+?)\s*$/;
  * (gcol33/docrev#20): the Significance statement's own, narrower audience.
  * "Funnel" is the paper-funnel skill's spec (claim sentence, headline and scope
  * numbers, section orders, recurrence), kept as written and not checked here.
+ * "Spine" is the paper-assumed-knowledge skill's M, Q, E, A and B moves as
+ * decided with the author; its `@p:` anchors are checked by `journeyCheck`.
  */
 const PROSE_SECTIONS = {
   claim: 'claim',
@@ -64,6 +67,7 @@ const PROSE_SECTIONS = {
   meaning: 'meaning',
   'significance audience': 'significanceAudience',
   funnel: 'funnel',
+  spine: 'spine',
 } as const;
 type ProseSection = keyof typeof PROSE_SECTIONS;
 type ProseKey = (typeof PROSE_SECTIONS)[ProseSection];
@@ -99,6 +103,7 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     meaning: '',
     significanceAudience: '',
     funnel: '',
+    spine: '',
     arcs: [],
     terms: [],
     constraints: [],

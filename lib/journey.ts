@@ -14,6 +14,8 @@
  *   - job: ...
  *   - support: ...
  *   - leaves: ...
+ *   - assumes: ...
+ *   - negotiated: <who> <date> [#<hash>]: <decision>   (repeatable)
  *   - warning: <finding>          (repeatable)
  *   - accept: <check>: <reason>   (repeatable)
  *
@@ -24,6 +26,7 @@
 import { createHash } from 'crypto';
 import { detectDynamicRefs } from './crossref.js';
 import { wordOverlapSimilarity } from './anchor-match.js';
+import { paragraphRefs } from './paragraph-markers.js';
 import type {
   JourneyDoc,
   JourneyEntry,
@@ -50,7 +53,7 @@ export function isFrontMatter(section: string): boolean {
 }
 
 function emptyEntry(id: string, section: string, arcs: string[], entryType: JourneyEntryType, line: number): JourneyEntry {
-  return { id, section, arcs, entryType, idea: '', job: '', support: '', leaves: '', warnings: [], accepts: [], line };
+  return { id, section, arcs, entryType, idea: '', job: '', support: '', leaves: '', assumes: '', warnings: [], accepts: [], line };
 }
 
 /**
@@ -137,6 +140,9 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
       case 'leaves':
         current.leaves = value;
         break;
+      case 'assumes':
+        current.assumes = value;
+        break;
       case 'warning':
         current.warnings.push(value);
         break;
@@ -167,6 +173,8 @@ export function formatJourneyEntry(entry: JourneyEntry): string {
   lines.push(`- job: ${entry.job}`);
   if (entry.support) lines.push(`- support: ${entry.support}`);
   if (entry.leaves) lines.push(`- leaves: ${entry.leaves}`);
+  if (entry.assumes) lines.push(`- assumes: ${entry.assumes}`);
+  for (const decision of entry.negotiated ?? []) lines.push(`- negotiated: ${decision}`);
   for (const warning of entry.warnings) lines.push(`- warning: ${warning}`);
   for (const accept of entry.accepts) lines.push(`- accept: ${accept}`);
   return lines.join('\n');
@@ -287,7 +295,7 @@ export function assignParagraphIds(
 /**
  * Build the full set of journey entries for `init`: every marked block gets
  * an entry, reusing the hand-authored fields of an existing entry with the
- * same ID (arcs, support, leaves) and only refreshing its scaffolded
+ * same ID (arcs, support, leaves, assumes, negotiated) and only refreshing its scaffolded
  * bookkeeping (section, type). A block with no prior entry gets a fresh
  * draft: no arcs, `job` seeded from its first sentence.
  */
@@ -311,6 +319,7 @@ export function scaffoldJourneyEntries(
         job: firstSentence(block.text),
         support: '',
         leaves: '',
+        assumes: '',
         warnings: [],
         accepts: [],
         line: 0,
@@ -528,6 +537,19 @@ export function journeyCheck(
             });
           }
         }
+      }
+    }
+  }
+
+  // 5a. The Spine's anchors name paragraphs that exist.
+  if (story) {
+    for (const id of new Set(paragraphRefs(story.spine))) {
+      if (!blockById.has(id)) {
+        findings.push({
+          kind: 'unresolved-anchor',
+          message: `story.md Spine points to @p:${id}, which no paragraph carries`,
+          entryIds: [id],
+        });
       }
     }
   }

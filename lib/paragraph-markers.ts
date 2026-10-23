@@ -28,6 +28,13 @@ import type { JourneyEntryType, ManuscriptBlock, ManuscriptMatter } from './type
 /** Matches a marker line on its own, e.g. `<!-- @p:intro.memory -->`. */
 export const PARAGRAPH_MARKER_LINE = /^<!--\s*@p:(\S+?)\s*-->\s*$/;
 
+const PARAGRAPH_REF = /@p:([\w.:-]*[\w-])/g;
+
+/** Paragraph IDs a sidecar value points to, from its `@p:<id>` references, in order. */
+export function paragraphRefs(value: string): string[] {
+  return [...value.matchAll(PARAGRAPH_REF)].map((m) => m[1] as string);
+}
+
 /** Matches a marker anywhere (used to strip it from build output). */
 const PARAGRAPH_MARKER_GLOBAL = /<!--\s*@p:\S+?\s*-->\n?/g;
 

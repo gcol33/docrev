@@ -200,6 +200,28 @@ describe('parseJourney', () => {
     assert.deepStrictEqual(entry.accepts, ['synonym-drift "fields": the header\'s own word']);
     assert.strictEqual(serializeJourney(doc.title, doc.entries), text);
   });
+
+  it('keeps assumes and negotiated lines through a rewrite', () => {
+    const text = `# Journey: X
+
+## Introduction
+
+### intro.belief  [S1]
+- idea: species move uphill
+- job: States the belief readers bring.
+- leaves: Warming pushes ranges upslope.
+- assumes: nothing beyond the section
+- negotiated: Franz 2026-10-20 #a1b2c3d4: keep "run out of room"
+- warning: assumed-knowledge: 1 "the Elsen pattern" (Claude, 2026-10-23)
+- accept: assumed-knowledge: decision: name is the field's own (author, 2026-10-23)
+`;
+    const { doc, errors } = parseJourney(text);
+    assert.deepStrictEqual(errors, []);
+    const [entry] = doc.entries;
+    assert.strictEqual(entry.assumes, 'nothing beyond the section');
+    assert.deepStrictEqual(entry.negotiated, ['Franz 2026-10-20 #a1b2c3d4: keep "run out of room"']);
+    assert.strictEqual(serializeJourney(doc.title, doc.entries), text);
+  });
 });
 
 // ============================================================================
@@ -321,7 +343,7 @@ function makeBlock(overrides) {
 
 function makeEntry(overrides) {
   return { id: 'x', section: 'Introduction', arcs: [], entryType: 'paragraph', idea: '', job: 'A job.', support: '', leaves: '',
-           warnings: [], accepts: [], line: 1, ...overrides };
+           assumes: '', warnings: [], accepts: [], line: 1, ...overrides };
 }
 
 describe('journeyCheck', () => {
@@ -369,7 +391,7 @@ describe('journeyCheck', () => {
   });
 
   it('flags an entry with no arc and an arc with no entry', () => {
-    const story = { title: '', claim: '', audience: '', arcs: [{ id: 'S1', title: 'T', question: '', answer: '', evidence: '', limits: '', needs: [], line: 1 }], terms: [], constraints: [], open: [] };
+    const story = { ...parseStory('').doc, title: '', claim: '', audience: '', arcs: [{ id: 'S1', title: 'T', question: '', answer: '', evidence: '', limits: '', needs: [], line: 1 }], terms: [], constraints: [], open: [] };
     const journey = { title: '', entries: [makeEntry({ id: 'x', arcs: [] })] };
     const findings = journeyCheck([makeBlock({ markerId: 'x' })], journey, { story });
     assert.ok(findings.some((f) => f.kind === 'orphan-entry' && f.entryIds.includes('x')));
@@ -377,7 +399,7 @@ describe('journeyCheck', () => {
   });
 
   it('flags an arc introduced before an arc it needs', () => {
-    const story = {
+    const story = { ...parseStory('').doc,
       title: '', claim: '', audience: '',
       arcs: [
         { id: 'S1', title: 'A', question: '', answer: '', evidence: '', limits: '', needs: [], line: 1 },
@@ -393,7 +415,7 @@ describe('journeyCheck', () => {
   });
 
   it('takes the needs order from the body, not from the abstract that states every arc', () => {
-    const story = {
+    const story = { ...parseStory('').doc,
       title: '', claim: '', audience: '',
       arcs: [
         { id: 'S1', title: 'A', question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], line: 1 },
@@ -414,7 +436,7 @@ describe('journeyCheck', () => {
   });
 
   it('marks a finding overruled by an accept line on the entry it concerns', () => {
-    const story = {
+    const story = { ...parseStory('').doc,
       title: '', claim: '', audience: '',
       arcs: [
         { id: 'S1', title: 'A', question: '', answer: '', evidence: '', limits: '', needs: [], line: 1 },
@@ -438,7 +460,7 @@ describe('journeyCheck', () => {
   });
 
   it('does not flag needs order when satisfied', () => {
-    const story = {
+    const story = { ...parseStory('').doc,
       title: '', claim: '', audience: '',
       arcs: [
         { id: 'S1', title: 'A', question: '', answer: '', evidence: '', limits: '', needs: [], line: 1 },
@@ -453,7 +475,7 @@ describe('journeyCheck', () => {
   });
 
   it('flags TODO evidence and unresolved evidence labels', () => {
-    const story = {
+    const story = { ...parseStory('').doc,
       title: '', claim: '', audience: '',
       arcs: [
         { id: 'S1', title: 'A', question: '', answer: '', evidence: 'TODO find a figure', limits: '', needs: [], line: 1 },
@@ -468,7 +490,7 @@ describe('journeyCheck', () => {
   });
 
   it('does not flag evidence that resolves against the registry', () => {
-    const story = {
+    const story = { ...parseStory('').doc,
       title: '', claim: '', audience: '',
       arcs: [{ id: 'S1', title: 'A', question: '', answer: '', evidence: '@fig:runtime', limits: '', needs: [], line: 1 }],
       terms: [], constraints: [], open: [],
@@ -541,7 +563,7 @@ describe('journeyCheck against a real crossref registry', () => {
       const registry = buildRegistry(tempDir, ['intro.md']);
       const blocks = parseManuscriptBlocks(introContent, 'intro.md', 'Introduction');
 
-      const story = {
+      const story = { ...parseStory('').doc,
         title: '', claim: '', audience: '',
         arcs: [{ id: 'S1', title: 'Setup', question: '', answer: '', evidence: '@fig:runtime', limits: '', needs: [], line: 1 }],
         terms: [], constraints: [], open: [],
@@ -598,10 +620,14 @@ describe('assignParagraphIds / scaffoldJourneyEntries', () => {
       makeBlock({ markerId: 'intro.keep', text: 'Kept paragraph.' }),
       makeBlock({ markerId: 'intro.new', text: 'A brand new paragraph. More text.' }),
     ];
-    const existing = new Map([['intro.keep', makeEntry({ id: 'intro.keep', arcs: ['S1'], job: 'Hand-written job.' })]]);
+    const existing = new Map([['intro.keep', makeEntry({ id: 'intro.keep', arcs: ['S1'], job: 'Hand-written job.',
+      assumes: 'what a range shift is', negotiated: ['Franz 2026-10-20 #a1b2c3d4: keep the wording'] })]]);
     const entries = scaffoldJourneyEntries(blocks, existing);
     assert.strictEqual(entries[0].job, 'Hand-written job.');
     assert.deepStrictEqual(entries[0].arcs, ['S1']);
+    const rewritten = parseJourney(serializeJourney('X', entries)).doc.entries[0];
+    assert.strictEqual(rewritten.assumes, 'what a range shift is');
+    assert.deepStrictEqual(rewritten.negotiated, ['Franz 2026-10-20 #a1b2c3d4: keep the wording']);
     assert.strictEqual(entries[1].job, 'A brand new paragraph.');
     assert.deepStrictEqual(entries[1].arcs, []);
   });
@@ -856,6 +882,25 @@ describe('story problem and question', () => {
     assert.deepStrictEqual(errors, []);
     assert.match(doc.funnel, /claim-sentence: "X limits Y\."/);
   });
+
+  it('parses the paper-assumed-knowledge Spine section', () => {
+    const { doc, errors } = parseStory('## Spine\n- M: species move uphill (@p:intro.belief)\n- Q: do they run out of room? (@p:intro.question)\n');
+    assert.deepStrictEqual(errors, []);
+    assert.match(doc.spine, /^- M: species move uphill \(@p:intro\.belief\)/);
+  });
+});
+
+describe('journeyCheck Spine anchors', () => {
+  const story = (spine) => ({ ...parseStory('').doc, spine });
+
+  it('flags a Spine anchor no paragraph carries', () => {
+    const blocks = [makeBlock({ markerId: 'intro.belief' })];
+    const journey = { title: '', entries: [makeEntry({ id: 'intro.belief' })] };
+    const findings = journeyCheck(blocks, journey, { story: story('- M: belief (@p:intro.belief) - Q: question (@p:intro.gone, @p:intro.gone)') });
+    const unresolved = findings.filter((f) => f.kind === 'unresolved-anchor');
+    assert.strictEqual(unresolved.length, 1);
+    assert.deepStrictEqual(unresolved[0].entryIds, ['intro.gone']);
+  });
 });
 
 // ============================================================================
@@ -879,7 +924,7 @@ describe('story.md PNAS notation', () => {
 
 describe('journeyCheck PNAS notation', () => {
   function makeStory(arcs) {
-    return { title: '', claim: '', audience: '', problem: '', question: '', stakes: '', idea: '', designLogic: '', meaning: '', significanceAudience: '', funnel: '', arcs, terms: [], constraints: [], open: [] };
+    return { title: '', claim: '', audience: '', problem: '', question: '', stakes: '', idea: '', designLogic: '', meaning: '', significanceAudience: '', funnel: '', spine: '', arcs, terms: [], constraints: [], open: [] };
   }
 
   it('flags an arc marked significance: yes with no sig.* entry', () => {

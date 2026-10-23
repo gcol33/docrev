@@ -227,11 +227,13 @@ never part of a build:
 - **`story.md`** — the argument: a claim, an audience, and a few arcs. Each
   arc has a `question`, `answer`, `evidence` (a `@fig:`/`@tbl:`/`@eq:` label
   or a source, never a restated number), its `limits`, and the arcs it
-  `needs` before it.
+  `needs` before it. An optional `## Spine` records the opening's moves
+  (belief, question, explanation, A- and B-plot) as decided with the author;
+  each `@p:` anchor in it must name an existing paragraph.
 - **`journey.md`** — one entry per paragraph (and per figure, table,
   equation, or code block, at its reading position): a stable ID, the arc(s)
-  it serves, its `job` in one sentence, and what the reader `leaves`
-  understanding. Front matter (before the first level-1 heading), back
+  it serves, its `job` in one sentence, what the reader `leaves`
+  understanding, and what it `assumes` the reader already knows. Front matter (before the first level-1 heading), back
   matter (acknowledgements, availability statements, references,
   supplementary material) and bold-label lines (`**Keywords:** ...`) need
   no entry unless given a marker.
