@@ -6,9 +6,9 @@ A revision cycle in brief:
 
 1. Build a Word document and send it to reviewers.
 2. They return it with track changes and comments.
-3. `rev sync` pulls the feedback into your markdown sections.
-4. Navigate comments with `rev next` and `rev todo`, reply with `rev reply`, accept or reject changes with `rev accept`.
-5. Rebuild with `rev build docx --dual` — a clean document and an annotated one with your replies threaded into the original Word comments.
+3. `docrev sync` pulls the feedback into your markdown sections.
+4. Navigate comments with `docrev next` and `docrev todo`, reply with `docrev reply`, accept or reject changes with `docrev accept`.
+5. Rebuild with `docrev build docx --dual` — a clean document and an annotated one with your replies threaded into the original Word comments.
 6. Archive the reviewer's file. Repeat.
 
 ---
@@ -18,7 +18,7 @@ A revision cycle in brief:
 From an existing Word document:
 
 ```bash
-rev import manuscript.docx
+docrev import manuscript.docx
 ```
 
 docrev splits the document at top-level headings and creates one `.md` file per section. Images land in `figures/`, equations convert from OMML to LaTeX, and any existing comments or track changes are preserved as CriticMarkup annotations.
@@ -26,14 +26,14 @@ docrev splits the document at top-level headings and creates one `.md` file per 
 From scratch:
 
 ```bash
-rev new my-paper -s intro,methods,results,discussion
+docrev new my-paper -s intro,methods,results,discussion
 cd my-paper
 ```
 
-The `-s` flag sets section names and skips the interactive prompt. Set your preferred sections once and future `rev new` calls use them automatically:
+The `-s` flag sets section names and skips the interactive prompt. Set your preferred sections once and future `docrev new` calls use them automatically:
 
 ```bash
-rev config sections "intro,methods,results,discussion"
+docrev config sections "intro,methods,results,discussion"
 ```
 
 Either way, the project has this shape:
@@ -111,34 +111,34 @@ For merged cells or multi-line cell content, use grid table syntax:
 : Annual measurements {#tbl:results}
 ```
 
-Cross-references resolve automatically at build time — `@fig:label`, `@tbl:label`, `@eq:label`, `@sec:label` become "Figure 1", "Table 2", "Equation 3", "Section 4". Use `rev migrate` to convert hardcoded references (Fig. 1, Table 2) to dynamic ones if you're importing an existing document.
+Cross-references resolve automatically at build time — `@fig:label`, `@tbl:label`, `@eq:label`, `@sec:label` become "Figure 1", "Table 2", "Equation 3", "Section 4". Use `docrev migrate` to convert hardcoded references (Fig. 1, Table 2) to dynamic ones if you're importing an existing document.
 
 ---
 
 ## Building and Sharing
 
 ```bash
-rev build docx        # → output/my-paper.docx
-rev build pdf         # → output/my-paper.pdf
-rev build docx pdf    # both at once
+docrev build docx        # → output/my-paper.docx
+docrev build pdf         # → output/my-paper.pdf
+docrev build docx pdf    # both at once
 ```
 
 Set a journal profile to get the right citation style and PDF formatting automatically:
 
 ```bash
-rev build pdf -j nature
+docrev build pdf -j nature
 ```
 
 Six profiles include formatting defaults — `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`. All 21 support validation. To see the full list:
 
 ```bash
-rev validate --list
+docrev validate --list
 ```
 
 For a live preview while you write:
 
 ```bash
-rev watch docx    # rebuilds on every save
+docrev watch docx    # rebuilds on every save
 ```
 
 ---
@@ -148,7 +148,7 @@ rev watch docx    # rebuilds on every save
 When a reviewer returns a Word document with track changes and comments:
 
 ```bash
-rev sync reviewed.docx
+docrev sync reviewed.docx
 ```
 
 Track changes become CriticMarkup annotations inline in your section files:
@@ -164,20 +164,20 @@ Comments land with the reviewer's name:
 {>>Reviewer 2: The confidence intervals here seem too narrow. Please clarify.<<}
 ```
 
-If your markdown has changed since you sent the document out — new edits, reordered sections — run `rev verify-anchors` first to see which comments will land cleanly against the updated prose, then use `--comments-only` to import only comments (not track changes, which would overwrite your newer edits):
+If your markdown has changed since you sent the document out — new edits, reordered sections — run `docrev verify-anchors` first to see which comments will land cleanly against the updated prose, then use `--comments-only` to import only comments (not track changes, which would overwrite your newer edits):
 
 ```bash
-rev verify-anchors reviewed.docx
-rev sync reviewed.docx --comments-only
+docrev verify-anchors reviewed.docx
+docrev sync reviewed.docx --comments-only
 ```
 
 For reviewers who annotate PDFs rather than Word files:
 
 ```bash
-rev sync annotated.pdf
+docrev sync annotated.pdf
 ```
 
-Supported annotation types: sticky notes, text boxes, highlights, underlines, strikethrough, squiggly underlines. Use `rev pdf-comments annotated.pdf --with-text` to extract the text that was highlighted or struck through.
+Supported annotation types: sticky notes, text boxes, highlights, underlines, strikethrough, squiggly underlines. Use `docrev pdf-comments annotated.pdf --with-text` to extract the text that was highlighted or struck through.
 
 ---
 
@@ -186,21 +186,21 @@ Supported annotation types: sticky notes, text boxes, highlights, underlines, st
 List what's pending:
 
 ```bash
-rev accept methods.md
+docrev accept methods.md
 ```
 
 Accept or reject individually, or all at once:
 
 ```bash
-rev accept methods.md -n 1    # accept change #1
-rev reject methods.md -n 2    # reject change #2
-rev accept methods.md -a      # accept all
+docrev accept methods.md -n 1    # accept change #1
+docrev reject methods.md -n 2    # reject change #2
+docrev accept methods.md -a      # accept all
 ```
 
 For an interactive review with keyboard shortcuts (a/r/s/q):
 
 ```bash
-rev review methods.md
+docrev review methods.md
 ```
 
 ---
@@ -210,18 +210,18 @@ rev review methods.md
 Navigate pending comments:
 
 ```bash
-rev todo                         # list all pending as a checklist
-rev next                         # show the next one
-rev next -n 3                    # skip to the 3rd
-rev comments methods.md          # all comments in one section, with context
-rev comments methods.md --author "Reviewer 2"
+docrev todo                         # list all pending as a checklist
+docrev next                         # show the next one
+docrev next -n 3                    # skip to the 3rd
+docrev comments methods.md          # all comments in one section, with context
+docrev comments methods.md --author "Reviewer 2"
 ```
 
 Reply with your name set once in config:
 
 ```bash
-rev config user "Your Name"
-rev reply methods.md -n 1 -m "Added clarification in the revised text."
+docrev config user "Your Name"
+docrev reply methods.md -n 1 -m "Added clarification in the revised text."
 ```
 
 The reply appears adjacent to the original:
@@ -235,17 +235,17 @@ Adjacent comments from different authors thread in Word automatically. Comments 
 Mark addressed:
 
 ```bash
-rev resolve methods.md -n 1
+docrev resolve methods.md -n 1
 ```
 
 ---
 
 ## Multiple Reviewers
 
-When several reviewers return separate files, `rev merge` reconciles them against a shared baseline:
+When several reviewers return separate files, `docrev merge` reconciles them against a shared baseline:
 
 ```bash
-rev merge reviewer_A.docx reviewer_B.docx
+docrev merge reviewer_A.docx reviewer_B.docx
 ```
 
 docrev compares each file against `.rev/base.docx` (saved automatically on every build) to isolate each reviewer's changes. Conflicts on the same passage are flagged for interactive resolution.
@@ -257,19 +257,19 @@ docrev compares each file against `.rev/base.docx` (saved automatically on every
 Once you've handled the feedback, rebuild:
 
 ```bash
-rev build docx --dual
+docrev build docx --dual
 ```
 
 This produces two files — `my-paper.docx` (clean, for submission or the next round) and `my-paper_comments.docx` (with your replies threaded under the original Word comments). The same flag works for PDF, rendering comments as LaTeX margin notes:
 
 ```bash
-rev build pdf --dual
+docrev build pdf --dual
 ```
 
 Generate a point-by-point response letter from the resolved comments:
 
 ```bash
-rev response > response-letter.md
+docrev response > response-letter.md
 ```
 
 ---
@@ -279,15 +279,15 @@ rev response > response-letter.md
 Move reviewer files out of the project folder:
 
 ```bash
-rev archive                    # → archive/20241215_143022_reviewed.docx
-rev archive --by Smith         # → archive/20241215_143022_Smith_my-paper.docx
-rev archive --dry-run          # preview without moving
+docrev archive                    # → archive/20241215_143022_reviewed.docx
+docrev archive --by Smith         # → archive/20241215_143022_Smith_my-paper.docx
+docrev archive --dry-run          # preview without moving
 ```
 
 Take a snapshot before a major revision round:
 
 ```bash
-rev backup --name "before-round-2"
+docrev backup --name "before-round-2"
 ```
 
 The cycle continues: receive feedback, sync, handle changes and comments, rebuild, archive.
@@ -297,13 +297,13 @@ The cycle continues: receive feedback, sync, handle changes and comments, rebuil
 ## Pre-Submission Checks
 
 ```bash
-rev check                       # full check: lint, citations, grammar
-rev doi check references.bib    # validate all DOIs
-rev validate -j nature          # journal-specific requirements
-rev word-count -j nature        # word limit, counted as the journal counts it
+docrev check                       # full check: lint, citations, grammar
+docrev doi check references.bib    # validate all DOIs
+docrev validate -j nature          # journal-specific requirements
+docrev word-count -j nature        # word limit, counted as the journal counts it
 ```
 
-For journals with strict requirements, running `rev validate --list` shows which profiles are available and which include formatting support (`[formatting]` tag).
+For journals with strict requirements, running `docrev validate --list` shows which profiles are available and which include formatting support (`[formatting]` tag).
 
 ---
 
@@ -311,19 +311,19 @@ For journals with strict requirements, running `rev validate --list` shows which
 
 | Task | Command |
 |------|---------|
-| Start from Word | `rev import manuscript.docx` |
-| Start fresh | `rev new my-paper` |
-| Build DOCX | `rev build docx` |
-| Build clean + annotated | `rev build docx --dual` |
-| Build PDF | `rev build pdf` |
-| Sync feedback | `rev sync reviewed.docx` |
-| Sync comments only (prose changed) | `rev sync reviewed.docx --comments-only` |
-| Check anchor drift | `rev verify-anchors reviewed.docx` |
-| Project status | `rev status` |
-| List pending | `rev todo` |
-| Next comment | `rev next` |
-| Accept all changes | `rev accept file.md -a` |
-| Reply to comment | `rev reply file.md -n 1 -m "..."` |
-| Archive reviewer files | `rev archive` |
-| Response letter | `rev response` |
-| Pre-submit check | `rev check` |
+| Start from Word | `docrev import manuscript.docx` |
+| Start fresh | `docrev new my-paper` |
+| Build DOCX | `docrev build docx` |
+| Build clean + annotated | `docrev build docx --dual` |
+| Build PDF | `docrev build pdf` |
+| Sync feedback | `docrev sync reviewed.docx` |
+| Sync comments only (prose changed) | `docrev sync reviewed.docx --comments-only` |
+| Check anchor drift | `docrev verify-anchors reviewed.docx` |
+| Project status | `docrev status` |
+| List pending | `docrev todo` |
+| Next comment | `docrev next` |
+| Accept all changes | `docrev accept file.md -a` |
+| Reply to comment | `docrev reply file.md -n 1 -m "..."` |
+| Archive reviewer files | `docrev archive` |
+| Response letter | `docrev response` |
+| Pre-submit check | `docrev check` |

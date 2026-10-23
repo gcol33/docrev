@@ -1,8 +1,8 @@
-#compdef rev
+#compdef docrev rev
 
-# Zsh completion for rev (docrev)
+# Zsh completion for docrev (also installed as rev)
 # Install: add to fpath or run:
-#   eval "$(rev completions zsh)"
+#   eval "$(docrev completions zsh)"
 
 _rev() {
     local -a commands build_formats doi_actions eq_actions help_topics journals preview_formats
@@ -204,4 +204,8 @@ _rev() {
     esac
 }
 
-_rev "$@"
+if [[ "$funcstack[1]" == "_rev" ]]; then
+    _rev "$@"
+else
+    compdef _rev docrev rev
+fi

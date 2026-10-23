@@ -47,7 +47,7 @@ export function register(program: Command): void {
     .argument('<file>', 'Markdown file to review')
     .action(async (file: string) => {
       // Review writes accepted/rejected text back to the same path; a .docx
-      // cannot hold CriticMarkup, so refuse it with a pointer to `rev import`.
+      // cannot hold CriticMarkup, so refuse it with a pointer to `docrev import`.
       requireEditableMarkdown(file, 'Markdown file');
 
       const text = fs.readFileSync(file, 'utf-8');

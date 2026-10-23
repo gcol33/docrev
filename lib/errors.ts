@@ -70,14 +70,14 @@ export function getFileNotFoundSuggestions(filePath: string): string[] {
 
   // Extension-specific suggestions
   if (ext === '.md' || ext === '') {
-    suggestions.push('Run "rev status" to see files in the current project');
+    suggestions.push('Run "docrev status" to see files in the current project');
   } else if (ext === '.docx') {
-    suggestions.push('Use "rev import <docx>" to import Word documents');
+    suggestions.push('Use "docrev import <docx>" to import Word documents');
   } else if (ext === '.bib') {
-    suggestions.push('Create a bibliography with "rev doi bib <doi>"');
+    suggestions.push('Create a bibliography with "docrev doi bib <doi>"');
     suggestions.push('Or check references.bib in your project');
   } else if (ext === '.pdf') {
-    suggestions.push('Build PDFs with "rev build pdf"');
+    suggestions.push('Build PDFs with "docrev build pdf"');
   }
 
   return suggestions;
@@ -104,7 +104,7 @@ export function getDependencySuggestions(dependency: string): string[] {
         suggestions.push('Install with: sudo apt install pandoc');
         suggestions.push('Or from: https://pandoc.org/installing.html');
       }
-      suggestions.push('Run "rev install" to check all dependencies');
+      suggestions.push('Run "docrev install" to check all dependencies');
       break;
 
     case 'pdflatex':
@@ -121,7 +121,7 @@ export function getDependencySuggestions(dependency: string): string[] {
         suggestions.push('Install with: sudo apt install texlive-full');
         suggestions.push('Or minimal: sudo apt install texlive-latex-base');
       }
-      suggestions.push('Alternative: Use "rev build docx" for Word output');
+      suggestions.push('Alternative: Use "docrev build docx" for Word output');
       break;
 
     case 'pandoc-crossref':
@@ -162,12 +162,12 @@ export function getConfigSuggestions(field: string, issue: string): string[] {
       suggestions.push('  sections:');
       suggestions.push('    - introduction.md');
       suggestions.push('    - methods.md');
-      suggestions.push('Or run "rev init" to auto-detect');
+      suggestions.push('Or run "docrev init" to auto-detect');
       break;
 
     case 'user':
       suggestions.push('Set your name for comment attribution:');
-      suggestions.push('  rev config user "Your Name"');
+      suggestions.push('  docrev config user "Your Name"');
       break;
 
     case 'csl':
@@ -178,7 +178,7 @@ export function getConfigSuggestions(field: string, issue: string): string[] {
 
     default:
       suggestions.push(`Check rev.yaml for "${field}" configuration`);
-      suggestions.push('Run "rev help config" for configuration options');
+      suggestions.push('Run "docrev help config" for configuration options');
   }
 
   if (issue === 'typo') {
@@ -200,7 +200,7 @@ export function getAnnotationSuggestions(issue: string): string[] {
     case 'no_comments':
       suggestions.push('Comments use CriticMarkup syntax:');
       suggestions.push('  {>>Author: Comment text<<}');
-      suggestions.push('Import from Word with: rev import <docx>');
+      suggestions.push('Import from Word with: docrev import <docx>');
       break;
 
     case 'no_changes':
@@ -208,17 +208,17 @@ export function getAnnotationSuggestions(issue: string): string[] {
       suggestions.push('  {++inserted text++}');
       suggestions.push('  {--deleted text--}');
       suggestions.push('  {~~old~>new~~}');
-      suggestions.push('Import from Word with: rev import <docx>');
+      suggestions.push('Import from Word with: docrev import <docx>');
       break;
 
     case 'invalid_number':
-      suggestions.push('Use "rev comments <file>" to see comment numbers');
-      suggestions.push('Or "rev status <file>" for a summary');
+      suggestions.push('Use "docrev comments <file>" to see comment numbers');
+      suggestions.push('Or "docrev status <file>" for a summary');
       break;
 
     case 'no_author':
       suggestions.push('Set your author name:');
-      suggestions.push('  rev config user "Your Name"');
+      suggestions.push('  docrev config user "Your Name"');
       suggestions.push('Or use --author "Name" flag');
       break;
   }
@@ -238,8 +238,8 @@ export function getBuildSuggestions(issue: string, context: BuildContext = {}): 
   switch (issue) {
     case 'no_sections':
       suggestions.push('No section files found to build');
-      suggestions.push('Create markdown files or run "rev new" to start a project');
-      suggestions.push('Or run "rev init" to auto-detect existing files');
+      suggestions.push('Create markdown files or run "docrev new" to start a project');
+      suggestions.push('Or run "docrev init" to auto-detect existing files');
       break;
 
     case 'missing_bib':
@@ -248,15 +248,15 @@ export function getBuildSuggestions(issue: string, context: BuildContext = {}): 
         suggestions.push(`Expected: ${context.bibPath}`);
       }
       suggestions.push('Create references.bib or update rev.yaml');
-      suggestions.push('Add citations with: rev doi bib <doi>');
+      suggestions.push('Add citations with: docrev doi bib <doi>');
       break;
 
     case 'pandoc_failed':
       suggestions.push('Pandoc conversion failed');
       suggestions.push('Check for syntax errors in your markdown');
-      suggestions.push('Run "rev validate" to check document structure');
+      suggestions.push('Run "docrev validate" to check document structure');
       if (context.format === 'pdf') {
-        suggestions.push('Try "rev build docx" as an alternative');
+        suggestions.push('Try "docrev build docx" as an alternative');
       }
       break;
 
@@ -266,7 +266,7 @@ export function getBuildSuggestions(issue: string, context: BuildContext = {}): 
       suggestions.push('  - Missing packages (run tlmgr to install)');
       suggestions.push('  - Invalid characters in text');
       suggestions.push('  - Math mode errors');
-      suggestions.push('Try "rev build docx" to bypass LaTeX');
+      suggestions.push('Try "docrev build docx" to bypass LaTeX');
       break;
   }
 

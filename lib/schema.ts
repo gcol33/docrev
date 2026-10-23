@@ -117,7 +117,7 @@ export const revYamlSchema: Schema = {
     },
     wordCount: {
       type: 'object',
-      description: 'Word-count settings for `rev validate` and `rev word-count`',
+      description: 'Word-count settings for `docrev validate` and `docrev word-count`',
       properties: {
         exclude: {
           type: 'array',

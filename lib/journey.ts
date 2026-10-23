@@ -157,7 +157,7 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
 
 /**
  * Serialize a single journey entry back to its `### id [arcs] (type)` +
- * field-list form, used by `rev journey init` to append scaffolded entries.
+ * field-list form, used by `docrev journey init` to append scaffolded entries.
  */
 export function formatJourneyEntry(entry: JourneyEntry): string {
   const arcTag = entry.arcs.length > 0 ? `  [${entry.arcs.join(' ')}]` : '';
@@ -408,7 +408,7 @@ export function journeyCheck(
   }
 
   // A paragraph whose wording was settled with a co-author: a change since the decision is
-  // recorded, and `rev journey ack` takes it as reconfirmed.
+  // recorded, and `docrev journey ack` takes it as reconfirmed.
   for (const entry of journey.entries) {
     const block = blockById.get(entry.id);
     if (!block) continue;
@@ -417,10 +417,10 @@ export function journeyCheck(
       const decided = `negotiated with ${n.who}${n.decision ? `: ${n.decision}` : ''}`;
       if (!n.hash) {
         findings.push({ kind: 'negotiated-unpinned', line: entry.line, entryIds: [entry.id],
-                        message: `"${entry.id}" ${decided}; run "rev journey ack ${entry.id}" to pin its text` });
+                        message: `"${entry.id}" ${decided}; run "docrev journey ack ${entry.id}" to pin its text` });
       } else if (n.hash !== paragraphHash(block.text)) {
         findings.push({ kind: 'negotiated-changed', file: block.file, line: block.line, entryIds: [entry.id],
-                        message: `"${entry.id}" changed since it was ${decided}; reconfirm, then "rev journey ack ${entry.id}"` });
+                        message: `"${entry.id}" changed since it was ${decided}; reconfirm, then "docrev journey ack ${entry.id}"` });
       }
     }
   }
@@ -675,7 +675,7 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
 /**
  * Findings a manuscript should not go out with: an undefined or prematurely used term, an avoided
  * wording back in the text, and a paragraph settled with a co-author that changed since.
- * `rev check` fails on them unless an `- accept:` line overrules them.
+ * `docrev check` fails on them unless an `- accept:` line overrules them.
  */
 export const BLOCKING: ReadonlySet<JourneyFinding['kind']> = new Set(['undefined', 'use-before-define', 'synonym-drift', 'negotiated-changed']);
 

@@ -852,7 +852,7 @@ function validateTexts(
       errors.push(`References exceed ${req.references.max} (current: ${refCount})`);
     }
     if (req.references.doiRequired) {
-      warnings.push('DOI required for all references - run "rev doi check" to verify');
+      warnings.push('DOI required for all references - run "docrev doi check" to verify');
     }
   }
 

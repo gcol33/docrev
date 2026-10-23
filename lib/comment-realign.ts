@@ -1,7 +1,7 @@
 /**
  * Realign comments from a reference DOCX onto markdown.
  *
- * This is the same job as `rev sync`: read the comments and their anchors from
+ * This is the same job as `docrev sync`: read the comments and their anchors from
  * a docx, then place them into the current markdown. It therefore reuses the
  * one extraction + placement engine rather than carrying a second docx parser
  * and a proportional position-mapper.

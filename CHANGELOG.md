@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The CLI installs as `docrev`, with `rev` kept as an alias.** On Linux and macOS `rev` is usually the util-linux tool that reverses lines, so in a VM, container or CI runner a bare `rev word-count` can reach that tool instead. Help, usage hints, error suggestions, the docs and the Claude Code skill now name `docrev`; existing scripts that call `rev` keep working. Shell completions register both names and ship as `completions/docrev.{bash,zsh,ps1}`; the zsh script, when loaded with `eval "$(docrev completions zsh)"`, now registers itself with `compdef` instead of running the completer once on load.
 - **story.md's `## Funnel` section is parsed** into `funnel`, kept as written: the paper-funnel skill's spec (claim sentence, headline and scope numbers, section orders, recurrence). It was reported as an unknown story section.
 
 ### Fixed

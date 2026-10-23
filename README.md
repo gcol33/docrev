@@ -8,13 +8,15 @@
 
 A CLI for writing documents in Markdown while collaborating with Word users.
 
-Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `rev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
+Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `docrev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
 
 ## Install
 
 ```bash
 npm install -g docrev
 ```
+
+This installs the `docrev` command and a short alias `rev`. On Linux and macOS, `rev` is usually also the name of a system tool that reverses lines, and whichever comes first on your `PATH` wins, so this README uses `docrev`.
 
 Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), [LaTeX](#installing-dependencies) is also needed; simpler documents can build through pandoc alone with a non-LaTeX engine (e.g. `pdf.engine: typst` in `rev.yaml`).
 
@@ -60,34 +62,34 @@ The relationship follows $\Delta T = \lambda \cdot \Delta F$ (@eq:forcing).
 Build and share:
 
 ```bash
-rev build docx    # → output/paper.docx
-rev build pdf     # → output/paper.pdf
+docrev build docx    # → output/paper.docx
+docrev build pdf     # → output/paper.pdf
 ```
 
 When collaborators return the Word doc with track changes:
 
 ```bash
-rev sync reviewed.docx    # their comments → your markdown
+docrev sync reviewed.docx    # their comments → your markdown
 ```
 
 ## How It Works
 
 ```
-┌─────────────┐     rev build docx      ┌─────────────┐
+┌─────────────┐     docrev build docx      ┌─────────────┐
 │             │ ───────────────────────→│             │
 │  Markdown   │                         │    Word     │  → collaborators
-│   (you)     │     rev build pdf       │   / PDF     │  → journals
+│   (you)     │     docrev build pdf       │   / PDF     │  → journals
 │             │ ───────────────────────→│             │
 └─────────────┘                         └─────────────┘
        ↑                                       │
-       │              rev sync                 │
+       │              docrev sync                 │
        └───────────────────────────────────────┘
               their feedback → your files
 ```
 
 ## What's in a Project
 
-`rev new my-paper` creates the project. It prompts for the section names (default: `introduction, methods, results, discussion`) or accepts them up front via `-s intro,methods,results,discussion`. Each name becomes its own `.md` file. (`rev import some.docx` is the other entry point — it splits an existing Word document into one section per top-level heading.)
+`docrev new my-paper` creates the project. It prompts for the section names (default: `introduction, methods, results, discussion`) or accepts them up front via `-s intro,methods,results,discussion`. Each name becomes its own `.md` file. (`docrev import some.docx` is the other entry point — it splits an existing Word document into one section per top-level heading.)
 
 ```
 my-paper/
@@ -104,12 +106,12 @@ my-paper/
     └── my-paper.pdf
 ```
 
-You edit the section files and the config; everything else is generated. `paper.md` is rebuilt from the section files in the order set by `rev.yaml`, and `output/` holds whatever the last build produced. After `rev sync`, comments and track changes from the reviewer's Word file appear inline in the section files as CriticMarkup annotations. Set `outputDir: null` in `rev.yaml` if you'd rather have outputs land alongside `paper.md`.
+You edit the section files and the config; everything else is generated. `paper.md` is rebuilt from the section files in the order set by `rev.yaml`, and `output/` holds whatever the last build produced. After `docrev sync`, comments and track changes from the reviewer's Word file appear inline in the section files as CriticMarkup annotations. Set `outputDir: null` in `rev.yaml` if you'd rather have outputs land alongside `paper.md`.
 
-To set your own per-user default sections so future `rev new` calls skip the prompt:
+To set your own per-user default sections so future `docrev new` calls skip the prompt:
 
 ```bash
-rev config sections "intro,methods,results,discussion"
+docrev config sections "intro,methods,results,discussion"
 ```
 
 ## The CLI Review Cycle
@@ -117,7 +119,7 @@ rev config sections "intro,methods,results,discussion"
 When reviewers send back a Word document with track changes and comments:
 
 ```bash
-rev sync reviewed.docx            # import feedback into markdown
+docrev sync reviewed.docx            # import feedback into markdown
 ```
 
 Track changes appear inline - accept or reject by editing:
@@ -129,24 +131,24 @@ The sample size was {--100--}{++150++} participants.
 Handle comments without opening Word:
 
 ```bash
-rev comments                      # list all comments
-rev reply methods.md -n 1 -m "Added clarification"
-rev resolve methods.md -n 1       # mark as resolved
-rev build docx --dual             # clean + annotated versions
-rev build docx --dual --show-changes  # one file: tracked changes + threaded comments
+docrev comments                      # list all comments
+docrev reply methods.md -n 1 -m "Added clarification"
+docrev resolve methods.md -n 1       # mark as resolved
+docrev build docx --dual             # clean + annotated versions
+docrev build docx --dual --show-changes  # one file: tracked changes + threaded comments
 ```
 
 PDF annotations work the same way:
 
 ```bash
-rev sync annotated.pdf
-rev pdf-comments annotated.pdf --append methods.md
+docrev sync annotated.pdf
+docrev pdf-comments annotated.pdf --append methods.md
 ```
 
-When several reviewers return separate files, `rev merge` reconciles them:
+When several reviewers return separate files, `docrev merge` reconciles them:
 
 ```bash
-rev merge reviewer_A.docx reviewer_B.docx
+docrev merge reviewer_A.docx reviewer_B.docx
 ```
 
 Each reviewer's file is compared against `.rev/base.docx` (auto-saved on every build) to isolate that reviewer's changes; conflicts on the same passage are flagged for interactive resolution.
@@ -158,26 +160,26 @@ Each reviewer's file is compared against `.rev/base.docx` (auto-saved on every b
 Create a new project:
 
 ```bash
-rev new my-report
+docrev new my-report
 cd my-report
 ```
 
 You'll be prompted to enter your section names, or press Enter to use the default structure. You can also specify sections directly:
 
 ```bash
-rev new my-report -s intro,methods,results,discussion
+docrev new my-report -s intro,methods,results,discussion
 ```
 
 Or set your preferred default sections once:
 
 ```bash
-rev config sections "intro,methods,results,discussion"
+docrev config sections "intro,methods,results,discussion"
 ```
 
 This creates the project folder with your section files — edit them, then build:
 
 ```bash
-rev build docx pdf
+docrev build docx pdf
 ```
 
 The output filename comes from `title` in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. The directory layout is described above in [What's in a Project](#whats-in-a-project).
@@ -187,7 +189,7 @@ The output filename comes from `title` in `rev.yaml`. Citations are resolved, eq
 If you have a Word document to convert:
 
 ```bash
-rev import manuscript.docx
+docrev import manuscript.docx
 ```
 
 This creates a project folder and splits the document into section files. Images are extracted to `figures/`, equations are converted to LaTeX, and track changes/comments are preserved as markdown annotations.
@@ -227,7 +229,7 @@ Switch to `engine: xelatex` (or `lualatex`) when the manuscript has Czech/Polish
 Configure your name for comment replies:
 
 ```bash
-rev config user "Your Name"
+docrev config user "Your Name"
 ```
 
 ### Table Formatting
@@ -285,7 +287,7 @@ Scripts receive environment variables: `OUTPUT_FILE`, `OUTPUT_FORMAT`, `PROJECT_
 Use `--verbose` to see script output:
 
 ```bash
-rev build pdf --verbose
+docrev build pdf --verbose
 ```
 
 ### Journal Profiles
@@ -299,7 +301,7 @@ journal: nature
 Or pass on the command line:
 
 ```bash
-rev build pdf -j nature     # applies Nature's CSL style + PDF settings
+docrev build pdf -j nature     # applies Nature's CSL style + PDF settings
 ```
 
 When a journal is set, its formatting defaults (CSL citation style, font size, margins, line spacing) are applied automatically. Your explicit `rev.yaml` settings always take priority.
@@ -307,9 +309,9 @@ When a journal is set, its formatting defaults (CSL citation style, font size, m
 Six profiles include formatting: `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`. All 21 profiles support validation. Custom profiles can include formatting too — see [docs/configuration.md](docs/configuration.md).
 
 ```bash
-rev validate --list          # see all profiles ([formatting] tag = build support)
-rev profiles --fetch-csl apa # download a CSL style to cache
-rev profiles --list-csl      # list cached CSL styles
+docrev validate --list          # see all profiles ([formatting] tag = build support)
+docrev profiles --fetch-csl apa # download a CSL style to cache
+docrev profiles --list-csl      # list cached CSL styles
 ```
 
 ## Annotation Syntax
@@ -327,7 +329,7 @@ Data was collected {~~monthly~>weekly~~}.              # substitution
 Track word count changes between versions:
 
 ```bash
-rev diff                    # compare against last commit
+docrev diff                    # compare against last commit
 #  methods.md     +142 words  -38 words
 #  results.md      +89 words  -12 words
 ```
@@ -354,40 +356,40 @@ Cross-references: `@fig:label`, `@tbl:label`, `@eq:label` → "Figure 1", "Table
 
 | Task | Command |
 |------|---------|
-| Create project | `rev new my-project` |
-| Create LaTeX project | `rev new my-project --template latex` |
-| Import Word document | `rev import manuscript.docx` |
-| Extract Word equations | `rev equations from-word doc.docx` |
-| Build DOCX | `rev build docx` |
-| Build PDF | `rev build pdf` |
-| Build clean + annotated | `rev build docx --dual` |
-| Build with visible track changes | `rev build docx --show-changes` |
-| Build tracked changes + comments in one file | `rev build docx --dual --show-changes` |
-| Sync Word feedback | `rev sync reviewed.docx` |
-| Sync PDF comments | `rev sync annotated.pdf` |
-| Extract PDF comments | `rev pdf-comments annotated.pdf` |
-| Extract with highlighted text | `rev pdf-comments file.pdf --with-text` |
-| Project status | `rev status` |
-| Next pending comment | `rev next` |
-| List pending comments | `rev todo` |
-| Filter by author | `rev comments file.md --author "Reviewer 2"` |
-| Accept all changes | `rev accept file.md -a` |
-| Reject change | `rev reject file.md -n 1` |
-| Reply to comment | `rev reply file.md -n 1 -m "response"` |
-| Reply to all pending | `rev reply file.md --all -m "Addressed"` |
-| Resolve comment | `rev resolve file.md -n 1` |
-| Show contributors | `rev contributors` |
-| Lookup ORCID | `rev orcid 0000-0002-1825-0097` |
-| Merge reviewer feedback | `rev merge reviewer_A.docx reviewer_B.docx` |
-| Archive reviewer files | `rev archive` |
-| Check DOIs | `rev doi check references.bib` |
-| Find missing DOIs | `rev doi lookup references.bib` |
-| Add citation from DOI | `rev doi add 10.1038/example` |
-| Word count | `rev wc` |
-| Pre-submission check | `rev check` |
-| Check for updates | `rev upgrade --check` |
+| Create project | `docrev new my-project` |
+| Create LaTeX project | `docrev new my-project --template latex` |
+| Import Word document | `docrev import manuscript.docx` |
+| Extract Word equations | `docrev equations from-word doc.docx` |
+| Build DOCX | `docrev build docx` |
+| Build PDF | `docrev build pdf` |
+| Build clean + annotated | `docrev build docx --dual` |
+| Build with visible track changes | `docrev build docx --show-changes` |
+| Build tracked changes + comments in one file | `docrev build docx --dual --show-changes` |
+| Sync Word feedback | `docrev sync reviewed.docx` |
+| Sync PDF comments | `docrev sync annotated.pdf` |
+| Extract PDF comments | `docrev pdf-comments annotated.pdf` |
+| Extract with highlighted text | `docrev pdf-comments file.pdf --with-text` |
+| Project status | `docrev status` |
+| Next pending comment | `docrev next` |
+| List pending comments | `docrev todo` |
+| Filter by author | `docrev comments file.md --author "Reviewer 2"` |
+| Accept all changes | `docrev accept file.md -a` |
+| Reject change | `docrev reject file.md -n 1` |
+| Reply to comment | `docrev reply file.md -n 1 -m "response"` |
+| Reply to all pending | `docrev reply file.md --all -m "Addressed"` |
+| Resolve comment | `docrev resolve file.md -n 1` |
+| Show contributors | `docrev contributors` |
+| Lookup ORCID | `docrev orcid 0000-0002-1825-0097` |
+| Merge reviewer feedback | `docrev merge reviewer_A.docx reviewer_B.docx` |
+| Archive reviewer files | `docrev archive` |
+| Check DOIs | `docrev doi check references.bib` |
+| Find missing DOIs | `docrev doi lookup references.bib` |
+| Add citation from DOI | `docrev doi add 10.1038/example` |
+| Word count | `docrev wc` |
+| Pre-submission check | `docrev check` |
+| Check for updates | `docrev upgrade --check` |
 
-Run `rev help` to see all commands, or `rev help <command>` for details on a specific command.
+Run `docrev help` to see all commands, or `docrev help <command>` for details on a specific command.
 
 Full command reference: [docs/commands.md](docs/commands.md)
 
@@ -396,8 +398,8 @@ Full command reference: [docs/commands.md](docs/commands.md)
 Install the docrev skill for [Claude Code](https://claude.ai/code):
 
 ```bash
-rev install-cli-skill      # install to ~/.claude/skills/docrev
-rev uninstall-cli-skill    # remove
+docrev install-cli-skill      # install to ~/.claude/skills/docrev
+docrev uninstall-cli-skill    # remove
 ```
 
 Once installed, Claude understands docrev commands and can help navigate comments, draft replies, and manage your revision cycle.

@@ -291,7 +291,7 @@ dataAvailability: true
 highlights: false
 graphicalAbstract: false
 
-# Build formatting defaults (applied via rev build -j ${id})
+# Build formatting defaults (applied via docrev build -j ${id})
 # formatting:
 #   csl: "${id}"            # CSL style name or path
 #   pdf:
@@ -353,7 +353,7 @@ export function listCustomProfiles(): ProfileListEntry[] {
         }
       } catch (err) {
         // Skip invalid profiles, but leave a trace: a user's broken profile
-        // would otherwise just vanish from `rev profiles`.
+        // would otherwise just vanish from `docrev profiles`.
         console.error(`Skipping invalid profile ${file}: ${(err as Error).message}`);
       }
     }
@@ -381,7 +381,7 @@ export function listCustomProfiles(): ProfileListEntry[] {
         }
       } catch (err) {
         // Skip invalid profiles, but leave a trace: a user's broken profile
-        // would otherwise just vanish from `rev profiles`.
+        // would otherwise just vanish from `docrev profiles`.
         console.error(`Skipping invalid profile ${file}: ${(err as Error).message}`);
       }
     }

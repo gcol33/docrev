@@ -492,7 +492,7 @@ export function register(program: Command): void {
         }
         if (blocking.length > 0) hasErrors = true;
         if (findings.length > 0) {
-          console.log(chalk.yellow(`   ⚠ ${findings.length} journey finding(s) — run "rev journey check" for details`));
+          console.log(chalk.yellow(`   ⚠ ${findings.length} journey finding(s) — run "docrev journey check" for details`));
           totalIssues += findings.length;
         }
         if (journeyParseErrors.length === 0 && findings.length === 0) {

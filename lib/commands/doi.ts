@@ -162,7 +162,7 @@ export function register(program: Command): void {
       } else if (action === 'fetch') {
         if (!input) {
           console.error(fmt.status('error', 'DOI required'));
-          console.log(chalk.dim('Usage: rev doi fetch 10.1234/example'));
+          console.log(chalk.dim('Usage: docrev doi fetch 10.1234/example'));
           process.exit(1);
         }
 
@@ -188,7 +188,7 @@ export function register(program: Command): void {
       } else if (action === 'add') {
         if (!input) {
           console.error(fmt.status('error', 'DOI required'));
-          console.log(chalk.dim('Usage: rev doi add 10.1234/example'));
+          console.log(chalk.dim('Usage: docrev doi add 10.1234/example'));
           process.exit(1);
         }
 
@@ -361,7 +361,7 @@ export function register(program: Command): void {
           console.log(chalk.dim('  1. Open references.bib'));
           console.log(chalk.dim('  2. Add: doi = {10.xxxx/xxxxx}'));
           console.log();
-          console.log(chalk.dim('Or use: rev doi add <doi> to fetch full BibTeX'));
+          console.log(chalk.dim('Or use: docrev doi add <doi> to fetch full BibTeX'));
         }
 
         // Show hidden count

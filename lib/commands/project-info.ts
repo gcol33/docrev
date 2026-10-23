@@ -120,7 +120,7 @@ export function register(program: Command): void {
       const sections = excludeFromWordCount(findSections('.', config.sections), config.wordCount?.exclude);
 
       if (sections.length === 0) {
-        console.error(chalk.red('No section files found. Run from a rev project directory.'));
+        console.error(chalk.red('No section files found. Run from a docrev project directory.'));
         process.exit(1);
       }
 
@@ -129,14 +129,14 @@ export function register(program: Command): void {
       let total = perSection.reduce((sum, s) => sum + s.words, 0);
 
       // A journal limit is checked against what that journal counts, measured
-      // exactly as `rev validate` measures it.
+      // exactly as `docrev validate` measures it.
       let limit = options.limit;
       const journalId = options.journal ?? (config as { journal?: string }).journal;
       const journals = journalId ? await import('../journals.js') : null;
       const profile = journals ? journals.getJournalProfile(journalId!) : null;
       if (journals && !profile) {
         console.error(chalk.red(`\nUnknown journal: ${journalId}`));
-        console.error(chalk.dim('Use rev validate --list to see available profiles'));
+        console.error(chalk.dim('Use docrev validate --list to see available profiles'));
         process.exit(1);
       }
       const count = journals && profile

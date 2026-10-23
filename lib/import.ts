@@ -171,7 +171,7 @@ export interface InsertCommentsOptions {
    * can distinguish placement outcomes in their summary. `placed` counts
    * insertions made at a matched anchor or context, `lowConfidence` counts
    * insertions made at an approximate (proportional / context-only) position
-   * that should be reviewed with `rev verify-anchors`, `deduped` counts
+   * that should be reviewed with `docrev verify-anchors`, `deduped` counts
    * comments already present at their anchor (skipped on re-sync), and
    * `unmatched` counts comments that could not be placed at all.
    *
@@ -380,7 +380,7 @@ export function insertCommentsIntoMarkdown(
   }
 
   // Anchor matching primitives live in lib/anchor-match.ts so that
-  // `rev verify-anchors` can use the same strategies for drift reporting.
+  // `docrev verify-anchors` can use the same strategies for drift reporting.
 
   // Get all positions in order (for sequential tie-breaking).
   // Replies skip scoring entirely — they piggyback on their root's position
@@ -624,7 +624,7 @@ export function insertCommentsIntoMarkdown(
       console.warn(`Warning: ${unmatchedCount} comment(s) could not be matched to anchor text`);
     }
     if (lowConfidenceCount > 0) {
-      console.warn(`Note: ${lowConfidenceCount} comment(s) placed approximately — run \`rev verify-anchors\` to review`);
+      console.warn(`Note: ${lowConfidenceCount} comment(s) placed approximately — run \`docrev verify-anchors\` to review`);
     }
     if (dedupedCount > 0) {
       console.warn(`Note: ${dedupedCount} comment(s) already present at anchor — skipped to avoid duplication`);
@@ -742,11 +742,11 @@ export async function importWordWithTrackChanges(
 
 /**
  * Read a `.docx` into the same CriticMarkup-annotated Markdown that
- * `rev import` produces, for read-only inspection (`rev status`, `rev
- * comments`, ...). Track changes become `{++..++}` / `{--..--}` / `{~~..~~}`
+ * `docrev import` produces, for read-only inspection (`docrev status`,
+ * `docrev comments`, ...). Track changes become `{++..++}` / `{--..--}` / `{~~..~~}`
  * and comments are placed at their anchors, so `countAnnotations` /
  * `getComments` and the rest operate on it exactly as they do on imported
- * Markdown — the numbers match a subsequent `rev import`.
+ * Markdown — the numbers match a subsequent `docrev import`.
  *
  * Side-effect free: no media is extracted, nothing is written to disk, and
  * extraction/placement messages are discarded (the caller only wants the
@@ -760,7 +760,7 @@ export async function readDocxAsAnnotatedMarkdown(docxPath: string): Promise<str
   const anchors = extracted.anchors || new Map();
 
   if (comments.length > 0) {
-    // Read-only inspection (`rev status` / `rev comments`) must account for
+    // Read-only inspection (`docrev status` / `docrev comments`) must account for
     // every comment in the document. A comment whose anchor text cannot be
     // located in the body is placed by proportional fallback, but on the rare
     // docx where even that fails (empty body text) it would otherwise be

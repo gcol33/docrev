@@ -1,7 +1,7 @@
 /**
  * Built-in templates for project scaffolding
  *
- * Used by `rev new` command to create new paper projects
+ * Used by `docrev new` command to create new paper projects
  */
 
 interface TemplateDefinition {

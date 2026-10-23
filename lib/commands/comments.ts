@@ -193,7 +193,7 @@ export function register(program: Command): void {
     .action(async (file: string, options: CommentsOptions) => {
       // Interactive and TUI modes write replies/resolutions back to the file,
       // so they need editable Markdown; a .docx is refused with a pointer to
-      // `rev import`. Plain listing/export is read-only and reads a .docx
+      // `docrev import`. Plain listing/export is read-only and reads a .docx
       // directly (converted to CriticMarkup first).
       if (options.interactive || options.tui) {
         requireEditableMarkdown(file, 'Markdown file');
@@ -408,9 +408,9 @@ export function register(program: Command): void {
       const resolved = comments.filter((c) => c.resolved).length;
       console.log(chalk.dim(`  Pending: ${pending} | Resolved: ${resolved}`));
       console.log();
-      console.log(chalk.dim('  Usage: rev resolve <file> -n <number>    Mark specific comment'));
-      console.log(chalk.dim('         rev resolve <file> -a             Mark all as resolved'));
-      console.log(chalk.dim('         rev resolve <file> -n 1 -u        Unresolve comment #1'));
+      console.log(chalk.dim('  Usage: docrev resolve <file> -n <number>    Mark specific comment'));
+      console.log(chalk.dim('         docrev resolve <file> -a             Mark all as resolved'));
+      console.log(chalk.dim('         docrev resolve <file> -n 1 -u        Unresolve comment #1'));
     });
 
   // ==========================================================================
@@ -472,10 +472,10 @@ export function register(program: Command): void {
         console.log(chalk.dim(`  Context: "${c.before.trim().slice(-60)}"`));
       }
       console.log();
-      console.log(chalk.dim(`  rev reply ${c.file} -n ${c.number} -m "..."`));
-      console.log(chalk.dim(`  rev resolve ${c.file} -n ${c.number}`));
+      console.log(chalk.dim(`  docrev reply ${c.file} -n ${c.number} -m "..."`));
+      console.log(chalk.dim(`  docrev resolve ${c.file} -n ${c.number}`));
       if (position < allPending.length) {
-        console.log(chalk.dim(`  rev next -n ${position + 1}`));
+        console.log(chalk.dim(`  docrev next -n ${position + 1}`));
       }
     });
 
@@ -539,13 +539,13 @@ export function register(program: Command): void {
         console.log(chalk.dim(`  Context: "${c.before.trim().slice(-60)}"`));
       }
       console.log();
-      console.log(chalk.dim(`  rev reply ${c.file} -n ${c.number} -m "..."`));
-      console.log(chalk.dim(`  rev resolve ${c.file} -n ${c.number}`));
+      console.log(chalk.dim(`  docrev reply ${c.file} -n ${c.number} -m "..."`));
+      console.log(chalk.dim(`  docrev resolve ${c.file} -n ${c.number}`));
       if (position > 1) {
-        console.log(chalk.dim(`  rev next -n ${position - 1}`));
+        console.log(chalk.dim(`  docrev next -n ${position - 1}`));
       }
       if (position < allPending.length) {
-        console.log(chalk.dim(`  rev next -n ${position + 1}`));
+        console.log(chalk.dim(`  docrev next -n ${position + 1}`));
       }
     });
 
@@ -587,8 +587,8 @@ export function register(program: Command): void {
             console.log(chalk.dim(`  Context: "${c.before.trim().slice(-60)}"`));
           }
           console.log();
-          console.log(chalk.dim(`  rev reply ${f} -n 1 -m "..."`));
-          console.log(chalk.dim(`  rev resolve ${f} -n 1`));
+          console.log(chalk.dim(`  docrev reply ${f} -n 1 -m "..."`));
+          console.log(chalk.dim(`  docrev resolve ${f} -n 1`));
           return;
         }
       }
@@ -635,8 +635,8 @@ export function register(program: Command): void {
             console.log(chalk.dim(`  Context: "${c.before.trim().slice(-60)}"`));
           }
           console.log();
-          console.log(chalk.dim(`  rev reply ${f} -n ${idx} -m "..."`));
-          console.log(chalk.dim(`  rev resolve ${f} -n ${idx}`));
+          console.log(chalk.dim(`  docrev reply ${f} -n ${idx} -m "..."`));
+          console.log(chalk.dim(`  docrev resolve ${f} -n ${idx}`));
           return;
         }
       }
@@ -809,8 +809,8 @@ export function register(program: Command): void {
       }
 
       console.log();
-      console.log(chalk.dim(`  rev accept ${file} -n <number>    Accept specific change`));
-      console.log(chalk.dim(`  rev accept ${file} -a             Accept all changes`));
+      console.log(chalk.dim(`  docrev accept ${file} -n <number>    Accept specific change`));
+      console.log(chalk.dim(`  docrev accept ${file} -a             Accept all changes`));
     });
 
   // ==========================================================================
@@ -889,8 +889,8 @@ export function register(program: Command): void {
       }
 
       console.log();
-      console.log(chalk.dim(`  rev reject ${file} -n <number>    Reject specific change`));
-      console.log(chalk.dim(`  rev reject ${file} -a             Reject all changes`));
+      console.log(chalk.dim(`  docrev reject ${file} -n <number>    Reject specific change`));
+      console.log(chalk.dim(`  docrev reject ${file} -a             Reject all changes`));
     });
 
   // ==========================================================================
@@ -914,8 +914,8 @@ export function register(program: Command): void {
       const author = options.author || getUserName();
       if (!author) {
         console.error(chalk.yellow('No user name set.'));
-        console.error(chalk.dim('Set with: rev config user "Your Name"'));
-        console.error(chalk.dim('Or use: rev reply <file> --author "Your Name"'));
+        console.error(chalk.dim('Set with: docrev config user "Your Name"'));
+        console.error(chalk.dim('Or use: docrev reply <file> --author "Your Name"'));
         process.exit(1);
       }
 
@@ -931,7 +931,7 @@ export function register(program: Command): void {
       if (options.all) {
         if (!options.message) {
           console.error(chalk.red('Batch reply requires a message (-m "your reply")'));
-          console.error(chalk.dim('Example: rev reply file.md --all -m "Addressed"'));
+          console.error(chalk.dim('Example: docrev reply file.md --all -m "Addressed"'));
           process.exit(1);
         }
         let result = text;

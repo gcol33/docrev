@@ -2,29 +2,29 @@
 
 ## Project Creation
 
-### rev new
+### docrev new
 Create a new document project.
 ```bash
-rev new my-document          # Creates my-document/ with section files
-rev new my-document --template apa
+docrev new my-document          # Creates my-document/ with section files
+docrev new my-document --template apa
 ```
 
 ## Document Import/Export
 
-### rev import
+### docrev import
 Import a Word document with track changes and comments.
 ```bash
-rev import manuscript.docx
-rev import manuscript.docx --output ./project
+docrev import manuscript.docx
+docrev import manuscript.docx --output ./project
 ```
 
-### rev sync
+### docrev sync
 Sync feedback from a reviewed Word document into existing markdown sections.
 ```bash
-rev sync reviewed.docx          # Updates markdown with track changes/comments
-rev sync                        # Auto-detect most recent .docx
-rev sync reviewed.docx methods  # Sync only methods section
-rev sync reviewed.docx --comments-only  # Insert comments only; never modify prose
+docrev sync reviewed.docx          # Updates markdown with track changes/comments
+docrev sync                        # Auto-detect most recent .docx
+docrev sync reviewed.docx methods  # Sync only methods section
+docrev sync reviewed.docx --comments-only  # Insert comments only; never modify prose
 ```
 
 `--comments-only` skips the Word→Markdown diff entirely. Use it when the
@@ -32,13 +32,13 @@ markdown has been revised between sending the docx out for review and
 receiving it back: applying track changes from a stale draft would clobber
 newer edits, but comments still need to land. Comments are placed at
 fuzzy-matched anchors against the current prose. Pair with
-`rev verify-anchors` to see which ones won't fit before you run sync.
+`docrev verify-anchors` to see which ones won't fit before you run sync.
 
-### rev verify-anchors
+### docrev verify-anchors
 Report drift between Word comment anchors and the current markdown.
 ```bash
-rev verify-anchors reviewed.docx       # Print per-comment match quality
-rev verify-anchors reviewed.docx --json  # Machine-readable report
+docrev verify-anchors reviewed.docx       # Print per-comment match quality
+docrev verify-anchors reviewed.docx --json  # Machine-readable report
 ```
 
 Each comment is classified by how well its anchor still matches the current
@@ -50,7 +50,7 @@ section prose:
 - `ambiguous` – multiple candidate positions; needs context to disambiguate
 - `unmatched` – nothing maps; user must place the comment manually
 
-Useful before `rev sync --comments-only` to plan which comments will land
+Useful before `docrev sync --comments-only` to plan which comments will land
 automatically and which need manual placement.
 
 Both `sync` and `verify-anchors` take `-d, --dir` (where the section files
@@ -59,22 +59,22 @@ are) and `-c, --config` (the sections config, default `sections.yaml`).
 before it is looked for inside `--dir`; without one, `rev.yaml`'s `sections:`
 list is used.
 ```bash
-rev verify-anchors reviewed.docx -d sections/   # sections.yaml at the project root still applies
+docrev verify-anchors reviewed.docx -d sections/   # sections.yaml at the project root still applies
 ```
 
-### rev build
+### docrev build
 Build output documents from markdown sections.
 ```bash
-rev build                    # Build PDF and DOCX
-rev build pdf                # PDF only
-rev build docx               # DOCX only
-rev build --toc              # Include table of contents
-rev build docx --dual        # Clean + annotated versions
-rev build docx --show-changes  # DOCX with visible track changes (audit)
-rev build docx --dual --show-changes  # One DOCX: tracked changes + threaded comments
-rev build docx --pandoc-arg=--lua-filter=tofill.lua   # Pass extra args to pandoc
-rev build -o Final_Report     # Override output filename (extension auto-added)
-rev build pdf --verbose      # Echo the pandoc invocation (useful for filter debugging)
+docrev build                    # Build PDF and DOCX
+docrev build pdf                # PDF only
+docrev build docx               # DOCX only
+docrev build --toc              # Include table of contents
+docrev build docx --dual        # Clean + annotated versions
+docrev build docx --show-changes  # DOCX with visible track changes (audit)
+docrev build docx --dual --show-changes  # One DOCX: tracked changes + threaded comments
+docrev build docx --pandoc-arg=--lua-filter=tofill.lua   # Pass extra args to pandoc
+docrev build -o Final_Report     # Override output filename (extension auto-added)
+docrev build pdf --verbose      # Echo the pandoc invocation (useful for filter debugging)
 ```
 
 By default, outputs land in `output/` next to `rev.yaml`. Override or
@@ -102,9 +102,9 @@ bypass `outputDir`.
 Or override on the command line with `-o, --output <path>`:
 
 ```bash
-rev build docx -o Final_Report           # → output/Final_Report.docx
-rev build pdf docx -o Final_Report       # Applies to both formats
-rev build -o /tmp/draft.docx docx        # Absolute path bypasses outputDir
+docrev build docx -o Final_Report           # → output/Final_Report.docx
+docrev build pdf docx -o Final_Report       # Applies to both formats
+docrev build -o /tmp/draft.docx docx        # Absolute path bypasses outputDir
 ```
 
 CLI `-o` wins over `output:` in `rev.yaml`. When `--dual` is on, the
@@ -115,7 +115,7 @@ uses the chosen name with a `-changes` suffix
 
 #### Passing custom pandoc args
 
-For pandoc flags rev doesn't surface directly (Lua/JSON filters, custom
+For pandoc flags docrev doesn't surface directly (Lua/JSON filters, custom
 templates, variables, etc.), use the repeatable `--pandoc-arg` flag or the
 `pandoc-args` field in `rev.yaml`:
 
@@ -137,7 +137,7 @@ pdf:
 ```bash
 # CLI overrides — appended last, so pandoc's last-wins rule lets CLI flags
 # beat repeated config flags
-rev build docx --pandoc-arg=--lua-filter=cli.lua --pandoc-arg=--metadata=draft:true
+docrev build docx --pandoc-arg=--lua-filter=cli.lua --pandoc-arg=--metadata=draft:true
 ```
 
 Run with `--verbose` to print the full pandoc command line (one per format).
@@ -162,279 +162,279 @@ replies. This is the standard "return to senior author" artifact. Add
 `--reference <docx>` to realign comment anchors against a reviewer's copy
 before injecting.
 
-### rev preview
+### docrev preview
 Build and open document in default app.
 ```bash
-rev preview pdf              # Build and open PDF
-rev preview docx             # Build and open Word
+docrev preview pdf              # Build and open PDF
+docrev preview docx             # Build and open Word
 ```
 
-### rev export
+### docrev export
 Export project as distributable zip.
 ```bash
-rev export                   # Creates project.zip (no node_modules)
+docrev export                   # Creates project.zip (no node_modules)
 ```
 
-### rev backup
+### docrev backup
 Create timestamped project backup.
 ```bash
-rev backup                   # Creates backup-2024-12-29.zip
-rev backup --name v1-draft   # Creates v1-draft.zip
+docrev backup                   # Creates backup-2024-12-29.zip
+docrev backup --name v1-draft   # Creates v1-draft.zip
 ```
 
 ## Comments & Annotations
 
-### rev comments
+### docrev comments
 List all comments with context.
 ```bash
-rev comments methods.md                    # Show comments
-rev comments methods.md --export out.csv   # Export to CSV
+docrev comments methods.md                    # Show comments
+docrev comments methods.md --export out.csv   # Export to CSV
 ```
 
-### rev reply
+### docrev reply
 Reply to a specific comment (non-interactive).
 ```bash
-rev reply methods.md -n 1 -m "Added clarification"
-rev reply results.md -n 3 -m "Updated figure"
+docrev reply methods.md -n 1 -m "Added clarification"
+docrev reply results.md -n 3 -m "Updated figure"
 ```
 
-### rev resolve
+### docrev resolve
 Mark a comment as resolved.
 ```bash
-rev resolve methods.md -n 1
-rev resolve methods.md -n 1,2,3   # Multiple comments
+docrev resolve methods.md -n 1
+docrev resolve methods.md -n 1,2,3   # Multiple comments
 ```
 
-### rev status
+### docrev status
 Show project overview or annotation counts for a file.
 ```bash
-rev status               # Project overview (words, comments, changes)
-rev status methods.md    # Specific file annotations
+docrev status               # Project overview (words, comments, changes)
+docrev status methods.md    # Specific file annotations
 ```
 
-### rev next / rev prev
+### docrev next / docrev prev
 Navigate pending comments.
 ```bash
-rev next                 # Show next pending comment
-rev next -n 3            # Show 3rd pending comment
-rev prev                 # Show last pending comment
-rev first methods        # First comment in methods section
-rev last                 # Last comment overall
+docrev next                 # Show next pending comment
+docrev next -n 3            # Show 3rd pending comment
+docrev prev                 # Show last pending comment
+docrev first methods        # First comment in methods section
+docrev last                 # Last comment overall
 ```
 
-### rev todo
+### docrev todo
 List all pending comments as a checklist.
 ```bash
-rev todo                 # List all pending
-rev todo --by-author     # Group by author
+docrev todo                 # List all pending
+docrev todo --by-author     # Group by author
 ```
 
-### rev accept / rev reject
+### docrev accept / docrev reject
 Accept or reject track changes.
 ```bash
-rev accept methods.md         # List all changes
-rev accept methods.md -n 1    # Accept change #1
-rev accept methods.md -a      # Accept all
-rev reject methods.md -n 2    # Reject change #2
+docrev accept methods.md         # List all changes
+docrev accept methods.md -n 1    # Accept change #1
+docrev accept methods.md -a      # Accept all
+docrev reject methods.md -n 2    # Reject change #2
 ```
 
-### rev archive
+### docrev archive
 Archive reviewer .docx files.
 ```bash
-rev archive              # Move all .docx to archive/
-rev archive --by Smith   # Specify reviewer name
-rev archive --dry-run    # Preview without moving
+docrev archive              # Move all .docx to archive/
+docrev archive --by Smith   # Specify reviewer name
+docrev archive --dry-run    # Preview without moving
 ```
 
-### rev strip
+### docrev strip
 Remove all annotations from markdown.
 ```bash
-rev strip methods.md --output clean.md
-rev strip methods.md --accept          # Accept all changes
-rev strip methods.md --reject          # Reject all changes
+docrev strip methods.md --output clean.md
+docrev strip methods.md --accept          # Accept all changes
+docrev strip methods.md --reject          # Reject all changes
 ```
 
 ## Response Letter
 
-### rev response
+### docrev response
 Generate point-by-point response letter from comments.
 ```bash
-rev response                 # Generate response letter
+docrev response                 # Generate response letter
 ```
 
 ## Validation & Checks
 
-### rev check
+### docrev check
 Run all pre-submission checks (lint + grammar + citations).
 ```bash
-rev check                    # Run all checks
-rev check --fix              # Auto-fix where possible
+docrev check                    # Run all checks
+docrev check --fix              # Auto-fix where possible
 ```
 
-### rev lint
+### docrev lint
 Check for common issues.
 ```bash
-rev lint                     # Run all checks
-rev lint --fix               # Auto-fix where possible
+docrev lint                     # Run all checks
+docrev lint --fix               # Auto-fix where possible
 ```
 Checks: broken cross-references, missing citations, orphaned figures, unresolved comments.
 
-### rev grammar
+### docrev grammar
 Check grammar and style.
 ```bash
-rev grammar                  # Check all sections
-rev grammar --rules          # List available rules
-rev grammar --learn word     # Add to custom dictionary
-rev grammar --forget word    # Remove from dictionary
-rev grammar --list           # Show custom dictionary
-rev grammar -s warning       # Filter by severity
+docrev grammar                  # Check all sections
+docrev grammar --rules          # List available rules
+docrev grammar --learn word     # Add to custom dictionary
+docrev grammar --forget word    # Remove from dictionary
+docrev grammar --list           # Show custom dictionary
+docrev grammar -s warning       # Filter by severity
 ```
 
-### rev spelling
+### docrev spelling
 Check spelling in all sections.
 ```bash
-rev spelling                 # Check all sections
-rev spelling --british       # Use British English dictionary
-rev spelling --learn word    # Add to global dictionary (~/.rev-dictionary)
-rev spelling --learn-project word  # Add to project dictionary
-rev spelling --forget word   # Remove from global dictionary
-rev spelling --list          # Show global dictionary
-rev spelling --list-all      # Show global + project dictionaries
+docrev spelling                 # Check all sections
+docrev spelling --british       # Use British English dictionary
+docrev spelling --learn word    # Add to global dictionary (~/.rev-dictionary)
+docrev spelling --learn-project word  # Add to project dictionary
+docrev spelling --forget word   # Remove from global dictionary
+docrev spelling --list          # Show global dictionary
+docrev spelling --list-all      # Show global + project dictionaries
 ```
 Built-in scientific vocabulary reduces false positives. Possible author names are shown separately for easy review.
 
-### rev validate
+### docrev validate
 Check against journal requirements.
 ```bash
-rev validate --journal nature
-rev validate --list          # List 21 built-in journal profiles, plus custom ones
+docrev validate --journal nature
+docrev validate --list          # List 21 built-in journal profiles, plus custom ones
 ```
 
-### rev citations
+### docrev citations
 Validate citations against bibliography.
 ```bash
-rev citations
+docrev citations
 ```
 
 ## DOI Management
 
-### rev doi check
+### docrev doi check
 Validate DOIs in bibliography.
 ```bash
-rev doi check references.bib
-rev doi check references.bib --strict   # Fail if articles missing DOIs
+docrev doi check references.bib
+docrev doi check references.bib --strict   # Fail if articles missing DOIs
 ```
 
-### rev doi lookup
+### docrev doi lookup
 Find missing DOIs by title/author/year.
 ```bash
-rev doi lookup references.bib
-rev doi lookup references.bib --confidence high
+docrev doi lookup references.bib
+docrev doi lookup references.bib --confidence high
 ```
 
-### rev doi fetch
+### docrev doi fetch
 Get BibTeX from a DOI.
 ```bash
-rev doi fetch 10.1234/example
+docrev doi fetch 10.1234/example
 ```
 
-### rev doi add
+### docrev doi add
 Add citation to .bib file from DOI.
 ```bash
-rev doi add 10.1234/example
-rev doi add 10.1234/example --file references.bib
+docrev doi add 10.1234/example
+docrev doi add 10.1234/example --file references.bib
 ```
 
 ## Content Analysis
 
-### rev word-count
+### docrev word-count
 Show word counts per section.
 ```bash
-rev word-count               # Per-section counts
-rev word-count --limit 5000  # Warn if over limit
-rev word-count -j nature     # Journal word limit, counted as rev validate counts it
+docrev word-count               # Per-section counts
+docrev word-count --limit 5000  # Warn if over limit
+docrev word-count -j nature     # Journal word limit, counted as docrev validate counts it
 ```
 
 With `-j`, the total checked against the limit is body prose plus whatever the profile's `wordLimit` includes (abstract, figure captions, table cells, rendered reference list), and the parts are listed.
 
-### rev stats
+### docrev stats
 Project dashboard showing overview.
 ```bash
-rev stats                    # Words, figures, citations, comments
+docrev stats                    # Words, figures, citations, comments
 ```
 
-### rev search
+### docrev search
 Search across all section files.
 ```bash
-rev search "climate change"
-rev search -i "method"       # Case-insensitive
+docrev search "climate change"
+docrev search -i "method"       # Case-insensitive
 ```
 
-### rev figures
+### docrev figures
 List figures with reference counts.
 ```bash
-rev figures methods.md
+docrev figures methods.md
 ```
 
-### rev equations
+### docrev equations
 Work with LaTeX equations.
 ```bash
-rev equations list           # List all equations
-rev equations from-word manuscript.docx  # Extract from Word
+docrev equations list           # List all equations
+docrev equations from-word manuscript.docx  # Extract from Word
 ```
 
 ## Direct DOCX Editing (Layout Workflow)
 
-### rev annotate
+### docrev annotate
 Add comments directly to Word document.
 ```bash
-rev annotate paper.docx -m "Comment" -s "text to find"
+docrev annotate paper.docx -m "Comment" -s "text to find"
 ```
 
-### rev apply
+### docrev apply
 Apply MD annotations as Word track changes.
 ```bash
-rev apply paper.md output.docx
+docrev apply paper.md output.docx
 ```
 
-### rev comment
+### docrev comment
 Interactive comment mode for Word documents.
 ```bash
-rev comment paper.docx
+docrev comment paper.docx
 ```
 
 ## Project Management
 
-### rev clean
+### docrev clean
 Remove generated files.
 ```bash
-rev clean                    # Remove paper.md, PDFs, DOCXs
-rev clean --dry-run          # Show what would be deleted
-rev clean --all              # Also remove backups and exports
+docrev clean                    # Remove paper.md, PDFs, DOCXs
+docrev clean --dry-run          # Show what would be deleted
+docrev clean --all              # Also remove backups and exports
 ```
 
-### rev open
+### docrev open
 Open project folder or file.
 ```bash
-rev open                     # Open project folder
-rev open paper.pdf           # Open specific file
+docrev open                     # Open project folder
+docrev open paper.pdf           # Open specific file
 ```
 
-### rev watch
+### docrev watch
 Auto-rebuild on file changes.
 ```bash
-rev watch                    # Watch and rebuild
-rev watch pdf                # Only rebuild PDF
-rev watch --no-open          # Don't open after build
+docrev watch                    # Watch and rebuild
+docrev watch pdf                # Only rebuild PDF
+docrev watch --no-open          # Don't open after build
 ```
 
 ## Configuration
 
-### rev config
+### docrev config
 Configure user settings.
 ```bash
-rev config user "Your Name"  # Set author name for replies
-rev config                   # Show current config
+docrev config user "Your Name"  # Set author name for replies
+docrev config                   # Show current config
 ```
 
 ## rev.yaml Settings
@@ -534,28 +534,28 @@ doc.save(os.environ['OUTPUT_FILE'])
 
 Use `--verbose` flag to see script output:
 ```bash
-rev build pdf --verbose
+docrev build pdf --verbose
 ```
 
 ## Shell Completions
 
-### rev completions
+### docrev completions
 Output shell completions.
 ```bash
-eval "$(rev completions bash)"  # Bash
-eval "$(rev completions zsh)"   # Zsh
+eval "$(docrev completions bash)"  # Bash
+eval "$(docrev completions zsh)"   # Zsh
 ```
 
 ## AI Skill Installation
 
-### rev install-cli-skill
+### docrev install-cli-skill
 Install the docrev skill for AI coding assistants.
 ```bash
-rev install-cli-skill        # Install to ~/.claude/skills/docrev
+docrev install-cli-skill        # Install to ~/.claude/skills/docrev
 ```
 
-### rev uninstall-cli-skill
+### docrev uninstall-cli-skill
 Remove the installed skill.
 ```bash
-rev uninstall-cli-skill
+docrev uninstall-cli-skill
 ```

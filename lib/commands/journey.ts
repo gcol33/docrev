@@ -50,7 +50,7 @@ function collectManuscriptBlocks(dir: string, sections: string[]): ManuscriptBlo
 
 /**
  * Resolve the section files journey commands read, in the same order and from
- * the same source `rev build` uses (rev.yaml `sections:`, then `sections.yaml`,
+ * the same source `docrev build` uses (rev.yaml `sections:`, then `sections.yaml`,
  * then a directory scan) — see gcol33/docrev#18. `sections.yaml` is the
  * Word-import header/alias map; it is a fallback here, never the primary
  * source, so journey never reads bare import-map names when rev.yaml lists
@@ -246,7 +246,7 @@ export function register(program: Command): void {
           jsonOutput({ error: `No journey file found at ${path.relative(dir, journeyFile)}`, findings: [], errors: parseErrors });
           return;
         }
-        console.log(fmt.status('warning', `No journey file found at ${path.relative(dir, journeyFile)}. Run "rev journey init" first.`));
+        console.log(fmt.status('warning', `No journey file found at ${path.relative(dir, journeyFile)}. Run "docrev journey init" first.`));
         return;
       }
 

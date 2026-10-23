@@ -10,7 +10,7 @@
 
 A CLI for writing documents in Markdown while collaborating with Word users.
 
-Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `rev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
+Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `docrev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
 
 ## The Problem
 
@@ -35,6 +35,8 @@ docrev keeps the markdown as the canonical version, under git. The DOCX is rebui
 npm install -g docrev
 ```
 
+This installs the `docrev` command and a short alias `rev`. On Linux and macOS, `rev` is usually also the name of a system tool that reverses lines, and whichever comes first on your `PATH` wins, so the docs use `docrev`.
+
 Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see the [Troubleshooting](troubleshooting.md) page.
 
 ## Quick Start
@@ -51,17 +53,17 @@ Climate change poses significant challenges [@IPCC2021]. As shown in
 Build and share:
 
 ```bash
-rev build docx    # → output/paper.docx
-rev build pdf     # → output/paper.pdf
+docrev build docx    # → output/paper.docx
+docrev build pdf     # → output/paper.pdf
 ```
 
 When collaborators return the Word doc with track changes:
 
 ```bash
-rev sync reviewed.docx    # their comments → your markdown
-rev todo                  # list all pending comments
-rev reply methods.md -n 1 -m "Clarified in revised text."
-rev build docx --dual     # clean + annotated versions
+docrev sync reviewed.docx    # their comments → your markdown
+docrev todo                  # list all pending comments
+docrev reply methods.md -n 1 -m "Clarified in revised text."
+docrev build docx --dual     # clean + annotated versions
 ```
 
 ## Documentation
@@ -80,7 +82,7 @@ rev build docx --dual     # clean + annotated versions
 
     ---
 
-    Complete reference for all `rev` commands, grouped by task.
+    Complete reference for all `docrev` commands, grouped by task.
 
     [Command Reference →](commands.md)
 

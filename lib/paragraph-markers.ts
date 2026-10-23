@@ -6,12 +6,12 @@
  * can reference. Two concerns live here:
  *
  * - Segmenting a section file into the paragraph/float units journey.md talks
- *   about ({@link parseManuscriptBlocks}), for `rev journey init`/`check`.
+ *   about ({@link parseManuscriptBlocks}), for `docrev journey init`/`check`.
  * - Carrying markers through a Word round-trip. The marker is an HTML
  *   comment, so it is dropped by pandoc from every non-HTML build output
  *   ({@link stripParagraphMarkers} makes that explicit rather than relying on
  *   pandoc's default) — which means it never appears in a reviewed docx.
- *   `rev sync`'s OOXML reconstruction path rebuilds a section's annotated
+ *   `docrev sync`'s OOXML reconstruction path rebuilds a section's annotated
  *   markdown straight from the docx, so the marker has to be reattached by
  *   matching the reconstructed paragraphs back against the on-disk original
  *   ({@link reattachParagraphMarkers}). The legacy diff-based import path (no
@@ -289,7 +289,7 @@ export function stripParagraphMarkers(content: string): string {
  * scanned in document order with a small lookahead window — the same
  * technique `diff-engine.ts:generateSmartDiff` uses to line up paragraphs
  * across a revision. A paragraph rewritten too heavily to match keeps no
- * marker; `rev journey init` re-assigns one on the next run.
+ * marker; `docrev journey init` re-assigns one on the next run.
  */
 export function reattachParagraphMarkers(originalMd: string, reconstructedMd: string): string {
   const originalBlocks = splitIntoRawBlocks(originalMd)

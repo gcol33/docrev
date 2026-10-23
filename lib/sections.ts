@@ -113,7 +113,7 @@ export function generateConfig(
 
   return {
     version: 1,
-    description: 'Section configuration for rev import/split',
+    description: 'Section configuration for docrev import/split',
     sections: sorted,
   };
 }

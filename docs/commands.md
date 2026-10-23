@@ -1,46 +1,46 @@
 # Command Reference
 
-Complete list of `rev` commands.
+Complete list of `docrev` commands.
 
 ## Build & Create
 
 | Command | Description |
 |---------|-------------|
-| `rev build [formats...]` | Build PDF/DOCX/TEX from sections |
-| `rev build pdf` | Build PDF only |
-| `rev build docx` | Build DOCX only |
-| `rev build tex` | Build LaTeX only |
-| `rev build all` | Build PDF + DOCX + TEX |
-| `rev build --toc` | Include table of contents |
-| `rev build --dual` | Output clean + comments DOCX (with threaded comments) |
-| `rev build --show-changes` | Export DOCX with visible track changes |
-| `rev build docx --dual --show-changes` | One DOCX with tracked changes AND threaded comments |
-| `rev new <name>` | Create new project (prompts for sections) |
-| `rev new <name> -s intro,methods,results` | Create with specified sections |
-| `rev new --list` | List available templates |
-| `rev install` | Check/install dependencies (pandoc-crossref) |
-| `rev build story` | Build story.md to a standalone docx for co-authors |
-| `rev build journey` | Build journey.md to a standalone docx for co-authors |
-| `rev build story pdf` | Same, as PDF (also builds the main paper's PDF) |
+| `docrev build [formats...]` | Build PDF/DOCX/TEX from sections |
+| `docrev build pdf` | Build PDF only |
+| `docrev build docx` | Build DOCX only |
+| `docrev build tex` | Build LaTeX only |
+| `docrev build all` | Build PDF + DOCX + TEX |
+| `docrev build --toc` | Include table of contents |
+| `docrev build --dual` | Output clean + comments DOCX (with threaded comments) |
+| `docrev build --show-changes` | Export DOCX with visible track changes |
+| `docrev build docx --dual --show-changes` | One DOCX with tracked changes AND threaded comments |
+| `docrev new <name>` | Create new project (prompts for sections) |
+| `docrev new <name> -s intro,methods,results` | Create with specified sections |
+| `docrev new --list` | List available templates |
+| `docrev install` | Check/install dependencies (pandoc-crossref) |
+| `docrev build story` | Build story.md to a standalone docx for co-authors |
+| `docrev build journey` | Build journey.md to a standalone docx for co-authors |
+| `docrev build story pdf` | Same, as PDF (also builds the main paper's PDF) |
 
 ## Import & Export
 
 | Command | Description |
 |---------|-------------|
-| `rev import <docx>` | Bootstrap project from Word (creates sections + rev.yaml) |
-| `rev import <docx> <md>` | Import changes by diffing Word against your MD |
-| `rev sync [docx] [sections...]` | Sync feedback from Word to section files |
-| `rev sync` | Auto-detect most recent .docx |
-| `rev sync reviewed.docx methods` | Sync only methods section |
-| `rev sync annotated.pdf` | Extract comments from PDF into markdown |
-| `rev sync reviewed.docx --comments-only` | Insert comments only; never modify prose |
-| `rev sync reviewed.docx -d sections/` | Section files live in `sections/` |
-| `rev verify-anchors reviewed.docx` | Report which comment anchors still match the current prose |
-| `rev verify-anchors reviewed.docx --json` | Same report as JSON |
-| `rev extract <docx>` | Extract plain text from Word |
-| `rev archive` | Move reviewer .docx files to archive folder |
-| `rev archive --by Smith` | Specify reviewer name |
-| `rev archive --dry-run` | Preview without moving |
+| `docrev import <docx>` | Bootstrap project from Word (creates sections + rev.yaml) |
+| `docrev import <docx> <md>` | Import changes by diffing Word against your MD |
+| `docrev sync [docx] [sections...]` | Sync feedback from Word to section files |
+| `docrev sync` | Auto-detect most recent .docx |
+| `docrev sync reviewed.docx methods` | Sync only methods section |
+| `docrev sync annotated.pdf` | Extract comments from PDF into markdown |
+| `docrev sync reviewed.docx --comments-only` | Insert comments only; never modify prose |
+| `docrev sync reviewed.docx -d sections/` | Section files live in `sections/` |
+| `docrev verify-anchors reviewed.docx` | Report which comment anchors still match the current prose |
+| `docrev verify-anchors reviewed.docx --json` | Same report as JSON |
+| `docrev extract <docx>` | Extract plain text from Word |
+| `docrev archive` | Move reviewer .docx files to archive folder |
+| `docrev archive --by Smith` | Specify reviewer name |
+| `docrev archive --dry-run` | Preview without moving |
 
 `sync` and `verify-anchors` take two path options:
 
@@ -57,13 +57,13 @@ Complete list of `rev` commands.
 
 | Command | Description |
 |---------|-------------|
-| `rev pdf-comments <pdf>` | Extract and display comments from annotated PDF |
-| `rev pdf-comments <pdf> --with-text` | Also extract the highlighted text content |
-| `rev pdf-comments <pdf> --append <file.md>` | Append extracted comments to markdown file |
-| `rev pdf-comments <pdf> --json` | Output comments as JSON |
-| `rev pdf-comments <pdf> --by-page` | Group comments by page (default) |
-| `rev pdf-comments <pdf> --by-author` | Group comments by author |
-| `rev build pdf --dual` | Build clean PDF + annotated PDF with margin notes |
+| `docrev pdf-comments <pdf>` | Extract and display comments from annotated PDF |
+| `docrev pdf-comments <pdf> --with-text` | Also extract the highlighted text content |
+| `docrev pdf-comments <pdf> --append <file.md>` | Append extracted comments to markdown file |
+| `docrev pdf-comments <pdf> --json` | Output comments as JSON |
+| `docrev pdf-comments <pdf> --by-page` | Group comments by page (default) |
+| `docrev pdf-comments <pdf> --by-author` | Group comments by author |
+| `docrev build pdf --dual` | Build clean PDF + annotated PDF with margin notes |
 
 **Supported PDF Annotations:**
 - Sticky notes (Text annotations)
@@ -80,10 +80,10 @@ Use `--with-text` to extract the actual text that was highlighted, underlined, o
 
 | Flags | Output |
 |-------|--------|
-| `rev build docx` | Clean `paper.docx` (annotations applied) |
-| `rev build docx --dual` | `paper.docx` + `paper_comments.docx` (threaded comments) |
-| `rev build docx --show-changes` | `paper-changes.docx` with visible tracked changes |
-| `rev build docx --dual --show-changes` | `paper-changes.docx` with tracked changes **and** threaded comments in one file |
+| `docrev build docx` | Clean `paper.docx` (annotations applied) |
+| `docrev build docx --dual` | `paper.docx` + `paper_comments.docx` (threaded comments) |
+| `docrev build docx --show-changes` | `paper-changes.docx` with visible tracked changes |
+| `docrev build docx --dual --show-changes` | `paper-changes.docx` with tracked changes **and** threaded comments in one file |
 
 `--dual --show-changes` is the "return to senior author" artifact: your `{++..++}`/`{--..--}` edits as Word tracked changes alongside the reviewer's `{>>..<<}` comments with your threaded replies. Add `--reference <docx>` to realign comment anchors against a reviewer's copy first.
 
@@ -96,44 +96,44 @@ When building with `--dual`, produces:
 
 | Command | Description |
 |---------|-------------|
-| `rev review <file>` | Interactive accept/reject TUI for track changes |
-| `rev status` | Show project overview (words, comments, changes) |
-| `rev status <file>` | Show annotation counts for specific file |
-| `rev comments <file>` | List all comments with context |
-| `rev comments <file> --export comments.csv` | Export comments to CSV |
-| `rev resolve <file> -n 1` | Mark comment #1 as resolved |
-| `rev strip <file>` | Output clean Markdown (annotations applied) |
+| `docrev review <file>` | Interactive accept/reject TUI for track changes |
+| `docrev status` | Show project overview (words, comments, changes) |
+| `docrev status <file>` | Show annotation counts for specific file |
+| `docrev comments <file>` | List all comments with context |
+| `docrev comments <file> --export comments.csv` | Export comments to CSV |
+| `docrev resolve <file> -n 1` | Mark comment #1 as resolved |
+| `docrev strip <file>` | Output clean Markdown (annotations applied) |
 
 ## Comment Navigation
 
 | Command | Description |
 |---------|-------------|
-| `rev next` | Show next pending comment |
-| `rev next -n 3` | Show 3rd pending comment |
-| `rev prev` | Show last pending comment |
-| `rev prev -n 2` | Show 2nd from last pending |
-| `rev first` | Show first comment (all, not just pending) |
-| `rev first methods` | First comment in methods section |
-| `rev last` | Show last comment |
-| `rev todo` | List all pending comments as checklist |
-| `rev todo --by-author` | Group pending comments by author |
+| `docrev next` | Show next pending comment |
+| `docrev next -n 3` | Show 3rd pending comment |
+| `docrev prev` | Show last pending comment |
+| `docrev prev -n 2` | Show 2nd from last pending |
+| `docrev first` | Show first comment (all, not just pending) |
+| `docrev first methods` | First comment in methods section |
+| `docrev last` | Show last comment |
+| `docrev todo` | List all pending comments as checklist |
+| `docrev todo --by-author` | Group pending comments by author |
 
 ## Track Changes
 
 | Command | Description |
 |---------|-------------|
-| `rev accept <file>` | List track changes |
-| `rev accept <file> -n 1` | Accept change #1 |
-| `rev accept <file> -a` | Accept all changes |
-| `rev reject <file> -n 1` | Reject change #1 |
-| `rev reject <file> -a` | Reject all changes |
+| `docrev accept <file>` | List track changes |
+| `docrev accept <file> -n 1` | Accept change #1 |
+| `docrev accept <file> -a` | Accept all changes |
+| `docrev reject <file> -n 1` | Reject change #1 |
+| `docrev reject <file> -a` | Reject all changes |
 
 ## Cross-References
 
 | Command | Description |
 |---------|-------------|
-| `rev refs [file]` | Show figure/table registry and reference status |
-| `rev migrate <file>` | Convert hardcoded refs (Fig. 1) to dynamic (@fig:label) |
+| `docrev refs [file]` | Show figure/table registry and reference status |
+| `docrev migrate <file>` | Convert hardcoded refs (Fig. 1) to dynamic (@fig:label) |
 
 **Supported patterns:**
 - `Figure 1` → `@fig:label`
@@ -146,10 +146,10 @@ When building with `--dual`, produces:
 
 | Command | Description |
 |---------|-------------|
-| `rev config user "Name"` | Set your name for replies |
-| `rev config sections "a,b,c"` | Set default sections for new projects |
-| `rev reply <file>` | Interactive reply to reviewer comments |
-| `rev reply <file> -n 1 -m "text"` | Reply to specific comment (non-interactive) |
+| `docrev config user "Name"` | Set your name for replies |
+| `docrev config sections "a,b,c"` | Set default sections for new projects |
+| `docrev reply <file>` | Interactive reply to reviewer comments |
+| `docrev reply <file> -n 1 -m "text"` | Reply to specific comment (non-interactive) |
 
 **Comment Threading:**
 Adjacent comments from different authors become threaded replies in Word:
@@ -161,10 +161,10 @@ Adjacent comments from different authors become threaded replies in Word:
 
 | Command | Description |
 |---------|-------------|
-| `rev doi check [file.bib]` | Validate DOIs in bibliography (Crossref + DataCite) |
-| `rev doi lookup [file.bib]` | Search for missing DOIs by title/author/year |
-| `rev doi fetch <doi>` | Fetch BibTeX entry from DOI |
-| `rev doi add <doi>` | Fetch and add DOI entry to bibliography |
+| `docrev doi check [file.bib]` | Validate DOIs in bibliography (Crossref + DataCite) |
+| `docrev doi lookup [file.bib]` | Search for missing DOIs by title/author/year |
+| `docrev doi fetch <doi>` | Fetch BibTeX entry from DOI |
+| `docrev doi add <doi>` | Fetch and add DOI entry to bibliography |
 
 **Options:**
 - `--confidence low|medium|high` - Filter lookup results
@@ -175,14 +175,14 @@ Adjacent comments from different authors become threaded replies in Word:
 
 | Command | Description |
 |---------|-------------|
-| `rev citations [file.bib]` | Validate citations against bibliography |
-| `rev figures [file]` | List figures/tables with reference counts |
-| `rev equations list` | List all equations in section files |
-| `rev equations from-word <docx>` | Extract equations from Word to LaTeX |
-| `rev response [files]` | Generate response letter from comments |
-| `rev anonymize <file>` | Prepare document for blind review |
-| `rev validate --journal <name>` | Check manuscript against journal requirements |
-| `rev validate --list` | List 21 available journal profiles |
+| `docrev citations [file.bib]` | Validate citations against bibliography |
+| `docrev figures [file]` | List figures/tables with reference counts |
+| `docrev equations list` | List all equations in section files |
+| `docrev equations from-word <docx>` | Extract equations from Word to LaTeX |
+| `docrev response [files]` | Generate response letter from comments |
+| `docrev anonymize <file>` | Prepare document for blind review |
+| `docrev validate --journal <name>` | Check manuscript against journal requirements |
+| `docrev validate --list` | List 21 available journal profiles |
 
 ## Story & Journey Sidecars
 
@@ -194,20 +194,20 @@ file format and `rev.yaml` keys.
 
 | Command | Description |
 |---------|-------------|
-| `rev journey init` | Assign `<!-- @p:id -->` markers to unmarked paragraphs/floats and scaffold `journey.md` |
-| `rev journey check` | Check the manuscript against `story.md` and `journey.md` |
-| `rev journey check --json` | Same, as structured JSON (parse errors + findings) |
-| `rev journey ack <ids...>` | Pin the current text of paragraphs whose `- negotiated:` decision was reconfirmed |
+| `docrev journey init` | Assign `<!-- @p:id -->` markers to unmarked paragraphs/floats and scaffold `journey.md` |
+| `docrev journey check` | Check the manuscript against `story.md` and `journey.md` |
+| `docrev journey check --json` | Same, as structured JSON (parse errors + findings) |
+| `docrev journey ack <ids...>` | Pin the current text of paragraphs whose `- negotiated:` decision was reconfirmed |
 
-`rev journey init` is idempotent: re-running it only fills gaps (a paragraph
+`docrev journey init` is idempotent: re-running it only fills gaps (a paragraph
 that lost its marker after a heavy Word edit gets a fresh one; existing
 journey entries keep their hand-authored `arcs`/`support`/`leaves`). Assigned
 IDs are a scaffold (`intro.p1`, `res.fig1`, ...), not a final name — rename
 them to something semantic once you know what each paragraph does.
 
-`rev journey check` is also run as step 4 of `rev check`, but only when
+`docrev journey check` is also run as step 4 of `docrev check`, but only when
 `journey.md` exists — projects that don't use the sidecars are unaffected.
-`information.md`, when present, is checked in the same step. `rev check`
+`information.md`, when present, is checked in the same step. `docrev check`
 fails on an undefined term, an avoided wording and a negotiated paragraph
 changed since its decision; every other finding is a warning.
 
@@ -215,87 +215,87 @@ changed since its decision; every other finding is a warning.
 
 | Command | Description |
 |---------|-------------|
-| `rev merge <md> <docx...>` | Merge feedback from multiple Word documents |
-| `rev diff [ref]` | Compare sections against git history |
-| `rev history [file]` | Show revision history for sections |
+| `docrev merge <md> <docx...>` | Merge feedback from multiple Word documents |
+| `docrev diff [ref]` | Compare sections against git history |
+| `docrev history [file]` | Show revision history for sections |
 
 ## Convenience Commands
 
 | Command | Description |
 |---------|-------------|
-| `rev word-count` | Show word counts per section |
-| `rev word-count --limit 5000` | Warn if over limit |
-| `rev word-count -j <journal>` | Check the journal's word limit, counted as `rev validate` counts it |
-| `rev stats` | Project dashboard (words, figures, citations) |
-| `rev search <query>` | Search across all section files |
-| `rev search -i <query>` | Case-insensitive search |
-| `rev backup` | Create timestamped backup zip |
-| `rev backup --name v1` | Custom backup name |
-| `rev export` | Export project as distributable zip |
-| `rev preview <format>` | Build and open document |
-| `rev watch [format]` | Auto-rebuild on file changes |
-| `rev lint` | Check for broken refs, missing citations |
-| `rev clean` | Remove generated files |
-| `rev clean --all` | Also remove backups and exports |
-| `rev check` | Pre-submission check (lint + grammar + citations + journey) |
-| `rev open` | Open project folder |
-| `rev open paper.pdf` | Open specific file |
+| `docrev word-count` | Show word counts per section |
+| `docrev word-count --limit 5000` | Warn if over limit |
+| `docrev word-count -j <journal>` | Check the journal's word limit, counted as `docrev validate` counts it |
+| `docrev stats` | Project dashboard (words, figures, citations) |
+| `docrev search <query>` | Search across all section files |
+| `docrev search -i <query>` | Case-insensitive search |
+| `docrev backup` | Create timestamped backup zip |
+| `docrev backup --name v1` | Custom backup name |
+| `docrev export` | Export project as distributable zip |
+| `docrev preview <format>` | Build and open document |
+| `docrev watch [format]` | Auto-rebuild on file changes |
+| `docrev lint` | Check for broken refs, missing citations |
+| `docrev clean` | Remove generated files |
+| `docrev clean --all` | Also remove backups and exports |
+| `docrev check` | Pre-submission check (lint + grammar + citations + journey) |
+| `docrev open` | Open project folder |
+| `docrev open paper.pdf` | Open specific file |
 
 ## Grammar & Spelling
 
 | Command | Description |
 |---------|-------------|
-| `rev grammar` | Check grammar/style issues |
-| `rev grammar --rules` | List available grammar rules |
-| `rev grammar --learn <word>` | Add word to custom dictionary |
-| `rev grammar --list` | Show custom dictionary |
-| `rev spelling` | Check spelling in all sections |
-| `rev spelling --british` | Use British English dictionary |
-| `rev spelling --learn <word>` | Add word to global dictionary |
-| `rev spelling --learn-project <word>` | Add word to project dictionary |
+| `docrev grammar` | Check grammar/style issues |
+| `docrev grammar --rules` | List available grammar rules |
+| `docrev grammar --learn <word>` | Add word to custom dictionary |
+| `docrev grammar --list` | Show custom dictionary |
+| `docrev spelling` | Check spelling in all sections |
+| `docrev spelling --british` | Use British English dictionary |
+| `docrev spelling --learn <word>` | Add word to global dictionary |
+| `docrev spelling --learn-project <word>` | Add word to project dictionary |
 
 ## Direct DOCX Editing
 
 | Command | Description |
 |---------|-------------|
-| `rev annotate <docx> -m "Comment" -s "text"` | Add comment to Word doc |
-| `rev apply <md> <docx>` | Apply annotations as track changes |
-| `rev comment <docx>` | Interactive comment mode |
+| `docrev annotate <docx> -m "Comment" -s "text"` | Add comment to Word doc |
+| `docrev apply <md> <docx>` | Apply annotations as track changes |
+| `docrev comment <docx>` | Interactive comment mode |
 
 ## Shell Completions
 
 ```bash
 # Bash - add to ~/.bashrc
-eval "$(rev completions bash)"
+eval "$(docrev completions bash)"
 
 # Zsh - add to ~/.zshrc
-eval "$(rev completions zsh)"
+eval "$(docrev completions zsh)"
 
 # PowerShell - add to $PROFILE
-Invoke-Expression (rev completions powershell | Out-String)
+Invoke-Expression (docrev completions powershell | Out-String)
 ```
 
 ## Collaboration & Git
 
 | Command | Description |
 |---------|-------------|
-| `rev contributors` | Show author contributions across all sections |
-| `rev contributors <file>` | Show who wrote what in a specific file |
-| `rev contributors <file> --blame` | Line-by-line blame output |
-| `rev history` | Show revision history |
-| `rev diff` | Compare sections against git history |
+| `docrev contributors` | Show author contributions across all sections |
+| `docrev contributors <file>` | Show who wrote what in a specific file |
+| `docrev contributors <file> --blame` | Line-by-line blame output |
+| `docrev history` | Show revision history |
+| `docrev diff` | Compare sections against git history |
 
 ## ORCID Integration
 
 | Command | Description |
 |---------|-------------|
-| `rev orcid <id>` | Fetch author info from ORCID |
-| `rev orcid <id> --yaml` | Output as YAML for rev.yaml authors |
-| `rev orcid <id> --badge` | Generate markdown badge |
+| `docrev orcid <id>` | Fetch author info from ORCID |
+| `docrev orcid <id> --yaml` | Output as YAML for rev.yaml authors |
+| `docrev orcid <id> --badge` | Generate markdown badge |
 
 ## Self-Update
 
 | Command | Description |
 |---------|-------------|
-| `rev upgrade` | Update docrev to latest version |
-| `rev upgrade --check` | Check for updates without installing |
+| `docrev upgrade` | Update docrev to latest version |
+| `docrev upgrade --check` | Check for updates without installing |

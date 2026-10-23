@@ -2,7 +2,7 @@
  * Input routing: read a command's `[file]` argument as CriticMarkup Markdown,
  * transparently handling Word documents.
  *
- * `rev status`/`rev comments` and friends were written to `readFileSync(file,
+ * `docrev status`/`docrev comments` and friends were written to `readFileSync(file,
  * 'utf-8')` every argument and regex it for CriticMarkup. A `.docx` is a binary
  * ZIP; decoded as UTF-8 it occasionally yields a stray `{~~..~>..~~}` byte
  * sequence, so the tool reported a small, plausible, wrong count with no error
@@ -10,12 +10,12 @@
  *
  *   - detects a Word document by extension AND by ZIP magic + `word/document.xml`
  *     (so a mis-extensioned `.docx` renamed to `.md`/`.txt` is still caught), and
- *   - converts it to the same annotated Markdown `rev import` produces, so every
+ *   - converts it to the same annotated Markdown `docrev import` produces, so every
  *     downstream reader (`countAnnotations`, `getComments`, ...) sees real tags.
  *
  * Commands that only read report through `readAnnotatedInput`; commands that
  * edit in place call `assertEditableMarkdown` first and refuse a `.docx` with a
- * pointer to `rev import`, since CriticMarkup cannot be written back into a
+ * pointer to `docrev import`, since CriticMarkup cannot be written back into a
  * binary ZIP.
  */
 
@@ -101,7 +101,7 @@ export async function readAnnotatedInput(file: string): Promise<string> {
     } catch (err) {
       throw new InputError(
         `Failed to read Word document ${path.basename(file)}: ${(err as Error).message}`,
-        ['Run "rev import <docx>" to convert it to annotated Markdown first'],
+        ['Run "docrev import <docx>" to convert it to annotated Markdown first'],
       );
     }
   }
@@ -111,7 +111,7 @@ export async function readAnnotatedInput(file: string): Promise<string> {
     throw new InputError(
       `${path.basename(file)} is not a text or Markdown file (binary content).`,
       [
-        'Word documents: run "rev import <docx>" first, or pass the imported .md',
+        'Word documents: run "docrev import <docx>" first, or pass the imported .md',
         'This command reads CriticMarkup Markdown, not binary files',
       ],
     );
@@ -122,7 +122,7 @@ export async function readAnnotatedInput(file: string): Promise<string> {
 /**
  * Guard for commands that edit the file in place (accept/reject/resolve/reply/
  * review). A `.docx` cannot hold CriticMarkup, so refuse it with a pointer to
- * `rev import` instead of corrupting the document.
+ * `docrev import` instead of corrupting the document.
  *
  * @throws InputError if `file` is a Word document.
  */
@@ -132,8 +132,8 @@ export function assertEditableMarkdown(file: string): void {
     throw new InputError(
       `${base} is a Word document; this command edits Markdown in place.`,
       [
-        `Run "rev import ${base}" to get an editable Markdown file, then edit that`,
-        'Read-only inspection works directly: "rev status" / "rev comments"',
+        `Run "docrev import ${base}" to get an editable Markdown file, then edit that`,
+        'Read-only inspection works directly: "docrev status" / "docrev comments"',
       ],
     );
   }

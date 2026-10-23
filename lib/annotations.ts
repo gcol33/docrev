@@ -158,7 +158,7 @@ function assertNotBinary(text: string): void {
   if (text.startsWith('PK\u0003\u0004') || text.slice(0, 8192).includes('\u0000')) {
     throw new Error(
       'Expected text/Markdown but received binary content. If this is a Word ' +
-        'document, convert it first with "rev import <docx>" (rev status/comments ' +
+        'document, convert it first with "docrev import <docx>" (docrev status/comments ' +
         'read .docx directly; other commands need the imported Markdown).',
     );
   }

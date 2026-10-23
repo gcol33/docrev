@@ -146,9 +146,9 @@ export function register(program: Command): void {
         }
 
         console.log();
-        console.log(chalk.dim('Usage: rev validate --journal <name>'));
-        console.log(chalk.dim('Profiles with [formatting] can also be used with: rev build -j <name>'));
-        console.log(chalk.dim('Manage custom profiles: rev profiles'));
+        console.log(chalk.dim('Usage: docrev validate --journal <name>'));
+        console.log(chalk.dim('Profiles with [formatting] can also be used with: docrev build -j <name>'));
+        console.log(chalk.dim('Manage custom profiles: docrev profiles'));
         return;
       }
 
@@ -261,7 +261,7 @@ export function register(program: Command): void {
         console.log(chalk.dim(`  ${getCSLCacheDir()}`));
         console.log();
         if (cached.length === 0) {
-          console.log(chalk.dim('  No cached styles. Download with: rev profiles --fetch-csl <name>'));
+          console.log(chalk.dim('  No cached styles. Download with: docrev profiles --fetch-csl <name>'));
         } else {
           for (const c of cached) {
             console.log(`  ${chalk.bold(c.name)}`);
@@ -332,7 +332,7 @@ export function register(program: Command): void {
       if (customProfiles.length === 0) {
         console.log(chalk.dim('  No custom profiles found'));
         console.log();
-        console.log(chalk.dim('  Create one with: rev profiles --new "Journal Name"'));
+        console.log(chalk.dim('  Create one with: docrev profiles --new "Journal Name"'));
         console.log();
         const dirs = getPluginDirs();
         console.log(chalk.dim(`  User profiles:    ${dirs.user}`));
@@ -351,7 +351,7 @@ export function register(program: Command): void {
 
       const allJournals = listJournals();
       const builtIn = allJournals.filter(j => !j.custom).length;
-      console.log(chalk.dim(`  ${builtIn} built-in profiles available (rev validate --list)`));
+      console.log(chalk.dim(`  ${builtIn} built-in profiles available (docrev validate --list)`));
     });
 
   // ==========================================================================

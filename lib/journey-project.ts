@@ -3,7 +3,7 @@
  * manuscript and story.md, and supplement/journey.md against the supporting
  * information's section files and the manuscript that cites it, and
  * information.md's terms against the manuscript. Shared by
- * `rev journey check` and `rev check`.
+ * `docrev journey check` and `docrev check`.
  */
 
 import * as fs from 'fs';
@@ -54,7 +54,7 @@ function supplementSectionFiles(dir: string): Map<string, string> {
 
 /**
  * Check a project's sidecars. `sections` are the manuscript's section files
- * relative to `dir`, in build order, as `rev build` resolves them.
+ * relative to `dir`, in build order, as `docrev build` resolves them.
  */
 export function checkJourneyProject(
   dir: string,

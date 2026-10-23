@@ -258,7 +258,7 @@ async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promi
       }
       console.log(chalk.dim('  # Edit rev.yaml to add authors and adjust settings'));
       console.log(chalk.dim('  # Review and clean up section files'));
-      console.log(chalk.dim('  rev build          # Build PDF and DOCX'));
+      console.log(chalk.dim('  docrev build          # Build PDF and DOCX'));
     }
   } catch (err) {
     const error = err as Error;
@@ -339,9 +339,9 @@ export function register(program: Command): void {
         fs.writeFileSync(outputPath, annotated, 'utf-8');
         console.log(chalk.green(`\nSaved annotated version to ${outputPath}`));
         console.log(chalk.cyan('\nNext steps:'));
-        console.log(`  1. ${chalk.bold('rev review ' + outputPath)}  - Accept/reject track changes`);
+        console.log(`  1. ${chalk.bold('docrev review ' + outputPath)}  - Accept/reject track changes`);
         console.log(`  2. Work with Claude to address comments`);
-        console.log(`  3. ${chalk.bold('rev build docx')}  - Rebuild Word doc`);
+        console.log(`  3. ${chalk.bold('docrev build docx')}  - Rebuild Word doc`);
 
       } catch (err) {
         const error = err as Error;
@@ -403,7 +403,7 @@ export function register(program: Command): void {
       const resolved = resolveSectionsConfig(options.dir, options.config);
       if (!resolved) {
         console.error(chalk.red(`No section config found in ${path.resolve(options.dir)}`));
-        console.error(chalk.dim('Add a `sections:` list to rev.yaml, or run "rev init" to generate sections.yaml.'));
+        console.error(chalk.dim('Add a `sections:` list to rev.yaml, or run "docrev init" to generate sections.yaml.'));
         process.exit(1);
       }
 
@@ -445,7 +445,7 @@ export function register(program: Command): void {
         console.log(chalk.yellow('\n(Dry run - no files written)'));
       } else {
         console.log(chalk.green('\nSection files updated.'));
-        console.log(chalk.cyan('\nNext: rev review <section.md> for each section'));
+        console.log(chalk.cyan('\nNext: docrev review <section.md> for each section'));
       }
     });
 }

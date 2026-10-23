@@ -1,6 +1,6 @@
-# PowerShell completion for rev (docrev)
+# PowerShell completion for docrev (also installed as rev)
 # Install: Add to $PROFILE:
-#   . (rev completions powershell)
+#   . (docrev completions powershell)
 # Or copy output to profile manually
 
 $script:revCommands = @(
@@ -22,13 +22,13 @@ $script:helpTopics = @('workflow', 'syntax', 'commands')
 $script:previewFormats = @('pdf', 'docx')
 $script:shells = @('bash', 'zsh', 'powershell')
 
-Register-ArgumentCompleter -Native -CommandName rev -ScriptBlock {
+Register-ArgumentCompleter -Native -CommandName docrev, rev -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
     $tokens = $commandAst.CommandElements
     $command = $null
 
-    # Find the subcommand (skip 'rev' itself)
+    # Find the subcommand (skip the program name itself)
     if ($tokens.Count -gt 1) {
         $command = $tokens[1].Extent.Text
     }

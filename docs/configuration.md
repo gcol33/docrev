@@ -115,14 +115,14 @@ A paragraph's ID lives in its section file as an HTML comment on the line
 before it — `<!-- @p:intro.memory -->` — in the same family as the
 `<!-- @section:file.md -->` marker. It is a semantic slug, not a position, so
 moving the paragraph keeps its ID; never dropped from a Word round-trip
-(`rev sync`/`rev import`), and never included in a build output. In a list
+(`docrev sync`/`docrev import`), and never included in a build output. In a list
 whose items are paragraphs of their own (a numbered structured abstract), the
 marker sits right after the item's number, `1. <!-- @p:abs.problem -->`, and
 each item is its own unit. A display equation set inside a sentence, and the
 lower-case "where …" text that continues the sentence after it, belong to the
 paragraph the sentence starts in; an equation that stands as its own sentence
-is its own `(equation)` unit. `rev journey init` never rewrites a `journey.md`
-holding lines it cannot parse, since the rewrite would drop them. `rev journey
+is its own `(equation)` unit. `docrev journey init` never rewrites a `journey.md`
+holding lines it cannot parse, since the rewrite would drop them. `docrev journey
 check` takes the order of arcs (`needs:`) from the body, not from the abstract.
 
 Both files default to `story.md`/`journey.md` at the project root; override
@@ -130,7 +130,7 @@ with the `story:`/`journey:` keys above. `information.md` (the terms and
 populations a reader must hold) is read from the project root too, or from
 the `information:` key. See
 [Story & Journey Sidecars](commands.md#story--journey-sidecars) for
-`rev journey init`/`rev journey check` and `rev build story`/`rev build journey`.
+`docrev journey init`/`docrev journey check` and `docrev build story`/`docrev build journey`.
 
 ## Placeholder Macros
 
@@ -227,13 +227,13 @@ Word count: {{word_count}}
 Set your name for comment replies:
 
 ```bash
-rev config user "Your Name"
+docrev config user "Your Name"
 ```
 
 Set default sections for new projects:
 
 ```bash
-rev config sections "intro,methods,results,discussion"
+docrev config sections "intro,methods,results,discussion"
 ```
 
 This creates `~/.revrc`:
@@ -244,26 +244,26 @@ This creates `~/.revrc`:
 }
 ```
 
-When `defaultSections` is set, `rev new` uses these sections automatically. When not set, `rev new` prompts for sections interactively.
+When `defaultSections` is set, `docrev new` uses these sections automatically. When not set, `docrev new` prompts for sections interactively.
 
 ## Dictionaries
 
 **Global dictionary** (`~/.rev-dictionary`):
 ```bash
-rev spelling --learn myword      # Add word
-rev spelling --forget myword     # Remove word
-rev spelling --list              # Show dictionary
+docrev spelling --learn myword      # Add word
+docrev spelling --forget myword     # Remove word
+docrev spelling --list              # Show dictionary
 ```
 
 **Project dictionary** (`.rev-dictionary` in project root):
 ```bash
-rev spelling --learn-project myterm
+docrev spelling --learn-project myterm
 ```
 
 **Grammar dictionary** (same locations):
 ```bash
-rev grammar --learn acronym
-rev grammar --forget acronym
+docrev grammar --learn acronym
+docrev grammar --forget acronym
 ```
 
 ## LaTeX Preamble (PDF)
@@ -307,9 +307,9 @@ The preamble also applies to `tex` and `beamer` builds, and to the annotated
 21 built-in journal profiles for validation. Six also provide **build formatting defaults** (CSL citation style, PDF settings):
 
 ```bash
-rev validate --list              # List all profiles ([formatting] = build support)
-rev validate -j nature           # Check against Nature requirements
-rev word-count -j ecology-letters  # Check the journal's word limit
+docrev validate --list              # List all profiles ([formatting] = build support)
+docrev validate -j nature           # Check against Nature requirements
+docrev word-count -j ecology-letters  # Check the journal's word limit
 ```
 
 `validate` and `word-count -j` read the same files (the sections the build uses) and count the limit the same way: body prose, plus whatever the profile's `wordLimit` includes (see [Custom Profiles with Formatting](#custom-profiles-with-formatting)). Both print the parts, so a total that counts figure captions or the reference list shows where the words came from. Over-limit errors state the same breakdown inline (`current: 8098 = body 7357 + abstract 343 + captions 398`), so a wrong number is visible without reading the table.
@@ -350,7 +350,7 @@ journal: nature
 Or via CLI flag (overrides rev.yaml):
 
 ```bash
-rev build pdf docx -j nature
+docrev build pdf docx -j nature
 ```
 
 ### Config Cascade
@@ -380,9 +380,9 @@ Journal profiles specify a CSL style name. docrev resolves CSL files in this ord
 Download and cache a style:
 
 ```bash
-rev profiles --fetch-csl nature    # downloads to ~/.rev/csl/nature.csl
-rev profiles --fetch-csl apa       # works with short names
-rev profiles --list-csl            # list cached files
+docrev profiles --fetch-csl nature    # downloads to ~/.rev/csl/nature.csl
+docrev profiles --fetch-csl apa       # works with short names
+docrev profiles --list-csl            # list cached files
 ```
 
 Known short names: apa, chicago, vancouver, ieee, nature, science, cell, pnas, plos, elife, ecology-letters, ama, acs, harvard, mla, elsevier, springer, biomed-central.
@@ -439,17 +439,17 @@ formatting:
 Create a new profile template (includes formatting section):
 
 ```bash
-rev profiles --new "My Journal"
+docrev profiles --new "My Journal"
 ```
 
 ### CLI Reference
 
 | Command | Description |
 |---------|-------------|
-| `rev validate --list` | List all profiles with formatting tags |
-| `rev validate -j nature` | Validate against journal requirements |
-| `rev build -j nature` | Build with journal formatting defaults |
-| `rev profiles --new "Name"` | Create custom profile template |
-| `rev profiles --fetch-csl name` | Download CSL style to cache |
-| `rev profiles --list-csl` | List cached CSL styles |
-| `rev profiles --dirs` | Show profile directory locations |
+| `docrev validate --list` | List all profiles with formatting tags |
+| `docrev validate -j nature` | Validate against journal requirements |
+| `docrev build -j nature` | Build with journal formatting defaults |
+| `docrev profiles --new "Name"` | Create custom profile template |
+| `docrev profiles --fetch-csl name` | Download CSL style to cache |
+| `docrev profiles --list-csl` | List cached CSL styles |
+| `docrev profiles --dirs` | Show profile directory locations |

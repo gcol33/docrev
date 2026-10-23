@@ -69,7 +69,7 @@ export function register(program: Command, pkg?: PackageJson): void {
       const completionsDir = path.join(packageRoot(import.meta.dirname), 'completions');
 
       if (shell === 'bash') {
-        const bashFile = path.join(completionsDir, 'rev.bash');
+        const bashFile = path.join(completionsDir, 'docrev.bash');
         if (fs.existsSync(bashFile)) {
           console.log(fs.readFileSync(bashFile, 'utf-8'));
         } else {
@@ -77,7 +77,7 @@ export function register(program: Command, pkg?: PackageJson): void {
           process.exit(1);
         }
       } else if (shell === 'zsh') {
-        const zshFile = path.join(completionsDir, 'rev.zsh');
+        const zshFile = path.join(completionsDir, 'docrev.zsh');
         if (fs.existsSync(zshFile)) {
           console.log(fs.readFileSync(zshFile, 'utf-8'));
         } else {
@@ -85,7 +85,7 @@ export function register(program: Command, pkg?: PackageJson): void {
           process.exit(1);
         }
       } else if (shell === 'powershell' || shell === 'pwsh') {
-        const psFile = path.join(completionsDir, 'rev.ps1');
+        const psFile = path.join(completionsDir, 'docrev.ps1');
         if (fs.existsSync(psFile)) {
           console.log(fs.readFileSync(psFile, 'utf-8'));
         } else {
@@ -233,7 +233,7 @@ export function register(program: Command, pkg?: PackageJson): void {
         console.log();
 
         if (options.check) {
-          console.log(chalk.cyan('Run "rev upgrade" to install the update'));
+          console.log(chalk.cyan('Run "docrev upgrade" to install the update'));
           return;
         }
 
@@ -272,7 +272,7 @@ export function register(program: Command, pkg?: PackageJson): void {
 
 function showFullHelp(pkg?: PackageJson): void {
   console.log(`
-${chalk.bold.cyan('rev')} ${chalk.dim(`v${pkg?.version || 'unknown'}`)} - Revision workflow for Word ↔ Markdown round-trips
+${chalk.bold.cyan('docrev')} ${chalk.dim(`v${pkg?.version || 'unknown'}`)} - Revision workflow for Word ↔ Markdown round-trips
 
 ${chalk.bold('DESCRIPTION')}
   Handle reviewer feedback when collaborating on academic papers.
@@ -287,35 +287,35 @@ ${chalk.bold('GLOBAL OPTIONS')}
 
 ${chalk.bold('TYPICAL WORKFLOW')}
 
-  ${chalk.dim('1.')} Build and send: ${chalk.green('rev build docx')} ${chalk.dim('(or rev b docx)')}
+  ${chalk.dim('1.')} Build and send: ${chalk.green('docrev build docx')} ${chalk.dim('(or docrev b docx)')}
   ${chalk.dim('2.')} Reviewers return ${chalk.yellow('reviewed.docx')} with edits and comments
-  ${chalk.dim('3.')} Sync their feedback: ${chalk.green('rev sync reviewed.docx')}
-  ${chalk.dim('4.')} Work through comments: ${chalk.green('rev next')} ${chalk.dim('(n)')} / ${chalk.green('rev todo')} ${chalk.dim('(t)')}
-  ${chalk.dim('5.')} Accept/reject changes: ${chalk.green('rev accept -a')} ${chalk.dim('(a)')} or ${chalk.green('rev review')}
-  ${chalk.dim('6.')} Rebuild: ${chalk.green('rev build docx')}
-  ${chalk.dim('7.')} Archive old files: ${chalk.green('rev archive')}
+  ${chalk.dim('3.')} Sync their feedback: ${chalk.green('docrev sync reviewed.docx')}
+  ${chalk.dim('4.')} Work through comments: ${chalk.green('docrev next')} ${chalk.dim('(n)')} / ${chalk.green('docrev todo')} ${chalk.dim('(t)')}
+  ${chalk.dim('5.')} Accept/reject changes: ${chalk.green('docrev accept -a')} ${chalk.dim('(a)')} or ${chalk.green('docrev review')}
+  ${chalk.dim('6.')} Rebuild: ${chalk.green('docrev build docx')}
+  ${chalk.dim('7.')} Archive old files: ${chalk.green('docrev archive')}
 
 ${chalk.bold('MORE HELP')}
 
-  rev help workflow    Detailed workflow guide
-  rev help syntax      Annotation syntax reference
-  rev help commands    All commands with options
+  docrev help workflow    Detailed workflow guide
+  docrev help syntax      Annotation syntax reference
+  docrev help commands    All commands with options
 `);
 }
 
 function showWorkflowHelp(): void {
   console.log(`
-${chalk.bold.cyan('rev')} ${chalk.dim('- Workflow Guide')}
+${chalk.bold.cyan('docrev')} ${chalk.dim('- Workflow Guide')}
 
 ${chalk.bold('OVERVIEW')}
 
-  The rev workflow solves a common problem: you write in Markdown,
+  The docrev workflow solves a common problem: you write in Markdown,
   but collaborators review in Word. When they return edited documents,
   you need to merge their changes back into your source files.
 
 ${chalk.bold('STEP 1: BUILD & SEND')}
 
-  ${chalk.green('rev build docx')}
+  ${chalk.green('docrev build docx')}
   ${chalk.dim('# Send the .docx to reviewers')}
 
 ${chalk.bold('STEP 2: RECEIVE FEEDBACK')}
@@ -326,40 +326,40 @@ ${chalk.bold('STEP 2: RECEIVE FEEDBACK')}
 
 ${chalk.bold('STEP 3: SYNC CHANGES')}
 
-  ${chalk.green('rev sync reviewed.docx')}
-  ${chalk.dim('# Or just: rev sync (auto-detects most recent .docx)')}
+  ${chalk.green('docrev sync reviewed.docx')}
+  ${chalk.dim('# Or just: docrev sync (auto-detects most recent .docx)')}
 
   Your markdown files now contain their feedback as annotations.
 
 ${chalk.bold('STEP 4: WORK THROUGH COMMENTS')}
 
-  ${chalk.green('rev todo')}              ${chalk.dim('# See all pending comments')}
-  ${chalk.green('rev next')}              ${chalk.dim('# Show next pending comment')}
-  ${chalk.green('rev reply file.md -n 1 -m "Done"')}
-  ${chalk.green('rev resolve file.md -n 1')}
+  ${chalk.green('docrev todo')}              ${chalk.dim('# See all pending comments')}
+  ${chalk.green('docrev next')}              ${chalk.dim('# Show next pending comment')}
+  ${chalk.green('docrev reply file.md -n 1 -m "Done"')}
+  ${chalk.green('docrev resolve file.md -n 1')}
 
 ${chalk.bold('STEP 5: ACCEPT/REJECT CHANGES')}
 
-  ${chalk.green('rev accept file.md -a')} ${chalk.dim('# Accept all changes')}
-  ${chalk.green('rev reject file.md -n 2')} ${chalk.dim('# Reject specific change')}
+  ${chalk.green('docrev accept file.md -a')} ${chalk.dim('# Accept all changes')}
+  ${chalk.green('docrev reject file.md -n 2')} ${chalk.dim('# Reject specific change')}
   ${chalk.dim('# Or use interactive mode:')}
-  ${chalk.green('rev review file.md')}
+  ${chalk.green('docrev review file.md')}
 
 ${chalk.bold('STEP 6: REBUILD')}
 
-  ${chalk.green('rev build docx')}
-  ${chalk.green('rev build docx --dual')} ${chalk.dim('# Clean + comments version')}
+  ${chalk.green('docrev build docx')}
+  ${chalk.green('docrev build docx --dual')} ${chalk.dim('# Clean + comments version')}
 
 ${chalk.bold('STEP 7: ARCHIVE & REPEAT')}
 
-  ${chalk.green('rev archive')}           ${chalk.dim('# Move reviewer files to archive/')}
+  ${chalk.green('docrev archive')}           ${chalk.dim('# Move reviewer files to archive/')}
   ${chalk.dim('# Send new .docx, repeat cycle')}
 `);
 }
 
 function showSyntaxHelp(): void {
   console.log(`
-${chalk.bold.cyan('rev')} ${chalk.dim('- Annotation Syntax (CriticMarkup)')}
+${chalk.bold.cyan('docrev')} ${chalk.dim('- Annotation Syntax (CriticMarkup)')}
 
 ${chalk.bold('INSERTIONS')}
 
@@ -403,9 +403,9 @@ ${chalk.bold('COMMENTS')}
 
 function showCommandsHelp(): void {
   console.log(`
-${chalk.bold.cyan('rev')} ${chalk.dim('- Command Reference')}
+${chalk.bold.cyan('docrev')} ${chalk.dim('- Command Reference')}
 
-${chalk.bold('rev import')} <docx> <original-md>
+${chalk.bold('docrev import')} <docx> <original-md>
 
   Import changes from a Word document by comparing against your
   original Markdown source.
@@ -419,7 +419,7 @@ ${chalk.bold('rev import')} <docx> <original-md>
     -a, --author <name>   Author name for changes (default: "Reviewer")
     --dry-run             Preview changes without saving
 
-${chalk.bold('rev review')} <file>
+${chalk.bold('docrev review')} <file>
 
   Interactively review and accept/reject track changes.
   Comments are preserved; only track changes are processed.
@@ -432,7 +432,7 @@ ${chalk.bold('rev review')} <file>
     L   Reject all remaining changes
     q   Quit without saving
 
-${chalk.bold('rev strip')} <file>
+${chalk.bold('docrev strip')} <file>
 
   Remove annotations, outputting clean Markdown.
   Track changes are applied (insertions kept, deletions removed).
@@ -441,7 +441,7 @@ ${chalk.bold('rev strip')} <file>
     -o, --output <file>   Write to file (default: stdout)
     -c, --keep-comments   Keep comment annotations
 
-${chalk.bold('rev help')} [topic]
+${chalk.bold('docrev help')} [topic]
 
   Show help. Optional topics:
     workflow    Step-by-step workflow guide

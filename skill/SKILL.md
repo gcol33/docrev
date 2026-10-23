@@ -1,11 +1,16 @@
 ---
 name: docrev
-description: "Document revision workflow tool (CLI: `rev`). Use when working with Word documents containing reviewer comments, importing track changes to markdown, replying to reviewer comments, building PDF/DOCX outputs, generating response letters, validating citations/DOIs, or any document revision task."
+description: "Document revision workflow tool (CLI: `docrev`). Use when working with Word documents containing reviewer comments, importing track changes to markdown, replying to reviewer comments, building PDF/DOCX outputs, generating response letters, validating citations/DOIs, or any document revision task."
 ---
 
 # docrev - Document Revision Tool
 
-`rev` is a CLI tool for document workflows with Word ↔ Markdown round-trips.
+`docrev` is a CLI tool for document workflows with Word ↔ Markdown round-trips.
+
+Always invoke it as `docrev`. The package also installs a short alias `rev`, but
+on Linux and macOS `rev` is usually the system tool that reverses lines, so a
+bare `rev` may run the wrong program. If `docrev` is not found, docrev is not
+installed (`npm install -g docrev`); `rev` is never a substitute.
 
 Works for any document that goes through Word-based review: scientific papers, contracts, reports, proposals, manuals.
 
@@ -28,14 +33,14 @@ Change the template, rebuild, and every document gets the new formatting.
 ### 1. Create or import a project
 
 ```bash
-rev new my-document          # Start from scratch
-rev import manuscript.docx   # Start from existing Word doc
+docrev new my-document          # Start from scratch
+docrev import manuscript.docx   # Start from existing Word doc
 ```
 
 ### 2. Build and share
 
 ```bash
-rev build docx               # Generate Word document
+docrev build docx               # Generate Word document
 ```
 
 Send to reviewers. They add comments and track changes in Word.
@@ -43,25 +48,25 @@ Send to reviewers. They add comments and track changes in Word.
 ### 3. Import feedback
 
 ```bash
-rev sync reviewed.docx              # Updates markdown with annotations
-rev sync                            # Auto-detect most recent .docx
-rev sync reviewed.docx --comments-only  # Insert comments only; never modify prose
-rev verify-anchors reviewed.docx    # Report which anchors still match current prose
+docrev sync reviewed.docx              # Updates markdown with annotations
+docrev sync                            # Auto-detect most recent .docx
+docrev sync reviewed.docx --comments-only  # Insert comments only; never modify prose
+docrev verify-anchors reviewed.docx    # Report which anchors still match current prose
 ```
 
 Use `--comments-only` when the markdown has been revised between sending the
 docx out and receiving it back. Without the flag, track changes from a stale
 draft would clobber newer edits. With it, only comments are imported, placed
-at fuzzy-matched anchors against the current prose. Run `rev verify-anchors`
+at fuzzy-matched anchors against the current prose. Run `docrev verify-anchors`
 first to see which comments will land cleanly and which need manual placement.
 
 ### 4. View and address comments
 
 ```bash
-rev status                   # Project overview
-rev todo                     # List all pending comments
-rev next                     # Show next pending comment
-rev comments methods.md      # List all comments with context
+docrev status                   # Project overview
+docrev todo                     # List all pending comments
+docrev next                     # Show next pending comment
+docrev comments methods.md      # List all comments with context
 ```
 
 ### 5. Reply to reviewer comments
@@ -69,8 +74,8 @@ rev comments methods.md      # List all comments with context
 **Always use the non-interactive reply mode:**
 
 ```bash
-rev reply methods.md -n 1 -m "Added clarification about sampling methodology"
-rev reply results.md -n 3 -m "Updated figure to include 95% CI"
+docrev reply methods.md -n 1 -m "Added clarification about sampling methodology"
+docrev reply results.md -n 3 -m "Updated figure to include 95% CI"
 ```
 
 Replies appear as: `{>>Reviewer: Original<<} {>>User: Reply<<}`
@@ -78,15 +83,15 @@ Replies appear as: `{>>Reviewer: Original<<} {>>User: Reply<<}`
 ### 6. Resolve addressed comments
 
 ```bash
-rev resolve methods.md -n 1  # Mark comment #1 as resolved
+docrev resolve methods.md -n 1  # Mark comment #1 as resolved
 ```
 
 ### 7. Rebuild with comment threads
 
 ```bash
-rev build docx --dual                 # Produces clean + annotated versions
-rev build docx --show-changes         # Single DOCX with visible track changes
-rev build docx --dual --show-changes  # One DOCX: tracked changes + threaded comments
+docrev build docx --dual                 # Produces clean + annotated versions
+docrev build docx --show-changes         # Single DOCX with visible track changes
+docrev build docx --dual --show-changes  # One DOCX: tracked changes + threaded comments
 ```
 
 `--dual` produces:
@@ -109,7 +114,7 @@ from `title:` unless overridden — set `output: { docx: foo.docx, pdf: foo.pdf 
 in `rev.yaml` or pass `-o, --output <path>` on the CLI. See REFERENCE.md →
 "Choosing output filenames".
 
-For pandoc flags rev doesn't surface directly (Lua filters, custom variables,
+For pandoc flags docrev doesn't surface directly (Lua filters, custom variables,
 templates), use `--pandoc-arg` (repeatable) or `pandoc-args:` in `rev.yaml`
 (both top-level and per-format). Run with `--verbose` to see the exact pandoc
 invocation. See REFERENCE.md → "Passing custom pandoc args" for details.
@@ -117,13 +122,13 @@ invocation. See REFERENCE.md → "Passing custom pandoc args" for details.
 ### 8. Archive reviewer files
 
 ```bash
-rev archive                  # Move reviewer files to archive/
+docrev archive                  # Move reviewer files to archive/
 ```
 
 ### 9. Generate response letter
 
 ```bash
-rev response                 # Generate point-by-point response letter
+docrev response                 # Generate point-by-point response letter
 ```
 
 ## Annotation Syntax (CriticMarkup)
@@ -138,58 +143,58 @@ rev response                 # Generate point-by-point response letter
 
 | Task | Command |
 |------|---------|
-| Create project | `rev new my-project` |
-| Create LaTeX project | `rev new my-project --template latex` |
-| Import Word doc | `rev import manuscript.docx` |
-| Sync Word feedback | `rev sync reviewed.docx` |
-| Sync comments only (prose unchanged) | `rev sync reviewed.docx --comments-only` |
-| Verify anchors against current prose | `rev verify-anchors reviewed.docx` |
-| Sync PDF comments | `rev sync annotated.pdf` |
-| Extract PDF comments | `rev pdf-comments annotated.pdf` |
-| Extract with highlighted text | `rev pdf-comments file.pdf --with-text` |
-| Append PDF comments | `rev pdf-comments annotated.pdf --append methods.md` |
-| Project status | `rev status` |
-| Next pending | `rev next` |
-| List pending | `rev todo` |
-| Filter by author | `rev comments file.md --author "Reviewer 2"` |
-| Reply to all pending | `rev reply file.md --all -m "Addressed"` |
-| Accept all changes | `rev accept file.md -a` |
-| Build Word | `rev build docx` |
-| Build PDF | `rev build pdf` |
-| Build clean + annotated Word | `rev build docx --dual` |
-| Build clean + annotated PDF | `rev build pdf --dual` |
-| Build with visible track changes | `rev build docx --show-changes` |
-| Show contributors | `rev contributors` |
-| Lookup ORCID | `rev orcid 0000-0002-1825-0097` |
-| Archive reviewer files | `rev archive` |
-| Word count per section | `rev word-count` |
-| Project dashboard | `rev stats` |
-| Search all sections | `rev search "query"` |
-| Pre-submission check | `rev check` |
-| Validate citations | `rev citations` |
-| Check grammar/style | `rev grammar` |
-| Check spelling | `rev spelling` |
-| Open PDF preview | `rev preview pdf` |
-| Auto-rebuild on changes | `rev watch` |
-| Check for updates | `rev upgrade --check` |
-| Assign paragraph IDs, scaffold journey.md | `rev journey init` |
-| Check manuscript against story/journey | `rev journey check` |
-| Build story.md/journey.md to docx | `rev build story` / `rev build journey` |
+| Create project | `docrev new my-project` |
+| Create LaTeX project | `docrev new my-project --template latex` |
+| Import Word doc | `docrev import manuscript.docx` |
+| Sync Word feedback | `docrev sync reviewed.docx` |
+| Sync comments only (prose unchanged) | `docrev sync reviewed.docx --comments-only` |
+| Verify anchors against current prose | `docrev verify-anchors reviewed.docx` |
+| Sync PDF comments | `docrev sync annotated.pdf` |
+| Extract PDF comments | `docrev pdf-comments annotated.pdf` |
+| Extract with highlighted text | `docrev pdf-comments file.pdf --with-text` |
+| Append PDF comments | `docrev pdf-comments annotated.pdf --append methods.md` |
+| Project status | `docrev status` |
+| Next pending | `docrev next` |
+| List pending | `docrev todo` |
+| Filter by author | `docrev comments file.md --author "Reviewer 2"` |
+| Reply to all pending | `docrev reply file.md --all -m "Addressed"` |
+| Accept all changes | `docrev accept file.md -a` |
+| Build Word | `docrev build docx` |
+| Build PDF | `docrev build pdf` |
+| Build clean + annotated Word | `docrev build docx --dual` |
+| Build clean + annotated PDF | `docrev build pdf --dual` |
+| Build with visible track changes | `docrev build docx --show-changes` |
+| Show contributors | `docrev contributors` |
+| Lookup ORCID | `docrev orcid 0000-0002-1825-0097` |
+| Archive reviewer files | `docrev archive` |
+| Word count per section | `docrev word-count` |
+| Project dashboard | `docrev stats` |
+| Search all sections | `docrev search "query"` |
+| Pre-submission check | `docrev check` |
+| Validate citations | `docrev citations` |
+| Check grammar/style | `docrev grammar` |
+| Check spelling | `docrev spelling` |
+| Open PDF preview | `docrev preview pdf` |
+| Auto-rebuild on changes | `docrev watch` |
+| Check for updates | `docrev upgrade --check` |
+| Assign paragraph IDs, scaffold journey.md | `docrev journey init` |
+| Check manuscript against story/journey | `docrev journey check` |
+| Build story.md/journey.md to docx | `docrev build story` / `docrev build journey` |
 
 ## DOI Management
 
 ```bash
-rev doi check references.bib         # Validate DOIs
-rev doi lookup references.bib        # Find missing DOIs
-rev doi add 10.1234/example          # Add citation from DOI
+docrev doi check references.bib         # Validate DOIs
+docrev doi lookup references.bib        # Find missing DOIs
+docrev doi add 10.1234/example          # Add citation from DOI
 ```
 
 ## Validation
 
 ```bash
-rev validate --journal nature        # Check journal requirements
-rev validate --list                  # List 21 built-in journal profiles, plus custom ones
-rev lint                             # Check broken refs, missing citations
+docrev validate --journal nature        # Check journal requirements
+docrev validate --list                  # List 21 built-in journal profiles, plus custom ones
+docrev lint                             # Check broken refs, missing citations
 ```
 
 ## Cross-References
@@ -207,7 +212,7 @@ Insert a figure with the format-portable syntax (renders in both PDF and Word):
 ```
 
 Raw `\begin{figure}...\end{figure}` LaTeX blocks are PDF-only. For docx
-builds, `rev` auto-translates the common shape (single `\includegraphics`
+builds, `docrev` auto-translates the common shape (single `\includegraphics`
 with optional `\caption{...}` and `\label{...}`) to the markdown form above
 so figures still render. Exotic blocks (`\subfloat`, `\rotatebox`, multiple
 `\includegraphics`) are left alone and warned about — convert them by hand
@@ -235,8 +240,8 @@ never part of a build:
   Checked for undefined terms, avoided wordings, use before definition,
   form collisions and unused entries. A journey entry's
   `- negotiated: <who> <date> #<hash>: <decision>` pins a paragraph settled
-  with a co-author; `rev check` fails when it changes until
-  `rev journey ack <id>`, as it does on an undefined term or an avoided
+  with a co-author; `docrev check` fails when it changes until
+  `docrev journey ack <id>`, as it does on an undefined term or an avoided
   wording.
 - **`supplement/journey.md`** — the supporting information's journey: one
   entry per table, figure, appendix or unnumbered section (`### tbl.key  [arcs]`),
@@ -248,19 +253,19 @@ never part of a build:
 
 A paragraph's ID lives in the section file as `<!-- @p:id -->` on the line
 before it — a semantic slug (`intro.memory`), not a position, so moving the
-paragraph keeps its ID. It survives `rev sync`/`rev import` and is dropped
+paragraph keeps its ID. It survives `docrev sync`/`docrev import` and is dropped
 from every build.
 
 ```bash
-rev journey init                     # assign IDs, scaffold journey.md
-rev journey check                    # check the manuscript against story/journey
-rev journey check --json             # same, as structured findings
-rev journey ack <ids...>             # reconfirm negotiated paragraphs after an edit
-rev build story                      # story.md → docx for co-authors
-rev build journey                    # journey.md → docx for co-authors
+docrev journey init                     # assign IDs, scaffold journey.md
+docrev journey check                    # check the manuscript against story/journey
+docrev journey check --json             # same, as structured findings
+docrev journey ack <ids...>             # reconfirm negotiated paragraphs after an edit
+docrev build story                      # story.md → docx for co-authors
+docrev build journey                    # journey.md → docx for co-authors
 ```
 
-`rev journey check` also runs as step 4 of `rev check` when `journey.md`
+`docrev journey check` also runs as step 4 of `docrev check` when `journey.md`
 exists. Findings (missing markers, orphan paragraphs, unclaimed arcs, arcs
 introduced before what they `need`, unresolved evidence, near-duplicate
 paragraphs, floats with no entry; for the supplement: section files missing
@@ -311,22 +316,22 @@ For reviewers who annotate PDFs instead of Word documents:
 ### 1. Extract comments from PDF
 
 ```bash
-rev pdf-comments annotated.pdf              # Display all comments
-rev pdf-comments annotated.pdf --by-author  # Group by reviewer
-rev pdf-comments annotated.pdf --json       # Output as JSON
+docrev pdf-comments annotated.pdf              # Display all comments
+docrev pdf-comments annotated.pdf --by-author  # Group by reviewer
+docrev pdf-comments annotated.pdf --json       # Output as JSON
 ```
 
 ### 2. Import into markdown
 
 ```bash
-rev sync annotated.pdf                      # Auto-import to sections
-rev pdf-comments annotated.pdf --append methods.md  # Append to specific file
+docrev sync annotated.pdf                      # Auto-import to sections
+docrev pdf-comments annotated.pdf --append methods.md  # Append to specific file
 ```
 
 ### 3. Build PDF with margin notes
 
 ```bash
-rev build pdf --dual
+docrev build pdf --dual
 ```
 
 Produces:
@@ -338,14 +343,14 @@ Produces:
 
 ## When Helping Users
 
-1. **Setup**: Ensure `rev config user "Name"` is set for replies
-2. **Sync phase**: Run `rev sync` to get feedback (works with both Word and PDF)
-3. **Review phase**: Use `rev todo` and `rev next` to navigate comments, `rev reply` to respond
-4. **Accept phase**: Use `rev accept -a` or `rev review` to handle track changes
-5. **Build phase**: Run `rev build docx --dual` or `rev build pdf --dual` for annotated versions
-6. **Archive phase**: Run `rev archive` to move reviewer files
-7. **Validation phase**: Run `rev check` before submission
-8. **Response letter**: Use `rev response` to generate point-by-point responses
+1. **Setup**: Ensure `docrev config user "Name"` is set for replies
+2. **Sync phase**: Run `docrev sync` to get feedback (works with both Word and PDF)
+3. **Review phase**: Use `docrev todo` and `docrev next` to navigate comments, `docrev reply` to respond
+4. **Accept phase**: Use `docrev accept -a` or `docrev review` to handle track changes
+5. **Build phase**: Run `docrev build docx --dual` or `docrev build pdf --dual` for annotated versions
+6. **Archive phase**: Run `docrev archive` to move reviewer files
+7. **Validation phase**: Run `docrev check` before submission
+8. **Response letter**: Use `docrev response` to generate point-by-point responses
 
 ## Critical: Ask Questions When Unsure
 

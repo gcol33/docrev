@@ -61,7 +61,7 @@ export function register(program: Command): void {
       const resolved = resolveSectionsConfig(options.dir, options.config);
       if (!resolved) {
         console.error(fmt.status('error', `No section config found in ${path.resolve(options.dir)}`));
-        console.error(chalk.dim('  Add a `sections:` list to rev.yaml, or run "rev init" to generate sections.yaml.'));
+        console.error(chalk.dim('  Add a `sections:` list to rev.yaml, or run "docrev init" to generate sections.yaml.'));
         process.exit(1);
       }
 
@@ -250,7 +250,7 @@ function printReport(docxPath: string, reports: CommentReport[]): void {
   if (totals.unmatched > 0 || totals.ambiguous > 0) {
     console.log();
     console.log(chalk.dim('Comments flagged "unmatched" or "ambiguous" need manual placement.'));
-    console.log(chalk.dim('Run "rev sync --comments-only" to import the matched ones without touching prose.'));
+    console.log(chalk.dim('Run "docrev sync --comments-only" to import the matched ones without touching prose.'));
   }
 }
 

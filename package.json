@@ -78,6 +78,7 @@
     "node": ">=18.0.0"
   },
   "bin": {
+    "docrev": "bin/rev.js",
     "rev": "bin/rev.js"
   },
   "files": [

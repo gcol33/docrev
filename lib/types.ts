@@ -654,7 +654,7 @@ export interface JourneyEntry {
   accepts: string[];
   /**
    * Wording settled with a co-author, one per `- negotiated: <who> <date> [#<hash>]: <decision>`
-   * line. The hash pins the paragraph's text when the decision was taken (`rev journey ack`).
+   * line. The hash pins the paragraph's text when the decision was taken (`docrev journey ack`).
    */
   negotiated?: string[];
   line: number;

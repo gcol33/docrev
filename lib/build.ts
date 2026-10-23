@@ -201,7 +201,7 @@ export interface BuildConfig {
   supplementJourney?: string;
   /**
    * Filename of the information sidecar: the terms and populations a reader must hold,
-   * checked against the manuscript by `rev journey check`. Default 'information.md'.
+   * checked against the manuscript by `docrev journey check`. Default 'information.md'.
    * Never included in a build.
    */
   information?: string;
@@ -230,7 +230,7 @@ export interface BuildConfig {
    */
   pandocArgs?: string[];
   /**
-   * Files to leave out of every word count (`rev validate`, `rev word-count`),
+   * Files to leave out of every word count (`docrev validate`, `docrev word-count`),
    * matched by exact section path or basename. For section files that never
    * reach the published article, such as a reviewer-only note kept only so
    * it lands in the anonymized build.
@@ -414,7 +414,7 @@ export function mergeJournalFormatting(config: BuildConfig, formatting: JournalF
       merged.csl = resolved;
     }
     // If not resolved locally, store the name — pandoc --citeproc
-    // can sometimes resolve it, and the user can fetch with rev profiles --fetch-csl
+    // can sometimes resolve it, and the user can fetch with docrev profiles --fetch-csl
     if (!resolved) {
       merged.csl = formatting.csl;
     }
@@ -1978,7 +1978,7 @@ export function resolveOutputPath(
  * directly rather than going through `combineSections`.
  *
  * Deliberately does not consult `config.output[format]` (the main paper's
- * output filename): reusing that would point a `rev build story` at the same
+ * output filename): reusing that would point a `docrev build story` at the same
  * path as the main build and overwrite it. Only an explicit `--output`
  * chooses a custom name; otherwise the output lands beside the paper's own
  * as `<slug>-story.<ext>` / `<slug>-journey.<ext>`.
@@ -1993,7 +1993,7 @@ export async function buildSidecarDoc(
   const filename = (kind === 'story' ? config.story : config.journey) || `${kind}.md`;
   const inputPath = path.join(directory, filename);
   if (!fs.existsSync(inputPath)) {
-    return { format, success: false, error: `${filename} not found. Run "rev journey init" first.` };
+    return { format, success: false, error: `${filename} not found. Run "docrev journey init" first.` };
   }
 
   let outputPath = options.outputPath;
@@ -2268,7 +2268,7 @@ export async function build(
   // Check pandoc
   if (!hasPandoc()) {
     const instruction = getInstallInstructions('pandoc');
-    throw new Error(`Pandoc not found. Install with: ${instruction}\nOr run: rev doctor`);
+    throw new Error(`Pandoc not found. Install with: ${instruction}\nOr run: docrev doctor`);
   }
 
   // Check LaTeX if PDF is requested

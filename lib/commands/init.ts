@@ -115,7 +115,7 @@ export function register(program: Command): void {
 
       if (!name) {
         console.error(chalk.red('Error: project name is required'));
-        console.error(chalk.dim('Usage: rev new <name>'));
+        console.error(chalk.dim('Usage: docrev new <name>'));
         process.exit(1);
       }
 
@@ -206,8 +206,8 @@ export function register(program: Command): void {
       console.log(chalk.dim(`  cd ${name}`));
       console.log(chalk.dim('  # Edit rev.yaml with your paper details'));
       console.log(chalk.dim('  # Write your sections'));
-      console.log(chalk.dim('  rev build          # Build PDF and DOCX'));
-      console.log(chalk.dim('  rev build pdf      # Build PDF only'));
+      console.log(chalk.dim('  docrev build          # Build PDF and DOCX'));
+      console.log(chalk.dim('  docrev build pdf      # Build PDF only'));
     });
 
   // ==========================================================================
@@ -231,7 +231,7 @@ export function register(program: Command): void {
             console.log(`Current user: ${chalk.bold(name)}`);
           } else {
             console.log(chalk.yellow('No user name set.'));
-            console.log(chalk.dim('Set with: rev config user "Your Name"'));
+            console.log(chalk.dim('Set with: docrev config user "Your Name"'));
           }
         }
       } else if (key === 'sections') {
@@ -246,8 +246,8 @@ export function register(program: Command): void {
             console.log(`Default sections: ${chalk.bold(sections.join(', '))}`);
           } else {
             console.log(chalk.yellow('No default sections set.'));
-            console.log(chalk.dim('Set with: rev config sections "intro,methods,results,discussion"'));
-            console.log(chalk.dim('When not set, rev new will prompt for sections.'));
+            console.log(chalk.dim('Set with: docrev config sections "intro,methods,results,discussion"'));
+            console.log(chalk.dim('When not set, docrev new will prompt for sections.'));
           }
         }
       } else {

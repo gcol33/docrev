@@ -115,7 +115,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
           if (status.hardcoded.length > 5) {
             console.log(chalk.dim(`    ... and ${status.hardcoded.length - 5} more`));
           }
-          console.log(chalk.cyan(`\n  Run ${chalk.bold(`rev migrate ${file}`)} to convert to dynamic refs`));
+          console.log(chalk.cyan(`\n  Run ${chalk.bold(`docrev migrate ${file}`)} to convert to dynamic refs`));
         }
 
         if (status.dynamic.length === 0 && status.hardcoded.length === 0) {
@@ -345,7 +345,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
                   console.log(chalk.dim('  Installing pandoc-crossref...'));
                   execSync('conda install -y -c conda-forge pandoc-crossref', { stdio: 'inherit' });
                 }
-                console.log(chalk.green('\nDone! Run "rev install --check" to verify.'));
+                console.log(chalk.green('\nDone! Run "docrev install --check" to verify.'));
               } catch (err) {
                 const error = err as Error;
                 console.log(chalk.red(`\nInstallation failed: ${error.message}`));
@@ -371,7 +371,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
       const { execSync } = await import('child_process');
 
       const version = pkg?.version || 'unknown';
-      console.log(chalk.bold.cyan(`\n  rev doctor`) + chalk.dim(` v${version}\n`));
+      console.log(chalk.bold.cyan(`\n  docrev doctor`) + chalk.dim(` v${version}\n`));
       console.log(chalk.dim(`  ${os.platform()} ${os.release()} | Node ${process.version}\n`));
 
       let issues = 0;
@@ -468,7 +468,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
         console.log(chalk.yellow(`  ${warnings} warning(s), no critical issues\n`));
       } else {
         console.log(chalk.red(`  ${issues} issue(s), ${warnings} warning(s)\n`));
-        console.log(chalk.dim('  Run "rev install" to fix missing dependencies.\n'));
+        console.log(chalk.dim('  Run "docrev install" to fix missing dependencies.\n'));
       }
     });
 
@@ -509,7 +509,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
       if (!hasPandoc()) {
         console.error(chalk.red('pandoc not found.'));
-        console.error(chalk.dim('Run "rev install" to install dependencies.'));
+        console.error(chalk.dim('Run "docrev install" to install dependencies.'));
         process.exit(1);
       }
 
@@ -517,7 +517,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
 
       if (!config._configPath) {
         console.error(chalk.yellow('No rev.yaml found.'));
-        console.error(chalk.dim('Run "rev new" to create a project, or "rev init" for existing files.'));
+        console.error(chalk.dim('Run "docrev new" to create a project, or "docrev init" for existing files.'));
         process.exit(1);
       }
 
@@ -529,7 +529,7 @@ export function register(program: Command, pkg?: { version?: string }): void {
         const profile = getJournalProfile(options.journal);
         if (!profile) {
           console.error(fmt.status('error', `Unknown journal: ${options.journal}`));
-          console.error(chalk.dim('Use "rev validate --list" to see available profiles'));
+          console.error(chalk.dim('Use "docrev validate --list" to see available profiles'));
           process.exit(1);
         }
         journalName = profile.name;
@@ -551,8 +551,8 @@ export function register(program: Command, pkg?: { version?: string }): void {
       // Story/journey sidecars (gcol33/docrev#12) aren't pandoc output
       // formats — they're a docx/pdf render of story.md/journey.md for
       // co-authors, built directly against the sidecar file rather than
-      // through combineSections. Additive: `rev build story pdf` also builds
-      // the main paper's PDF; `rev build story` on its own builds only the
+      // through combineSections. Additive: `docrev build story pdf` also builds
+      // the main paper's PDF; `docrev build story` on its own builds only the
       // sidecar.
       const SIDECAR_KINDS = ['story', 'journey'] as const;
       const requestedSidecars = targetFormats.filter((f): f is 'story' | 'journey' =>

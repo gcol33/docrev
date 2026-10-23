@@ -122,7 +122,7 @@ export function register(program: Command): void {
             if (mainSection) {
               const mainPath = path.join(options.dir, mainSection);
               if (fs.existsSync(mainPath)) {
-                console.log(chalk.dim(`Use 'rev pdf-comments ${docx} --append ${mainSection}' to add comments to markdown.`));
+                console.log(chalk.dim(`Use 'docrev pdf-comments ${docx} --append ${mainSection}' to add comments to markdown.`));
               }
             }
           }
@@ -141,7 +141,7 @@ export function register(program: Command): void {
       const resolved = resolveSectionsConfig(options.dir, options.config);
       if (!resolved) {
         console.error(fmt.status('error', `No section config found in ${path.resolve(options.dir)}`));
-        console.error(chalk.dim('  Add a `sections:` list to rev.yaml, or run "rev init" to generate sections.yaml.'));
+        console.error(chalk.dim('  Add a `sections:` list to rev.yaml, or run "docrev init" to generate sections.yaml.'));
         process.exit(1);
       }
       const sectionsConfig = resolved.config;
@@ -507,13 +507,13 @@ export function register(program: Command): void {
           console.log(fmt.box(summaryLines.join('\n'), { title: 'Summary', padding: 0 }));
           console.log();
           if (totalCommentsUnmatched > 0 || unroutedComments > 0) {
-            console.log(chalk.yellow(`  ${totalCommentsUnmatched + unroutedComments} comment(s) were not written. Run "rev verify-anchors" or re-sync with the full document.`));
+            console.log(chalk.yellow(`  ${totalCommentsUnmatched + unroutedComments} comment(s) were not written. Run "docrev verify-anchors" or re-sync with the full document.`));
             console.log();
           }
           console.log(chalk.dim('Next steps:'));
-          console.log(chalk.dim('  1. rev review <section.md>  - Accept/reject changes'));
-          console.log(chalk.dim('  2. rev comments <section.md> - View/address comments'));
-          console.log(chalk.dim('  3. rev build docx  - Rebuild Word doc'));
+          console.log(chalk.dim('  1. docrev review <section.md>  - Accept/reject changes'));
+          console.log(chalk.dim('  2. docrev comments <section.md> - View/address comments'));
+          console.log(chalk.dim('  3. docrev build docx  - Rebuild Word doc'));
         } else {
           console.log(fmt.status('success', 'No changes detected.'));
         }
@@ -684,6 +684,6 @@ async function syncCommentsOnly(
 
   if (totalUnmatched > 0 || totalLowConfidence > 0) {
     console.log();
-    console.log(chalk.dim('Tip: run "rev verify-anchors" to see which comments drifted.'));
+    console.log(chalk.dim('Tip: run "docrev verify-anchors" to see which comments drifted.'));
   }
 }

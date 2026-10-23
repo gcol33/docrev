@@ -1,6 +1,6 @@
-# Bash completion for rev (docrev)
+# Bash completion for docrev (also installed as rev)
 # Install: source this file or add to ~/.bashrc:
-#   eval "$(rev completions bash)"
+#   eval "$(docrev completions bash)"
 
 _rev_completions() {
     local cur prev words cword
@@ -14,7 +14,7 @@ _rev_completions() {
     local preview_formats="pdf docx"
 
     case "${prev}" in
-        rev)
+        docrev|rev)
             COMPREPLY=($(compgen -W "${commands} --help --version" -- "${cur}"))
             return
             ;;
@@ -124,4 +124,4 @@ _rev_completions() {
     COMPREPLY=($(compgen -f -- "${cur}"))
 }
 
-complete -F _rev_completions rev
+complete -F _rev_completions docrev rev

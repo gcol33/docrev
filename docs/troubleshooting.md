@@ -71,7 +71,7 @@ sudo apt install texlive-latex-base texlive-fonts-recommended
 **Cause:** No `.md` files in the directory, or sections not specified in `rev.yaml`.
 
 **Solutions:**
-1. Create section files: `rev new`
+1. Create section files: `docrev new`
 2. Specify sections in `rev.yaml`:
    ```yaml
    sections:
@@ -87,7 +87,7 @@ sudo apt install texlive-latex-base texlive-fonts-recommended
 **Common fixes:**
 - Check indentation (use spaces, not tabs)
 - Quote strings with special characters
-- Validate with: `rev check`
+- Validate with: `docrev check`
 
 **Example of correct YAML:**
 ```yaml
@@ -106,8 +106,8 @@ authors:
 
 **Debug:**
 ```bash
-rev build --verbose
-rev build tex  # Check the .tex file for errors
+docrev build --verbose
+docrev build tex  # Check the .tex file for errors
 ```
 
 ## Import Issues
@@ -128,7 +128,7 @@ rev build tex  # Check the .tex file for errors
 
 **Solution:**
 ```bash
-rev import document.docx --no-track-changes
+docrev import document.docx --no-track-changes
 # Then manually review the Word file
 ```
 
@@ -152,8 +152,8 @@ rev import document.docx --no-track-changes
 
 **Solutions:**
 ```bash
-rev comments file.md --resolved  # Check resolved comments
-rev resolve file.md -a -u        # Unresolve all comments
+docrev comments file.md --resolved  # Check resolved comments
+docrev resolve file.md -a -u        # Unresolve all comments
 ```
 
 ### Reply threading not working
@@ -173,9 +173,9 @@ text{>>Author1: comment<<} more text {>>Author2: reply<<}
 ### Author name not set
 
 ```bash
-rev config user "Your Name"
+docrev config user "Your Name"
 # Or per-command:
-rev reply file.md --author "Your Name"
+docrev reply file.md --author "Your Name"
 ```
 
 ## Cross-Reference Issues
@@ -206,8 +206,8 @@ rev reply file.md --author "Your Name"
 
 **Debug:**
 ```bash
-rev refs           # List all labels
-rev refs --check   # Find broken references
+docrev refs           # List all labels
+docrev refs --check   # Find broken references
 ```
 
 ## PDF Issues
@@ -248,15 +248,15 @@ pdf:
 
 DOI validation queries external APIs. For large bibliographies:
 ```bash
-rev doi check --no-lookup  # Skip online validation
+docrev doi check --no-lookup  # Skip online validation
 ```
 
 ### Build taking too long
 
 ```bash
 # Build only what you need
-rev build docx        # Skip PDF
-rev build --no-toc    # Skip table of contents
+docrev build docx        # Skip PDF
+docrev build --no-toc    # Skip table of contents
 ```
 
 ## Encoding Issues
@@ -283,18 +283,18 @@ author = {Müller, Hans}
 
 ### Debug mode
 ```bash
-rev build --verbose 2>&1 | tee build.log
+docrev build --verbose 2>&1 | tee build.log
 ```
 
 ### Check system status
 ```bash
-rev doctor
+docrev doctor
 ```
 
 ### Report issues
 https://github.com/gcol33/docrev/issues
 
 Include:
-- `rev --version` output
-- `rev doctor` output
+- `docrev --version` output
+- `docrev doctor` output
 - Minimal reproducible example

@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * rev - Revision workflow for Word ↔ Markdown round-trips
+ * docrev - Revision workflow for Word ↔ Markdown round-trips
  *
  * Handles track changes and comments when collaborating on academic papers.
  * Preserves reviewer feedback through the Markdown editing workflow.
@@ -62,7 +62,7 @@ try {
 }
 
 program
-  .name('rev')
+  .name('docrev')
   .description('Revision workflow for Word ↔ Markdown round-trips')
   .version(`${pkg.version}\nNode ${process.version} | ${process.platform} ${process.arch}`, '-V, --version', 'Output version information')
   .configureOutput({
@@ -117,11 +117,11 @@ program.on('command:*', (operands: string[]) => {
     console.error();
     console.error(chalk.yellow('Did you mean?'));
     for (const s of suggestions) {
-      console.error(chalk.cyan(`  rev ${s}`));
+      console.error(chalk.cyan(`  docrev ${s}`));
     }
   }
   console.error();
-  console.error(chalk.dim('Run "rev help" for available commands.'));
+  console.error(chalk.dim('Run "docrev help" for available commands.'));
   process.exit(1);
 });
 

@@ -74,7 +74,7 @@ export function register(program: Command): void {
           baseSource = 'auto (.rev/base.docx)';
         } else {
           console.log(chalk.yellow('\n  No base document found in .rev/base.docx'));
-          console.log(chalk.dim('  Tip: Run "rev build docx" to automatically save the base document.\n'));
+          console.log(chalk.dim('  Tip: Run "docrev build docx" to automatically save the base document.\n'));
           console.error(fmt.status('error', 'Base document required. Use --base <file.docx>'));
           process.exit(1);
         }
@@ -191,7 +191,7 @@ export function register(program: Command): void {
           if (unresolved.length > 0) {
             saveConflicts(process.cwd(), conflicts, basePath);
             console.log(chalk.yellow(`\n  ${unresolved.length} unresolved conflict(s) saved to .rev/conflicts.json`));
-            console.log(chalk.dim('  Run "rev conflicts" to view, "rev merge-resolve" to resolve'));
+            console.log(chalk.dim('  Run "docrev conflicts" to view, "docrev merge-resolve" to resolve'));
           }
         }
 
@@ -214,10 +214,10 @@ export function register(program: Command): void {
 
           console.log();
           console.log(chalk.dim('Next steps:'));
-          console.log(chalk.dim('  1. rev review merged.md     - Accept/reject changes'));
-          console.log(chalk.dim('  2. rev comments merged.md   - Address comments'));
+          console.log(chalk.dim('  1. docrev review merged.md     - Accept/reject changes'));
+          console.log(chalk.dim('  2. docrev comments merged.md   - Address comments'));
           if (conflicts.some(c => c.resolved === null)) {
-            console.log(chalk.dim('  3. rev merge-resolve        - Resolve remaining conflicts'));
+            console.log(chalk.dim('  3. docrev merge-resolve        - Resolve remaining conflicts'));
           }
         } else {
           console.log(fmt.status('info', 'Dry run - no output written'));
@@ -269,7 +269,7 @@ export function register(program: Command): void {
         console.log();
       }
 
-      console.log(chalk.dim('Run "rev merge-resolve" to resolve conflicts interactively'));
+      console.log(chalk.dim('Run "docrev merge-resolve" to resolve conflicts interactively'));
     });
 
   // ==========================================================================

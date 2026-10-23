@@ -152,7 +152,7 @@ const ANCHOR_PATTERN = anchorPattern('fig|tbl|eq');
  */
 const REF_PATTERN = refPattern('fig|tbl|eq');
 
-/** Label types that `rev lint` and `rev check` resolve. */
+/** Label types that `docrev lint` and `docrev check` resolve. */
 const CHECKED_REF_TYPES = 'fig|tbl|eq|sec';
 
 // =============================================================================

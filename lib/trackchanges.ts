@@ -126,9 +126,9 @@ export function enableTrackRevisions(docxPath: string): void {
 /**
  * Build a standalone Word document with track changes from annotated markdown.
  *
- * Used by `rev apply <md> <docx>` for a single markdown file outside a rev
+ * Used by `docrev apply <md> <docx>` for a single markdown file outside a rev
  * project (no crossref/citeproc/reference-doc). Comments are dropped — use the
- * project build (`rev build docx --show-changes`) for the full filter chain and
+ * project build (`docrev build docx --show-changes`) for the full filter chain and
  * threaded comments.
  *
  * @param mdPath - Path to markdown file with CriticMarkup
