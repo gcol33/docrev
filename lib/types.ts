@@ -91,6 +91,7 @@ export interface DocxConfig {
   reference?: string;
   keepComments?: boolean;
   toc?: boolean;
+  tableLayout?: boolean;
 }
 
 export interface BuildConfig {

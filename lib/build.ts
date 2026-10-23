@@ -22,6 +22,7 @@ import { processSlideMarkdown, hasSlideSyntax } from './slides.js';
 import { generatePptxTemplate, templateNeedsRegeneration, injectMediaIntoPptx, injectSlideNumbers, applyThemeFonts, applyCentering, applyBuildupColors } from './pptx-template.js';
 import { getThemePath, getThemeNames, PPTX_THEMES } from './pptx-themes.js';
 import { runPostprocess } from './postprocess.js';
+import { layoutDocxTables } from './docx-tables.js';
 import { hasPandoc, hasPandocCrossref, hasLatex } from './dependencies.js';
 import { buildImageRegistry, writeImageRegistry } from './image-registry.js';
 import { stripParagraphMarkers } from './paragraph-markers.js';
@@ -111,6 +112,13 @@ export interface DocxConfig {
    * Default true. Set false to opt out — blocks then warn and are left alone.
    */
   translateRawFigures?: boolean;
+  /**
+   * Size table columns from their content to the page's text width and write
+   * the table rules and cell font size on the table itself, so Google Docs
+   * and LibreOffice render the tables as Word does (lib/docx-tables.ts).
+   * Default true. Set false to keep pandoc's table layout.
+   */
+  tableLayout?: boolean;
 }
 
 export interface TexConfig {
@@ -352,6 +360,7 @@ export const DEFAULT_CONFIG: BuildConfig = {
     affiliationNewline: true,
     toc: false,
     translateRawFigures: true,
+    tableLayout: true,
   },
   tex: {
     standalone: true,
@@ -2231,6 +2240,14 @@ export async function runPandoc(
             } catch (e) {
               warn('logo injection', e);
             }
+          }
+        }
+
+        if (format === 'docx' && config.docx.tableLayout !== false) {
+          try {
+            layoutDocxTables(outputPath);
+          } catch (e) {
+            console.warn(`Warning: DOCX table layout failed; tables left as pandoc wrote them (${(e as Error).message})`);
           }
         }
 

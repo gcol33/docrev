@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.3] - 2026-10-23
+
+### Fixed
+- **DOCX tables render the same in Google Docs and LibreOffice as in Word.** Pandoc writes each table on a fixed grid whose widths come from the markdown dash counts and sum to 5.5 in whatever the page, and puts the header rule in a table style. Word stretches such a table to the page; Google Docs and LibreOffice keep the grid, so narrow columns broke words mid-word ("Targe|t") and the rules were lost. Every DOCX build now sizes each column from its content (the longest word sets the minimum, the cell text the share of the remaining width), fills the page's text width read from the section properties, and writes the top, bottom and header rules and the cell font size (10 pt, stepping down to 9 or 8 pt only when the longest words do not fit) on the table itself (`lib/docx-tables.ts`). Set `docx.tableLayout: false` in rev.yaml to keep pandoc's layout.
+
 ## [0.17.2] - 2026-10-23
 
 ### Fixed
