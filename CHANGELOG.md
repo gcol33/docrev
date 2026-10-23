@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.5] - 2026-10-23
+
 ### Fixed
 - **`docrev import manuscript.docx` keeps the reviewers' work.** Starting a project from a Word file read only its plain text: comments, tracked changes, images and equations were lost, and a paper whose headings were not exactly "Introduction", "Methods" and the like came out as one `content.md`. The import now reads the document as `docrev sync` does: comments and tracked changes become CriticMarkup, images go to `figures/media/`, equations become LaTeX, and the title and authors of the Title and Author paragraphs go into `rev.yaml`. It splits the text at the document's top heading level, with the text before the first heading in `preamble.md`; a document without Word heading styles is split at paragraphs that consist of a standard section name, as before. On the test manuscript (298 comments) the import keeps every comment, the tracked changes and 7 images in 9 section files, where it used to write one file with none of them.
 - **Tracked changes nested inside other changes or comments come through intact.** Word lets a comment end inside a deletion and a deletion fall inside an earlier insertion; reading pandoc's output text with patterns left such spans as raw `[...]{.deletion author=...}` in the Markdown. The changes are now rewritten in pandoc's document tree, so the nesting resolves: a comment marker inside a change disappears with the comment, and a change inside the opposite change (text inserted and then deleted) is dropped as having no effect. This applies to `sync`, `import`, `status` and `comments`.
