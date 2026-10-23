@@ -1,4 +1,4 @@
-# docrev
+# docrev <img src="docs/figures/logo.svg" align="right" height="139" alt="docrev logo" />
 
 *writing papers in Markdown with co-authors who work in Word*
 
@@ -8,14 +8,18 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
 
-docrev builds Word and PDF files from a manuscript written as Markdown section files, and reads the comments and tracked changes reviewers make in those files back into the Markdown.
+<p align="center"><img src="docs/figures/hero.png" alt="Left, a Methods paragraph in Markdown carrying a reviewer's comment and two tracked changes in CriticMarkup notation; right, the same paragraph built as a Word page, with the changes shown as Word tracked changes and the comment in the margin. An arrow labelled build points from the Markdown to Word, an arrow labelled sync points back." width="100%"></p>
 
-docrev runs [Pandoc](https://pandoc.org) for the conversion to Word and PDF, and `docrev sync` handles the return: it takes the reviewed Word or PDF file and writes each comment and tracked change into the section file it belongs to, as an annotation beside the sentence it concerns. The Markdown files under git remain the only source of the manuscript, so you reply to comments, accept or reject changes, and decide when to rebuild and send the next version.
+docrev lets you write a paper in plain text files while your co-authors and reviewers keep working in Microsoft Word.
+
+You write each section of the paper (introduction, methods, results, ...) in its own [Markdown](https://commonmark.org/help/) file, a text file with light formatting marks, and keep the files under version control with git. When you want feedback, `docrev build` turns the files into a Word document or a PDF, and you send it out as usual. Your co-authors comment and edit in Word with Track Changes on.
+
+When the file comes back, `docrev sync` copies every comment and tracked change into your text files, next to the sentence it belongs to. They are written in [CriticMarkup](https://criticmarkup.com/), a plain-text notation for edits: `{++added text++}`, `{--deleted text--}`, `{>>Reviewer 2: a comment<<}`. You read them in your editor, accept or reject each edit, reply to the comments, and build the next version. The picture above shows one such round trip.
 
 docrev supports:
 
-- **Round trips with Word.** Equations, figures, citations and cross-references survive the build to DOCX and the sync back.
-- **Replying in the terminal.** Comments and tracked changes are numbered per file, so you reply to, accept, reject or resolve each one by number without opening Word.
+- **Round trips with Word.** Equations, figures, citations and cross-references survive the conversion to Word and the way back.
+- **Answering reviewers in the terminal.** Comments and tracked changes are numbered per file, so you reply to, accept, reject or resolve each one by its number without opening Word.
 - **Several reviewers.** Each build saves the DOCX it sent, and `docrev merge` compares every returned file with it, flagging passages that two reviewers changed differently.
 - **PDF annotations.** A PDF with reviewer comments syncs the same way as a Word file.
 - **Journal profiles.** 22 profiles hold a journal's requirements, such as word limits and figure and reference counts, for `docrev validate`; seven of them also set the citation style and PDF layout of the build.
@@ -63,10 +67,14 @@ Other platforms: [pandoc.org/installing](https://pandoc.org/installing.html). On
 
 ## Usage
 
-1. Create a project with `docrev new`, or convert an existing Word file with `docrev import`.
-2. Write in the section files and build with `docrev build`.
-3. Send the DOCX. When it comes back, read the feedback in with `docrev sync`.
-4. Answer the comments and changes, then build again.
+A paper goes through four steps:
+
+1. **Create the project.** `docrev new` makes a folder with one Markdown file per section and a `rev.yaml` file that holds the title, the authors and the section order.
+2. **Write and build.** You write in the section files, and `docrev build docx` turns them into one Word document.
+3. **Send and sync.** You send the Word document to your co-authors. When they return it with comments and tracked changes, `docrev sync` writes their feedback into your section files.
+4. **Answer and rebuild.** You work through the comments and changes, then build the next version and send it.
+
+The first two steps take three commands:
 
 ```bash
 docrev new my-paper
@@ -74,22 +82,9 @@ cd my-paper
 docrev build docx
 ```
 
-`docrev new` asks for the section names; press Enter to use introduction, methods, results and discussion. The build writes the DOCX to `output/`, named after the `title` in `rev.yaml`.
+`docrev new` asks for the section names; press Enter to use introduction, methods, results and discussion. The build writes the Word document to the `output/` folder, named after the `title` in `rev.yaml`.
 
-```
-┌─────────────┐   docrev build docx    ┌─────────────┐
-│             │ ─────────────────────→ │             │
-│  Markdown   │                        │    Word     │  → collaborators
-│   (you)     │    docrev build pdf    │   / PDF     │  → journals
-│             │ ─────────────────────→ │             │
-└─────────────┘                        └─────────────┘
-       ↑                                      │
-       │             docrev sync              │
-       └──────────────────────────────────────┘
-             their feedback → your files
-```
-
-To start from a Word file instead, `docrev import manuscript.docx` creates the project, splits the document into one section file per top-level heading, extracts the images to `figures/` and converts the equations to LaTeX.
+To start from a paper you already have in Word, `docrev import manuscript.docx` creates the project from it and splits the text into section files at standard section headings such as Introduction and Methods.
 
 ## Project layout
 

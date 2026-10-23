@@ -99,6 +99,7 @@
     "test:coverage": "c8 --reporter=text --reporter=lcov node scripts/run-tests.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
+    "figures": "node --import tsx scripts/figures/logo.mjs && node --import tsx scripts/figures/hero.mjs",
     "prepublishOnly": "npm run build"
   },
   "repository": {
