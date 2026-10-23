@@ -193,7 +193,7 @@ docrev doi add 10.1234/example          # Add citation from DOI
 
 ```bash
 docrev validate --journal nature        # Check journal requirements
-docrev validate --list                  # List 21 built-in journal profiles, plus custom ones
+docrev validate --list                  # List 22 built-in journal profiles, plus custom ones
 docrev lint                             # Check broken refs, missing citations
 ```
 

@@ -53,6 +53,60 @@ docx:
   toc: false
 ```
 
+## Output Location
+
+Built files go to `output/` by default. Set `outputDir` to another folder, or to `null` to write them next to `paper.md`:
+
+```yaml
+outputDir: output
+```
+
+## PDF Engine and Fonts
+
+```yaml
+pdf:
+  engine: pdflatex               # or xelatex/lualatex for Latin-Extended
+  # Fonts apply only under xelatex/lualatex (fontspec):
+  # mainfont: "TeX Gyre Termes"
+  # sansfont: "TeX Gyre Heros"
+  # monofont: "TeX Gyre Cursor"
+```
+
+Switch to `engine: xelatex` (or `lualatex`) when the manuscript has Czech, Polish, Croatian or Spanish names or species epithets that `pdflatex` mangles. Under those engines, `mainfont`, `sansfont` and `monofont` are forwarded to pandoc. Simpler documents can build without LaTeX through a non-LaTeX pandoc engine such as `engine: typst`.
+
+## Tables
+
+Every DOCX build sizes each table column from its content, fills the page's text width, and writes the top, bottom and header rules and the cell font size on the table itself, so tables look the same in Word, Google Docs and LibreOffice. Set `docx.tableLayout: false` to keep pandoc's layout:
+
+```yaml
+docx:
+  tableLayout: false
+```
+
+For PDF output, list the columns that should not wrap:
+
+```yaml
+tables:
+  nowrap:
+    - Prior              # column headers to keep on one line
+    - "$\\widehat{R}$"
+```
+
+Distribution notation in nowrap columns is converted to LaTeX math: `Normal(0, 0.5)` becomes `$\mathcal{N}(0, 0.5)$`.
+
+## Postprocess Scripts
+
+Run your own scripts after a build:
+
+```yaml
+postprocess:
+  pdf: ./scripts/fix-tables.py    # runs after PDF
+  docx: ./scripts/add-meta.js     # runs after DOCX
+  all: ./scripts/notify.sh        # runs after any format
+```
+
+Scripts receive the environment variables `OUTPUT_FILE`, `OUTPUT_FORMAT`, `PROJECT_DIR` and `CONFIG_PATH`. `docrev build pdf --verbose` shows their output.
+
 ## Story & Journey Sidecars
 
 Two optional files sit beside a manuscript for its whole life:
@@ -307,7 +361,7 @@ The preamble also applies to `tex` and `beamer` builds, and to the annotated
 
 ## Journal Profiles
 
-21 built-in journal profiles for validation. Six also provide **build formatting defaults** (CSL citation style, PDF settings):
+22 built-in journal profiles for validation. Seven also provide **build formatting defaults** (CSL citation style, PDF settings):
 
 ```bash
 docrev validate --list              # List all profiles ([formatting] = build support)

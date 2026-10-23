@@ -129,7 +129,7 @@ Set a journal profile to get the right citation style and PDF formatting automat
 docrev build pdf -j nature
 ```
 
-Six profiles include formatting defaults — `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`. All 21 support validation. To see the full list:
+Seven profiles include formatting defaults: `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`, `methods-ecology-evolution`. All 22 support validation. To see the full list:
 
 ```bash
 docrev validate --list

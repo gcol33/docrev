@@ -37,7 +37,7 @@ npm install -g docrev
 
 This installs the `docrev` command and a short alias `rev`. On Linux and macOS, `rev` is usually also the name of a system tool that reverses lines, and whichever comes first on your `PATH` wins, so the docs use `docrev`.
 
-Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see the [Troubleshooting](troubleshooting.md) page.
+Requires [Node.js](https://nodejs.org) 20.16 or later. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), LaTeX is also needed — see the [Troubleshooting](troubleshooting.md) page.
 
 ## Quick Start
 

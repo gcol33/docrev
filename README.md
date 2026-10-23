@@ -1,16 +1,27 @@
 # docrev
 
+*writing papers in Markdown with co-authors who work in Word*
+
 [![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
 [![npm downloads](https://img.shields.io/npm/dm/docrev)](https://www.npmjs.com/package/docrev)
 [![node](https://img.shields.io/node/v/docrev)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
 
-A CLI for writing documents in Markdown while collaborating with Word users.
+docrev builds Word and PDF files from a manuscript written as Markdown section files, and reads the comments and tracked changes reviewers make in those files back into the Markdown.
 
-Write in `.md` files under version control; build Word or PDF when you need to share. When reviewers return their annotated copy, `docrev sync` pulls the feedback into your markdown sections, where you reply to comments, accept or reject changes, and rebuild. Equations, figures, citations, and cross-references survive both directions.
+docrev runs [Pandoc](https://pandoc.org) for the conversion to Word and PDF, and `docrev sync` handles the return: it takes the reviewed Word or PDF file and writes each comment and tracked change into the section file it belongs to, as an annotation beside the sentence it concerns. The Markdown files under git remain the only source of the manuscript, so you reply to comments, accept or reject changes, and decide when to rebuild and send the next version.
 
-## Install
+docrev supports:
+
+- **Round trips with Word.** Equations, figures, citations and cross-references survive the build to DOCX and the sync back.
+- **Replying in the terminal.** Comments and tracked changes are numbered per file, so you reply to, accept, reject or resolve each one by number without opening Word.
+- **Several reviewers.** Each build saves the DOCX it sent, and `docrev merge` compares every returned file with it, flagging passages that two reviewers changed differently.
+- **PDF annotations.** A PDF with reviewer comments syncs the same way as a Word file.
+- **Journal profiles.** 22 profiles hold a journal's requirements, such as word limits and figure and reference counts, for `docrev validate`; seven of them also set the citation style and PDF layout of the build.
+- **References from DOIs.** `docrev doi` checks the DOIs in a BibTeX file, finds missing ones and adds an entry from a DOI.
+
+## Installation
 
 ```bash
 npm install -g docrev
@@ -18,37 +29,119 @@ npm install -g docrev
 
 This installs the `docrev` command and a short alias `rev`. On Linux and macOS, `rev` is usually also the name of a system tool that reverses lines, and whichever comes first on your `PATH` wins, so this README uses `docrev`.
 
-Requires [Node.js](https://nodejs.org) 18+. Building DOCX or PDF needs [Pandoc](https://pandoc.org). For complex PDFs (math, cross-references, journal styles), [LaTeX](#installing-dependencies) is also needed; simpler documents can build through pandoc alone with a non-LaTeX engine (e.g. `pdf.engine: typst` in `rev.yaml`).
+docrev needs [Node.js](https://nodejs.org) 20.16 or later. The other tools depend on what you build:
 
-## The Problem
+| Tool | Needed for |
+|------|------------|
+| [Pandoc](https://pandoc.org) | every DOCX and PDF build |
+| [pandoc-crossref](https://github.com/lierdakil/pandoc-crossref) | numbered figures, tables and equations |
+| LaTeX | PDF output with math, cross-references or a journal style |
 
-After a few rounds of feedback, the project directory looks like this:
+Simpler documents can build a PDF without LaTeX through a non-LaTeX pandoc engine, such as `pdf.engine: typst` in `rev.yaml`. `docrev doctor` checks that Node.js, Pandoc and pandoc-crossref are found.
+
+### Installing Pandoc
+
+| Platform | Command |
+|----------|---------|
+| macOS | `brew install pandoc pandoc-crossref` |
+| Windows | `winget install JohnMacFarlane.Pandoc` |
+| Debian/Ubuntu | `sudo apt install pandoc` |
+| Fedora | `sudo dnf install pandoc` |
+
+Other platforms: [pandoc.org/installing](https://pandoc.org/installing.html). On Windows and Linux, pandoc-crossref comes from its [releases page](https://github.com/lierdakil/pandoc-crossref/releases); pick the build that matches your Pandoc version.
+
+### Installing LaTeX
+
+| Platform | Command |
+|----------|---------|
+| macOS | `brew install --cask mactex` |
+| Windows | `winget install MiKTeX.MiKTeX` |
+| Debian/Ubuntu | `sudo apt install texlive-full` |
+| Fedora | `sudo dnf install texlive-scheme-full` |
+
+[TinyTeX](https://yihui.org/tinytex/) is a smaller distribution that downloads LaTeX packages on demand.
+
+## Usage
+
+1. Create a project with `docrev new`, or convert an existing Word file with `docrev import`.
+2. Write in the section files and build with `docrev build`.
+3. Send the DOCX. When it comes back, read the feedback in with `docrev sync`.
+4. Answer the comments and changes, then build again.
+
+```bash
+docrev new my-paper
+cd my-paper
+docrev build docx
+```
+
+`docrev new` asks for the section names; press Enter to use introduction, methods, results and discussion. The build writes the DOCX to `output/`, named after the `title` in `rev.yaml`.
 
 ```
-manuscript_v1.docx
-manuscript_v2_john_comments.docx
-manuscript_v2_jane_comments.docx
-manuscript_v3_merged_final.docx
-manuscript_v3_merged_final_REAL.docx
-manuscript_v3_merged_final_REAL_submitted.docx
+┌─────────────┐   docrev build docx    ┌─────────────┐
+│             │ ─────────────────────→ │             │
+│  Markdown   │                        │    Word     │  → collaborators
+│   (you)     │    docrev build pdf    │   / PDF     │  → journals
+│             │ ─────────────────────→ │             │
+└─────────────┘                        └─────────────┘
+       ↑                                      │
+       │             docrev sync              │
+       └──────────────────────────────────────┘
+             their feedback → your files
 ```
 
-By the third filename, the document has split. One file has Jane's comments, another has John's track changes, a third has your reconciliation, and which one is current depends on what you remember. Reconciliation takes an afternoon and goes wrong every time the Word formatting drifts.
+To start from a Word file instead, `docrev import manuscript.docx` creates the project, splits the document into one section file per top-level heading, extracts the images to `figures/` and converts the equations to LaTeX.
 
-docrev keeps the markdown as the canonical version, under git. The DOCX is rebuilt each time you share; reviewer comments and track changes come back into your section files when you sync, where you reply to or accept them in the terminal.
+## Project layout
 
-## Highlights
+```
+my-paper/
+├── rev.yaml          ← title, authors, section order, journal profile
+├── introduction.md   ← one file per section
+├── methods.md
+├── results.md
+├── discussion.md
+├── references.bib    ← BibTeX bibliography
+├── figures/          ← images referenced from sections
+├── paper.md          ← combined source, regenerated each build
+└── output/           ← built DOCX and PDF files
+```
 
-- **Markdown → Word/PDF** with citations, figures, equations, cross-references
-- **Round-trip sync**: import Word track changes and comments back to Markdown
-- **CLI review workflow**: reply to comments, accept/reject changes from terminal
-- **DOI tools**: validate, lookup, and auto-add references from DOIs
-- **21 journal styles**: Nature, Science, PNAS, and more
-- **Version control friendly**: plain text source, full git history
+You edit the section files and `rev.yaml`, and docrev writes the rest. Each build combines the sections into `paper.md` in the order `rev.yaml` lists them. `docrev config sections "intro,methods,results,discussion"` sets your own default sections for later projects.
 
-## Quick Example
+## Answering reviewers
 
-Write in Markdown with citations and cross-references:
+```bash
+docrev sync reviewed.docx
+```
+
+Tracked changes and comments arrive in the section files as [CriticMarkup](https://criticmarkup.com/), a plain-text notation for edits. You accept or reject a change by editing it:
+
+```markdown
+The sample size was {--100--}{++150++} participants.   # deletion + insertion
+Data was collected {~~monthly~>weekly~~}.              # substitution
+{>>Reviewer 2: Please clarify.<<}                      # comment
+```
+
+The comments can be answered without opening Word:
+
+```bash
+docrev comments                      # list all comments
+docrev reply methods.md -n 1 -m "Added clarification"
+docrev resolve methods.md -n 1       # mark as resolved
+docrev build docx --dual             # clean + annotated versions
+```
+
+`docrev sync annotated.pdf` does the same for the comments in a PDF. Set your name for replies once with `docrev config user "Your Name"`.
+
+## Merging several reviewers
+
+```bash
+docrev merge reviewer_A.docx reviewer_B.docx
+```
+
+Each build saves the DOCX it produced to `.rev/base.docx`. `docrev merge` compares each reviewer's file with that copy to isolate their changes, and asks you to resolve passages that two reviewers changed differently.
+
+## Citations, figures and equations
 
 ```markdown
 Climate change poses significant challenges [@IPCC2021]. As shown in
@@ -59,376 +152,49 @@ Climate change poses significant challenges [@IPCC2021]. As shown in
 The relationship follows $\Delta T = \lambda \cdot \Delta F$ (@eq:forcing).
 ```
 
-Build and share:
+Citations use keys from `references.bib`, figures and tables take a label, and equations are LaTeX. The build numbers every `@fig:`, `@tbl:` and `@eq:` reference. Mark unfinished spots with `\tofill{N sites}`, which prints as a highlighted placeholder in every output format. The [Revision Workflow](docs/workflow.md#writing-in-markdown) shows tables, display equations and section references.
 
-```bash
-docrev build docx    # → output/paper.docx
-docrev build pdf     # → output/paper.pdf
-```
-
-When collaborators return the Word doc with track changes:
-
-```bash
-docrev sync reviewed.docx    # their comments → your markdown
-```
-
-## How It Works
-
-```
-┌─────────────┐     docrev build docx      ┌─────────────┐
-│             │ ───────────────────────→│             │
-│  Markdown   │                         │    Word     │  → collaborators
-│   (you)     │     docrev build pdf       │   / PDF     │  → journals
-│             │ ───────────────────────→│             │
-└─────────────┘                         └─────────────┘
-       ↑                                       │
-       │              docrev sync                 │
-       └───────────────────────────────────────┘
-              their feedback → your files
-```
-
-## What's in a Project
-
-`docrev new my-paper` creates the project. It prompts for the section names (default: `introduction, methods, results, discussion`) or accepts them up front via `-s intro,methods,results,discussion`. Each name becomes its own `.md` file. (`docrev import some.docx` is the other entry point — it splits an existing Word document into one section per top-level heading.)
-
-```
-my-paper/
-├── rev.yaml          ← config: title, authors, section order, journal profile
-├── intro.md          ← section files; named at creation, one per section
-├── methods.md
-├── results.md
-├── discussion.md
-├── references.bib    ← BibTeX bibliography
-├── figures/          ← images referenced from sections
-├── paper.md          ← auto-combined source, regenerated each build
-└── output/           ← built artefacts (docx, pdf, tex)
-    ├── my-paper.docx
-    └── my-paper.pdf
-```
-
-You edit the section files and the config; everything else is generated. `paper.md` is rebuilt from the section files in the order set by `rev.yaml`, and `output/` holds whatever the last build produced. After `docrev sync`, comments and track changes from the reviewer's Word file appear inline in the section files as CriticMarkup annotations. Set `outputDir: null` in `rev.yaml` if you'd rather have outputs land alongside `paper.md`.
-
-To set your own per-user default sections so future `docrev new` calls skip the prompt:
-
-```bash
-docrev config sections "intro,methods,results,discussion"
-```
-
-## The CLI Review Cycle
-
-When reviewers send back a Word document with track changes and comments:
-
-```bash
-docrev sync reviewed.docx            # import feedback into markdown
-```
-
-Track changes appear inline - accept or reject by editing:
-
-```markdown
-The sample size was {--100--}{++150++} participants.
-```
-
-Handle comments without opening Word:
-
-```bash
-docrev comments                      # list all comments
-docrev reply methods.md -n 1 -m "Added clarification"
-docrev resolve methods.md -n 1       # mark as resolved
-docrev build docx --dual             # clean + annotated versions
-docrev build docx --dual --show-changes  # one file: tracked changes + threaded comments
-```
-
-PDF annotations work the same way:
-
-```bash
-docrev sync annotated.pdf
-docrev pdf-comments annotated.pdf --append methods.md
-```
-
-When several reviewers return separate files, `docrev merge` reconciles them:
-
-```bash
-docrev merge reviewer_A.docx reviewer_B.docx
-```
-
-Each reviewer's file is compared against `.rev/base.docx` (auto-saved on every build) to isolate that reviewer's changes; conflicts on the same passage are flagged for interactive resolution.
-
-## Getting Started
-
-### Starting a New Document
-
-Create a new project:
-
-```bash
-docrev new my-report
-cd my-report
-```
-
-You'll be prompted to enter your section names, or press Enter to use the default structure. You can also specify sections directly:
-
-```bash
-docrev new my-report -s intro,methods,results,discussion
-```
-
-Or set your preferred default sections once:
-
-```bash
-docrev config sections "intro,methods,results,discussion"
-```
-
-This creates the project folder with your section files — edit them, then build:
-
-```bash
-docrev build docx pdf
-```
-
-The output filename comes from `title` in `rev.yaml`. Citations are resolved, equations rendered, and cross-references numbered. The directory layout is described above in [What's in a Project](#whats-in-a-project).
-
-### Starting from an Existing Word Document
-
-If you have a Word document to convert:
-
-```bash
-docrev import manuscript.docx
-```
-
-This creates a project folder and splits the document into section files. Images are extracted to `figures/`, equations are converted to LaTeX, and track changes/comments are preserved as markdown annotations.
-
-### Configuration
-
-Layout is controlled in `rev.yaml`:
-
-```yaml
-title: "My Document"
-authors: []
-sections:
-  - intro.md
-  - methods.md
-  - results.md
-  - discussion.md
-
-# Where built artefacts land (default: output/). Set to null for the
-# legacy "outputs alongside paper.md" layout.
-outputDir: output
-
-docx:
-  reference: template.docx       # your Word template
-
-pdf:
-  documentclass: article
-  fontsize: 12pt
-  engine: pdflatex               # or xelatex/lualatex for Latin-Extended
-  # Fonts apply only under xelatex/lualatex (fontspec):
-  # mainfont: "TeX Gyre Termes"
-  # sansfont: "TeX Gyre Heros"
-  # monofont: "TeX Gyre Cursor"
-```
-
-Switch to `engine: xelatex` (or `lualatex`) when the manuscript has Czech/Polish/Croatian/Spanish names or species epithets that `pdflatex` mangles. Under those engines, `mainfont`/`sansfont`/`monofont` are forwarded to pandoc.
-
-Configure your name for comment replies:
-
-```bash
-docrev config user "Your Name"
-```
-
-### Table Formatting
-
-For PDF output, configure columns that should not wrap:
-
-```yaml
-tables:
-  nowrap:
-    - Prior              # column headers to keep on one line
-    - "$\\widehat{R}$"
-```
-
-Distribution notation in nowrap columns is auto-converted to LaTeX math:
-`Normal(0, 0.5)` → `$\mathcal{N}(0, 0.5)$`
-
-### Placeholder Macros
-
-Mark unfinished spots in a draft with `\tofill{X}` and they highlight as bold
-orange `[X]` in every output format:
-
-```markdown
-We collected data from \tofill{N sites} between \tofill{date range}.
-```
-
-The macro works in DOCX, PDF, TeX, Beamer, and HTML without any per-project
-filter setup. Add custom macros (e.g. `\note`, `\citeNeeded`) under `macros:`
-in `rev.yaml`:
-
-```yaml
-macros:
-  - name: note
-    default:
-      color: "1E40AF"      # 6-digit hex, no '#'
-      bold: true
-      prefix: "NOTE: "
-```
-
-See [docs/configuration.md](docs/configuration.md) for the full schema and
-per-format overrides.
-
-### Postprocess Scripts
-
-Run custom scripts after output generation:
-
-```yaml
-postprocess:
-  pdf: ./scripts/fix-tables.py    # runs after PDF
-  docx: ./scripts/add-meta.js     # runs after DOCX
-  all: ./scripts/notify.sh        # runs after any format
-```
-
-Scripts receive environment variables: `OUTPUT_FILE`, `OUTPUT_FORMAT`, `PROJECT_DIR`, `CONFIG_PATH`.
-
-Use `--verbose` to see script output:
-
-```bash
-docrev build pdf --verbose
-```
-
-### Journal Profiles
-
-Journal profiles provide both validation rules and build formatting defaults. Set in `rev.yaml`:
+## Journal profiles
 
 ```yaml
 journal: nature
 ```
 
-Or pass on the command line:
+With a journal set in `rev.yaml` (or `-j nature` on the command line), `docrev validate` checks the manuscript against the profile's requirements, and a profile with formatting defaults sets the build's citation style, font size, margins and line spacing. Your own `rev.yaml` settings take priority. `docrev validate --list` lists the profiles, marks those with formatting defaults and gives the URL of each journal's author guidelines, which the profile was transcribed from and which can change; check them before submitting.
 
-```bash
-docrev build pdf -j nature     # applies Nature's CSL style + PDF settings
-```
-
-When a journal is set, its formatting defaults (CSL citation style, font size, margins, line spacing) are applied automatically. Your explicit `rev.yaml` settings always take priority.
-
-Six profiles include formatting: `nature`, `science`, `cell`, `pnas`, `plos-one`, `elife`. All 21 profiles support validation. Custom profiles can include formatting too — see [docs/configuration.md](docs/configuration.md).
-
-```bash
-docrev validate --list          # see all profiles ([formatting] tag = build support)
-docrev profiles --fetch-csl apa # download a CSL style to cache
-docrev profiles --list-csl      # list cached CSL styles
-```
-
-## Annotation Syntax
-
-Track changes from Word appear as [CriticMarkup](http://criticmarkup.com/):
-
-```markdown
-The sample size was {--100--}{++150++} participants.   # deletion + insertion
-Data was collected {~~monthly~>weekly~~}.              # substitution
-{>>Reviewer 2: Please clarify.<<}                      # comment
-```
-
-## Writing Tips
-
-Track word count changes between versions:
-
-```bash
-docrev diff                    # compare against last commit
-#  methods.md     +142 words  -38 words
-#  results.md      +89 words  -12 words
-```
-
-Add references to `references.bib` (BibTeX format):
-
-```bibtex
-@article{Smith2020,
-  author = {Smith, Jane},
-  title = {Paper Title},
-  journal = {Nature},
-  year = {2020},
-  doi = {10.1038/example}
-}
-```
-
-Cite with `[@Smith2020]` or `[@Smith2020; @Jones2021]` for multiple sources.
-
-Equations use LaTeX: inline `$E = mc^2$` or display `$$\sum_{i=1}^{n} x_i$$`.
-
-Cross-references: `@fig:label`, `@tbl:label`, `@eq:label` → "Figure 1", "Table 2", "Equation 3".
-
-## Command Reference
-
-| Task | Command |
-|------|---------|
-| Create project | `docrev new my-project` |
-| Create LaTeX project | `docrev new my-project --template latex` |
-| Import Word document | `docrev import manuscript.docx` |
-| Extract Word equations | `docrev equations from-word doc.docx` |
-| Build DOCX | `docrev build docx` |
-| Build PDF | `docrev build pdf` |
-| Build clean + annotated | `docrev build docx --dual` |
-| Build with visible track changes | `docrev build docx --show-changes` |
-| Build tracked changes + comments in one file | `docrev build docx --dual --show-changes` |
-| Sync Word feedback | `docrev sync reviewed.docx` |
-| Sync PDF comments | `docrev sync annotated.pdf` |
-| Extract PDF comments | `docrev pdf-comments annotated.pdf` |
-| Extract with highlighted text | `docrev pdf-comments file.pdf --with-text` |
-| Project status | `docrev status` |
-| Next pending comment | `docrev next` |
-| List pending comments | `docrev todo` |
-| Filter by author | `docrev comments file.md --author "Reviewer 2"` |
-| Accept all changes | `docrev accept file.md -a` |
-| Reject change | `docrev reject file.md -n 1` |
-| Reply to comment | `docrev reply file.md -n 1 -m "response"` |
-| Reply to all pending | `docrev reply file.md --all -m "Addressed"` |
-| Resolve comment | `docrev resolve file.md -n 1` |
-| Show contributors | `docrev contributors` |
-| Lookup ORCID | `docrev orcid 0000-0002-1825-0097` |
-| Merge reviewer feedback | `docrev merge reviewer_A.docx reviewer_B.docx` |
-| Archive reviewer files | `docrev archive` |
-| Check DOIs | `docrev doi check references.bib` |
-| Find missing DOIs | `docrev doi lookup references.bib` |
-| Add citation from DOI | `docrev doi add 10.1038/example` |
-| Word count | `docrev wc` |
-| Pre-submission check | `docrev check` |
-| Check for updates | `docrev upgrade --check` |
-
-Run `docrev help` to see all commands, or `docrev help <command>` for details on a specific command.
-
-Full command reference: [docs/commands.md](docs/commands.md)
-
-## Claude Code Skill
-
-Install the docrev skill for [Claude Code](https://claude.ai/code):
+## Using docrev from Claude Code
 
 ```bash
 docrev install-cli-skill      # install to ~/.claude/skills/docrev
 docrev uninstall-cli-skill    # remove
 ```
 
-Once installed, Claude understands docrev commands and can help navigate comments, draft replies, and manage your revision cycle.
+With the skill installed, [Claude Code](https://claude.ai/code) knows the docrev commands and can help you work through comments, draft replies and run the revision cycle.
 
-## Installing Dependencies
+## Documentation
 
-### Pandoc
+Start with [Revision Workflow](docs/workflow.md): one manuscript from `docrev new` through the review rounds to the pre-submission checks.
 
-[Pandoc](https://pandoc.org) handles document conversion.
+- [Command Reference](docs/commands.md): every command, grouped by task.
+- [Configuration](docs/configuration.md): the `rev.yaml` keys, journal profiles, placeholder macros, tables, postprocess scripts and the story and journey sidecars.
+- [Troubleshooting](docs/troubleshooting.md): installation, build, import and PDF problems.
+- [API Reference](docs/api.md): the library functions for use from Node.
 
-| Platform | Command |
-|----------|---------|
-| macOS | `brew install pandoc` |
-| Windows | `winget install JohnMacFarlane.Pandoc` |
-| Debian/Ubuntu | `sudo apt install pandoc` |
-| Fedora | `sudo dnf install pandoc` |
+`docrev help <command>` prints the options of a single command.
 
-Other platforms: [pandoc.org/installing](https://pandoc.org/installing.html)
+## Getting help
 
-### LaTeX (for complex PDF builds)
+Questions and bug reports go to [GitHub issues](https://github.com/gcol33/docrev/issues). With a bug report, include the output of `docrev --version` and `docrev doctor`, and a small project that shows the problem.
 
-| Platform | Command |
-|----------|---------|
-| macOS | `brew install --cask mactex` |
-| Windows | `winget install MiKTeX.MiKTeX` |
-| Debian/Ubuntu | `sudo apt install texlive-full` |
-| Fedora | `sudo dnf install texlive-scheme-full` |
+## Support
 
-Alternatively, [TinyTeX](https://yihui.org/tinytex/) provides a minimal distribution that downloads packages on demand.
+> "Software is like sex: it's better when it's free." — Linus Torvalds
+
+I'm a PhD student who builds R packages in my free time because I believe good tools should be free and open. I started these projects for my own work and figured others might find them useful too.
+
+If this package saved you some time, buying me a coffee is a nice way to say thanks. It helps with my coffee addiction.
+
+[![Buy Me A Coffee](https://img.shields.io/badge/-Buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/gcol33)
 
 ## License
 

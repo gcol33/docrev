@@ -307,7 +307,7 @@ Built-in scientific vocabulary reduces false positives. Possible author names ar
 Check against journal requirements.
 ```bash
 docrev validate --journal nature
-docrev validate --list          # List 21 built-in journal profiles, plus custom ones
+docrev validate --list          # List 22 built-in journal profiles, plus custom ones
 ```
 
 ### docrev citations

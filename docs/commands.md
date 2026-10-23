@@ -182,7 +182,7 @@ Adjacent comments from different authors become threaded replies in Word:
 | `docrev response [files]` | Generate response letter from comments |
 | `docrev anonymize <file>` | Prepare document for blind review |
 | `docrev validate --journal <name>` | Check manuscript against journal requirements |
-| `docrev validate --list` | List 21 available journal profiles |
+| `docrev validate --list` | List 22 available journal profiles |
 
 ## Story & Journey Sidecars
 
