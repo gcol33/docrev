@@ -11,7 +11,7 @@ import * as path from 'path';
 import { buildRegistry } from './crossref.js';
 import { journeyCheck, parseJourney } from './journey.js';
 import { informationCheck, parseInformation } from './information.js';
-import { parseManuscript } from './paragraph-markers.js';
+import { parseManuscript, strayParagraphMarkers } from './paragraph-markers.js';
 import { parseStory } from './story.js';
 import { parseSupplementJourney, supplementCheck, supplementLabels } from './supplement-journey.js';
 import type { BuildConfig } from './build.js';
@@ -87,7 +87,7 @@ export function checkJourneyProject(
     const registry = buildRegistry(dir, existing);
     result.journey = {
       file: journeyName,
-      findings: journeyCheck(blocks, doc, { story, registry }),
+      findings: journeyCheck(blocks, doc, { story, registry, strayMarkers: strayParagraphMarkers(manuscript) }),
       summary: { blocks: blocks.length, entries: doc.entries.length, arcs: story?.arcs.length ?? 0 },
     };
   }

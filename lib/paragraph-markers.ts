@@ -1,8 +1,9 @@
 /**
  * `<!-- @p:id -->` paragraph markers (gcol33/docrev#12).
  *
- * A marker sits on its own line immediately before a paragraph or float in a
- * section .md file and gives it a stable, semantic ID that a journey.md entry
+ * A marker sits on its own line before a paragraph or float in a section .md
+ * file, directly above it or separated from it by blank lines, and gives it a
+ * stable, semantic ID that a journey.md entry
  * can reference. Two concerns live here:
  *
  * - Segmenting a section file into the paragraph/float units journey.md talks
@@ -81,11 +82,27 @@ interface RawBlock {
   startLineIdx: number;
 }
 
+/** A `<!-- @p:id -->` marker with no paragraph to attach to. */
+export interface StrayParagraphMarker {
+  file: string;
+  id: string;
+  /** 1-based line of the marker. */
+  line: number;
+}
+
+interface SegmentedContent {
+  blocks: RawBlock[];
+  /** Markers on a line of their own followed by a heading, another marker, or the end of the file. */
+  strays: Array<{ id: string; line: number }>;
+}
+
 /**
  * Split content into blank-line-separated blocks, treating fenced code
- * blocks as atomic (a blank line inside a fence never splits it).
+ * blocks as atomic (a blank line inside a fence never splits it). A marker
+ * may sit directly above its paragraph or be separated from it by blank
+ * lines; either way it comes back as the first line of the paragraph's block.
  */
-function splitIntoRawBlocks(content: string): RawBlock[] {
+function splitIntoRawBlocks(content: string): SegmentedContent {
   const lines = content.split(/\r?\n/);
   const blocks: RawBlock[] = [];
   let current: string[] = [];
@@ -110,7 +127,45 @@ function splitIntoRawBlocks(content: string): RawBlock[] {
   }
   if (current.length > 0) blocks.push({ text: current.join('\n'), startLineIdx: currentStart });
 
-  return blocks;
+  return attachStandaloneMarkers(blocks);
+}
+
+/**
+ * Join a block that is a marker line alone to the next block that prints
+ * something, passing over blocks of HTML comments only (they stay in place).
+ * The marker is a stray when that block is a heading, starts with a marker
+ * of its own, or does not exist.
+ */
+function attachStandaloneMarkers(blocks: RawBlock[]): SegmentedContent {
+  const out: RawBlock[] = [];
+  const strays: SegmentedContent['strays'] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i] as RawBlock;
+    const marker = block.text.match(PARAGRAPH_MARKER_LINE);
+    if (!marker) {
+      out.push(block);
+      continue;
+    }
+    let j = i + 1;
+    while (j < blocks.length && !PARAGRAPH_MARKER_LINE.test((blocks[j] as RawBlock).text.split('\n')[0] ?? '') &&
+           isCommentOnly((blocks[j] as RawBlock).text)) j++;
+    const target = blocks[j];
+    if (!target || headingOf(target) || PARAGRAPH_MARKER_LINE.test(target.text.split('\n')[0] ?? '')) {
+      strays.push({ id: marker[1] ?? '', line: block.startLineIdx + 1 });
+      continue;
+    }
+    out.push(...blocks.slice(i + 1, j));
+    out.push({ text: `${block.text}\n${target.text}`, startLineIdx: block.startLineIdx });
+    i = j;
+  }
+  return { blocks: out, strays };
+}
+
+/** Markers in the manuscript's section files that no paragraph carries, because none follows them. */
+export function strayParagraphMarkers(sources: Array<{ file: string; content: string }>): StrayParagraphMarker[] {
+  return sources.flatMap(({ file, content }) =>
+    splitIntoRawBlocks(content).strays.map((s) => ({ file, id: s.id, line: s.line }))
+  );
 }
 
 /**
@@ -200,7 +255,7 @@ export function parseManuscriptBlocks(
   fallbackSection: string,
   state: ManuscriptMatterState = { inFrontMatter: false, backMatterLevel: null }
 ): ManuscriptBlock[] {
-  const raw = splitIntoRawBlocks(content);
+  const raw = splitIntoRawBlocks(content).blocks;
   const result: ManuscriptBlock[] = [];
   let section = fallbackSection;
 
@@ -256,7 +311,7 @@ export function parseManuscriptBlocks(
  */
 export function parseManuscript(sources: Array<{ file: string; content: string }>): ManuscriptBlock[] {
   const hasTopHeading = sources.some(({ content }) =>
-    splitIntoRawBlocks(content).some((b) => headingOf(b)?.level === 1)
+    splitIntoRawBlocks(content).blocks.some((b) => headingOf(b)?.level === 1)
   );
   const state: ManuscriptMatterState = { inFrontMatter: hasTopHeading, backMatterLevel: null };
   return sources.flatMap(({ file, content }) =>
@@ -299,7 +354,7 @@ export function stripParagraphMarkers(content: string): string {
  * marker; `docrev journey init` re-assigns one on the next run.
  */
 export function reattachParagraphMarkers(originalMd: string, reconstructedMd: string): string {
-  const originalBlocks = splitIntoRawBlocks(originalMd)
+  const originalBlocks = splitIntoRawBlocks(originalMd).blocks
     .map((block) => {
       const lines = block.text.split('\n');
       const match = (lines[0] ?? '').match(PARAGRAPH_MARKER_LINE);
@@ -312,7 +367,7 @@ export function reattachParagraphMarkers(originalMd: string, reconstructedMd: st
 
   if (originalBlocks.length === 0) return reconstructedMd;
 
-  const targetBlocks = splitIntoRawBlocks(reconstructedMd).filter(
+  const targetBlocks = splitIntoRawBlocks(reconstructedMd).blocks.filter(
     (b) => !HEADING_LINE.test((b.text.split('\n')[0] ?? '').trim())
   );
   const targetPlain = targetBlocks.map((b) => stripAnnotations(b.text));

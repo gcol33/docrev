@@ -698,6 +698,7 @@ export type JourneyFindingKind =
   | 'missing-marker'
   | 'missing-entry'
   | 'orphan-marker'
+  | 'stray-marker'
   | 'order-mismatch'
   | 'multi-sentence-job'
   | 'orphan-entry'

@@ -253,8 +253,8 @@ never part of a build:
   (`Table [[tbl:key]]`); position sets the labels (S1, S2, ... per kind,
   A1, A2, ... for archive items).
 
-A paragraph's ID lives in the section file as `<!-- @p:id -->` on the line
-before it — a semantic slug (`intro.memory`), not a position, so moving the
+A paragraph's ID lives in the section file as `<!-- @p:id -->` on a line of
+its own before it, with or without a blank line between — a semantic slug (`intro.memory`), not a position, so moving the
 paragraph keeps its ID. It survives `docrev sync`/`docrev import` and is dropped
 from every build.
 

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-10-23
+
+### Fixed
+- **A paragraph marker followed by a blank line attaches to its paragraph (#24).** `<!-- @p:id -->` was read only when it sat directly above its paragraph; with a blank line after it, the marker was skipped without notice, so `docrev journey check` reported the paragraph as having no marker and its journey entry as having no paragraph, and every information.md anchor on it as unresolved. A marker on a line of its own now attaches to the next block that prints something, passing over blank lines and comment-only blocks, in `journey check`, `journey init` (which no longer adds a second marker to such a paragraph) and the Word round-trip's marker reattachment. A marker followed by a heading, another marker or the end of the file is reported as `stray-marker` (label "marker without paragraph") in place of the "no matching paragraph" finding on its entry.
+
 ## [0.17.1] - 2026-10-23
 
 ### Added

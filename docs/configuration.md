@@ -111,9 +111,12 @@ The paper's challenge in one sentence: "To learn X, we did Y."
 - job: ...
 ```
 
-A paragraph's ID lives in its section file as an HTML comment on the line
-before it — `<!-- @p:intro.memory -->` — in the same family as the
-`<!-- @section:file.md -->` marker. It is a semantic slug, not a position, so
+A paragraph's ID lives in its section file as an HTML comment on a line of
+its own before it — `<!-- @p:intro.memory -->` — in the same family as the
+`<!-- @section:file.md -->` marker. The marker may sit directly above the
+paragraph or be followed by blank lines and comment-only blocks; a marker
+followed by a heading, another marker or the end of the file is reported by
+`docrev journey check` as a marker without paragraph. It is a semantic slug, not a position, so
 moving the paragraph keeps its ID; never dropped from a Word round-trip
 (`docrev sync`/`docrev import`), and never included in a build output. In a list
 whose items are paragraphs of their own (a numbered structured abstract), the

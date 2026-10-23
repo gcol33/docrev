@@ -24,6 +24,7 @@ import {
   parseManuscript,
   stripParagraphMarkers,
   reattachParagraphMarkers,
+  strayParagraphMarkers,
 } from '../lib/paragraph-markers.js';
 import { generateSmartDiff } from '../lib/diff-engine.js';
 import { buildRegistry } from '../lib/crossref.js';
@@ -287,6 +288,38 @@ An unmarked second paragraph.
     assert.ok(blocks.every((b) => !b.text.includes('\r')));
   });
 
+  it('attaches a marker separated from its paragraph by a blank line (gcol33/docrev#24)', () => {
+    const md = '# Intro\n\n<!-- @p:a.tight -->\nFirst paragraph.\n\n<!-- @p:a.loose -->\n\nSecond paragraph.\n';
+    const blocks = parseManuscriptBlocks(md, 'main.md', 'main');
+    assert.deepStrictEqual(blocks.map((b) => [b.markerId, b.text, b.line]), [
+      ['a.tight', 'First paragraph.', 3],
+      ['a.loose', 'Second paragraph.', 6],
+    ]);
+    assert.deepStrictEqual(strayParagraphMarkers([{ file: 'main.md', content: md }]), []);
+  });
+
+  it('attaches a marker past a comment-only block to the table it marks (gcol33/docrev#24)', () => {
+    const md = '<!-- @p:tbl.a -->\n\n<!-- table2 -->\n\n| a | b |\n|---|---|\n| 1 | 2 |\n';
+    const blocks = parseManuscriptBlocks(md, 'main.md', 'main');
+    assert.deepStrictEqual(blocks.map((b) => [b.markerId, b.blockType, b.line]), [['tbl.a', 'table', 1]]);
+    assert.deepStrictEqual(strayParagraphMarkers([{ file: 'main.md', content: md }]), []);
+  });
+
+  it('reports a marker followed by a heading, another marker or the end of the file (gcol33/docrev#24)', () => {
+    const md = [
+      '<!-- @p:before.heading -->', '', '# Intro', '',
+      '<!-- @p:before.marker -->', '', '<!-- @p:kept -->', 'Kept paragraph.', '',
+      '<!-- @p:at.end -->', '', '<!-- a note -->', '',
+    ].join('\n');
+    const blocks = parseManuscriptBlocks(md, 'main.md', 'main');
+    assert.deepStrictEqual(blocks.map((b) => b.markerId), ['kept']);
+    assert.deepStrictEqual(strayParagraphMarkers([{ file: 'main.md', content: md }]), [
+      { file: 'main.md', id: 'before.heading', line: 1 },
+      { file: 'main.md', id: 'before.marker', line: 5 },
+      { file: 'main.md', id: 'at.end', line: 10 },
+    ]);
+  });
+
   it('skips a block that is only an HTML comment (gcol33/docrev#19)', () => {
     const md = '<!-- @p:intro.here -->\nHere, we asked ...\n\n<!-- Notes about orphaned annotations, never printed. -->\n';
     const blocks = parseManuscriptBlocks(md, 'intro.md', 'intro');
@@ -369,6 +402,13 @@ describe('journeyCheck', () => {
   it('flags a journey entry with no matching paragraph', () => {
     const findings = journeyCheck([], { title: '', entries: [makeEntry({ id: 'ghost' })] });
     assert.ok(findings.some((f) => f.kind === 'orphan-marker' && f.entryIds.includes('ghost')));
+  });
+
+  it('reports a stray marker once, in place of its entry having no paragraph (gcol33/docrev#24)', () => {
+    const findings = journeyCheck([], { title: '', entries: [makeEntry({ id: 'lost' })] },
+                                  { strayMarkers: [{ file: 'main.md', id: 'lost', line: 7 }] });
+    const markerFindings = findings.filter((f) => f.kind.endsWith('-marker'));
+    assert.deepStrictEqual(markerFindings.map((f) => [f.kind, f.file, f.line]), [['stray-marker', 'main.md', 7]]);
   });
 
   it('flags entries listed in the wrong order relative to the manuscript', () => {
@@ -644,6 +684,12 @@ describe('stripParagraphMarkers', () => {
     assert.ok(!stripped.includes('@p:'));
     assert.match(stripped, /Some prose\./);
   });
+
+  it('removes a marker followed by a blank line (gcol33/docrev#24)', () => {
+    const stripped = stripParagraphMarkers('Before.\n\n<!-- @p:a.loose -->\n\nSome prose.\n');
+    assert.ok(!stripped.includes('@p:'));
+    assert.match(stripped, /Before\.\n\n+Some prose\./);
+  });
 });
 
 describe('paragraph markers survive generateSmartDiff (legacy diff-based sync)', () => {
@@ -675,6 +721,12 @@ describe('reattachParagraphMarkers (OOXML sync path)', () => {
     const reconstructed = 'The {++total++} number of possible pairs creates the memory demand.';
     const result = reattachParagraphMarkers(original, reconstructed);
     assert.match(result, /@p:intro\.memory/);
+  });
+
+  it('reattaches a marker that was separated from its paragraph by a blank line (gcol33/docrev#24)', () => {
+    const original = '<!-- @p:intro.memory -->\n\nThe number of possible pairs is what creates the memory demand.';
+    const reconstructed = 'The number of possible pairs is what creates the memory demand.';
+    assert.match(reattachParagraphMarkers(original, reconstructed), /^<!-- @p:intro\.memory -->\nThe number/);
   });
 
   it('does not reattach onto an unrelated paragraph', () => {

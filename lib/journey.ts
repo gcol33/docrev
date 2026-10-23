@@ -27,6 +27,7 @@ import { createHash } from 'crypto';
 import { detectDynamicRefs } from './crossref.js';
 import { wordOverlapSimilarity } from './anchor-match.js';
 import { paragraphRefs } from './paragraph-markers.js';
+import type { StrayParagraphMarker } from './paragraph-markers.js';
 import type {
   JourneyDoc,
   JourneyEntry,
@@ -347,6 +348,8 @@ function countSentences(text: string): number {
 export interface JourneyCheckOptions {
   story?: StoryDoc | null;
   registry?: Registry | null;
+  /** Markers followed by no paragraph (see `strayParagraphMarkers`). */
+  strayMarkers?: StrayParagraphMarker[];
 }
 
 /**
@@ -361,7 +364,7 @@ export function journeyCheck(
   options: JourneyCheckOptions = {}
 ): JourneyFinding[] {
   const findings: JourneyFinding[] = [];
-  const { story = null, registry = null } = options;
+  const { story = null, registry = null, strayMarkers = [] } = options;
 
   const entryById = new Map(journey.entries.map((e) => [e.id, e]));
   const blocksWithMarker = blocks.filter((b) => b.markerId);
@@ -388,8 +391,18 @@ export function journeyCheck(
       });
     }
   }
+  for (const stray of strayMarkers) {
+    findings.push({
+      kind: 'stray-marker',
+      message: `${stray.file}:${stray.line} has marker "${stray.id}" with no paragraph after it (a heading, another marker or the end of the file comes next)`,
+      file: stray.file,
+      line: stray.line,
+      entryIds: [stray.id],
+    });
+  }
+  const strayIds = new Set(strayMarkers.map((s) => s.id));
   for (const entry of journey.entries) {
-    if (!blockById.has(entry.id)) {
+    if (!blockById.has(entry.id) && !strayIds.has(entry.id)) {
       findings.push({
         kind: 'orphan-marker',
         message: `journey.md entry "${entry.id}" (line ${entry.line}) has no matching paragraph in the manuscript`,
@@ -657,6 +670,7 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
   'missing-marker': 'no marker',
   'missing-entry': 'no journey entry',
   'orphan-marker': 'no matching paragraph',
+  'stray-marker': 'marker without paragraph',
   'order-mismatch': 'out of order',
   'multi-sentence-job': 'job not one sentence',
   'orphan-entry': 'no arc',
