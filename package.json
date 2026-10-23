@@ -75,7 +75,7 @@
     }
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.16.0"
   },
   "bin": {
     "docrev": "bin/rev.js",

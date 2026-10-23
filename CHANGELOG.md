@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **docrev requires Node.js 20.16 or later.** Its PDF reader, pdfjs-dist 5, requires that version, so `engines` declared Node 18 support that the dependency did not have. CI tests Node 20, 22 and 24.
+
 ## [0.17.3] - 2026-10-23
 
 ### Fixed

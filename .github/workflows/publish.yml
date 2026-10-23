@@ -32,11 +32,23 @@ jobs:
       # (gcol33/docrev, publish.yml); provenance is attached automatically.
       # Idempotent: a re-run or a manual workflow_dispatch on an already-published
       # version skips instead of failing with EPUBLISHCONFLICT.
+      # The registry can answer a publish with E409 "previously staged version"
+      # after accepting it, and the version becomes visible a minute or two
+      # later; the registry, not the exit code, decides whether the publish failed.
       - name: Publish to npm
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if npm view "docrev@$VERSION" version >/dev/null 2>&1; then
-            echo "docrev@$VERSION is already published — skipping."
-          else
-            npm publish --access public
+          published() { npm view "docrev@$VERSION" version >/dev/null 2>&1; }
+          if published; then
+            echo "docrev@$VERSION is already published, skipping."
+          elif ! npm publish --access public; then
+            for i in $(seq 1 20); do
+              if published; then
+                echo "docrev@$VERSION is on the registry despite the publish error."
+                exit 0
+              fi
+              sleep 15
+            done
+            echo "docrev@$VERSION did not appear on the registry."
+            exit 1
           fi
