@@ -740,15 +740,22 @@ function buildFrontmatter(config: BuildConfig): Record<string, unknown> {
     fm.author = config.authors;
   }
 
+  // Pandoc reads header metadata as markdown, so a Windows path's
+  // backslashes (`C:\Users\...`) parse as raw TeX commands and vanish.
   if (config.bibliography) {
-    fm.bibliography = config.bibliography;
+    fm.bibliography = toPosixPath(config.bibliography);
   }
 
   if (config.csl) {
-    fm.csl = config.csl;
+    fm.csl = toPosixPath(config.csl);
   }
 
   return fm;
+}
+
+/** A path with forward slashes, which pandoc and Windows both accept. */
+export function toPosixPath(p: string): string {
+  return p.replace(/\\/g, '/');
 }
 
 /**
@@ -2256,11 +2263,14 @@ export async function runPandoc(
         // not hidden behind --verbose: the user would otherwise ship an
         // un-postprocessed file believing everything ran.
         const postResult = await runPostprocess(outputPath, format, config as unknown as Parameters<typeof runPostprocess>[2], options);
-        const postWarnings = postResult.success
-          ? undefined
-          : [`Postprocess failed for ${format}: ${postResult.error}`];
+        const buildWarnings: string[] = [];
+        const glyphWarning = format === 'pdf' ? missingGlyphWarning(stderr, path.basename(outputPath)) : null;
+        if (glyphWarning) buildWarnings.push(glyphWarning);
+        if (!postResult.success) {
+          buildWarnings.push(`Postprocess failed for ${format}: ${postResult.error}`);
+        }
 
-        resolve({ outputPath, success: true, warnings: postWarnings });
+        resolve({ outputPath, success: true, warnings: buildWarnings.length > 0 ? buildWarnings : undefined });
       } else {
         resolve({ outputPath, success: false, error: stderr || `Exit code ${code}` });
       }
@@ -2271,6 +2281,18 @@ export async function runPandoc(
       resolve({ outputPath, success: false, error: err.message });
     });
   });
+}
+
+/**
+ * xelatex leaves a character its font lacks off the page and only notes it in
+ * the log, so the PDF builds with text silently missing. Returns the warning
+ * naming those characters, or null when the log has none.
+ */
+export function missingGlyphWarning(stderr: string, file: string): string | null {
+  const glyphs = [...new Set([...stderr.matchAll(/Missing character: There is no (\S+)/g)].map(m => m[1]))];
+  return glyphs.length > 0
+    ? `PDF font has no glyph for ${glyphs.join(' ')}; these characters are missing from ${file}`
+    : null;
 }
 
 /**

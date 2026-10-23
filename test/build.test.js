@@ -1042,3 +1042,20 @@ Some prose.
     assert.ok(w.includes('methods.md:5'), `expected methods.md:5, got:\n${w}`);
   });
 });
+
+describe('missingGlyphWarning', () => {
+  it('names each character xelatex dropped, once', async () => {
+  const { missingGlyphWarning } = await import('../lib/build.ts');
+  const log = 'Missing character: There is no ≥ (U+2265) in font x\nMissing character: There is no ≥ (U+2265) in font x\nMissing character: There is no ✓ (U+2713) in font x\n';
+  assert.strictEqual(missingGlyphWarning(log, 'paper.pdf'), 'PDF font has no glyph for ≥ ✓; these characters are missing from paper.pdf');
+  assert.strictEqual(missingGlyphWarning('Output written on paper.pdf', 'paper.pdf'), null);
+});
+});
+
+describe('toPosixPath', () => {
+  it('turns a Windows path into one pandoc metadata keeps intact', async () => {
+    const { toPosixPath } = await import('../lib/build.ts');
+    assert.strictEqual(toPosixPath('C:\\Users\\Gilles Colling\\paper\\style.csl'), 'C:/Users/Gilles Colling/paper/style.csl');
+    assert.strictEqual(toPosixPath('refs/references.bib'), 'refs/references.bib');
+  });
+});
