@@ -379,7 +379,11 @@ export interface JournalRequirements {
   references?: { max?: number; doiRequired?: boolean };
   figures?: { max?: number };
   tables?: { max?: number };
-  keywords?: { max?: number };
+  keywords?: { max?: number; alphabetical?: boolean };
+  /** Number of numbered points the abstract must have (e.g. MEE's 1-4). */
+  abstractPoints?: number;
+  /** Limits on the running headline, read from `running_title` in rev.yaml. */
+  runningTitle?: { maxChars?: number };
   /** Require a data availability statement. */
   dataAvailability?: boolean;
   sections?: string[];

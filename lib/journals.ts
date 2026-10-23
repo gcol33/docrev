@@ -280,11 +280,16 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
         includeStatements: false,
         includeReferences: true,
       },
+      // "a DOI should be provided for all references where available"
       references: { doiRequired: true },
       sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+      // "Abstract (must be numbered 1-4 according to Manuscript Specifications)"
+      abstractPoints: 4,
       // "Key-words: A list in alphabetical order not exceeding eight words or
       // short phrases."
-      keywords: { max: 8 },
+      keywords: { max: 8, alphabetical: true },
+      // "A running headline of not more than 45 characters."
+      runningTitle: { maxChars: 45 },
       dataAvailability: true,
     },
     formatting: {
@@ -770,6 +775,8 @@ interface ManuscriptStats extends WordLimitCount {
 export interface ValidationInput {
   /** Manuscript title, from rev.yaml; the sections do not carry one. */
   title?: string | null;
+  /** Running headline, from rev.yaml's `running_title`. */
+  runningTitle?: string | null;
   /**
    * Words in the rendered reference list. The caller renders it, because
    * doing so needs the project's bibliography, its CSL and pandoc.
@@ -857,6 +864,29 @@ function validateTexts(
   // Keywords
   if (req.keywords?.max && keywords.length > req.keywords.max) {
     errors.push(`Keywords exceed ${req.keywords.max} (current: ${keywords.length})`);
+  }
+  if (req.keywords?.alphabetical && keywords.length > 1) {
+    const sorted = [...keywords].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+    if (sorted.some((k, i) => k !== keywords[i])) {
+      errors.push(`Keywords are not in alphabetical order (expected: ${sorted.join(', ')})`);
+    }
+  }
+
+  // Abstract as numbered points
+  if (req.abstractPoints && abstract) {
+    const points = abstract.match(/^[ \t]*\d+\.[ \t]/gm)?.length ?? 0;
+    if (points !== req.abstractPoints) {
+      errors.push(`Abstract must be ${req.abstractPoints} numbered points (current: ${points})`);
+    }
+  }
+
+  // Running headline
+  if (req.runningTitle?.maxChars) {
+    if (!input.runningTitle) {
+      warnings.push(`Missing a running headline (running_title in rev.yaml, at most ${req.runningTitle.maxChars} characters)`);
+    } else if (input.runningTitle.length > req.runningTitle.maxChars) {
+      errors.push(`Running headline exceeds ${req.runningTitle.maxChars} characters (current: ${input.runningTitle.length})`);
+    }
   }
 
   // Data availability statement

@@ -162,6 +162,8 @@ export interface PostprocessConfig {
 
 export interface BuildConfig {
   title: string;
+  /** Short running headline, checked by journal profiles that limit it. */
+  running_title?: string;
   authors: (string | Author)[];
   affiliations: Record<string, string>;
   sections: string[];

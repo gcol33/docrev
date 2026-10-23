@@ -85,6 +85,35 @@ describe('getJournalProfile', () => {
   });
 });
 
+describe('validateManuscript MEE submission rules', () => {
+  const mee = (abstract, keywords) => [
+    '# Abstract', '', abstract, '', `**Keywords:** ${keywords}`, '',
+    '# Introduction', '', 'Text.', '', '# Data availability', '', 'Archived.',
+  ].join('\n');
+  const fourPoints = '1. One.\n2. Two.\n3. Three.\n4. Four.';
+  const errorsOf = (text, input = { runningTitle: 'Short headline' }) =>
+    validateManuscript(text, 'methods-ecology-evolution', input).errors;
+
+  it('passes four numbered points, sorted keywords and a short headline', () => {
+    assert.deepStrictEqual(errorsOf(mee(fourPoints, 'alpha, beta, Gamma')), []);
+  });
+
+  it('flags an abstract that is not four numbered points', () => {
+    assert.ok(errorsOf(mee('One paragraph.', 'alpha')).some(e => /4 numbered points \(current: 0\)/.test(e)));
+  });
+
+  it('flags keywords out of alphabetical order', () => {
+    assert.ok(errorsOf(mee(fourPoints, 'beta, alpha')).some(e => /alphabetical order/.test(e)));
+  });
+
+  it('flags a running headline over 45 characters and warns when it is missing', () => {
+    const text = mee(fourPoints, 'alpha');
+    assert.ok(errorsOf(text, { runningTitle: 'x'.repeat(46) }).some(e => /Running headline exceeds 45/.test(e)));
+    const result = validateManuscript(text, 'methods-ecology-evolution', {});
+    assert.ok(result.warnings.some(w => /Missing a running headline/.test(w)));
+  });
+});
+
 describe('validateManuscript', () => {
   const shortManuscript = `---
 title: Test Paper
