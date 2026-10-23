@@ -255,6 +255,29 @@ describe('wordcomments.js', () => {
       fs.rmSync(tmpDir, { recursive: true });
     });
 
+    it('keeps one space around a comment with no anchor text', async () => {
+      const cases = [
+        ['in the Alps.{>>R2: How were plots placed?<<} Each plot', 'in the Alps. Each plot'],
+        ['test content {>>R2: Clarify<<} with some text', 'test content with some text'],
+      ];
+      for (const [markdown, expected] of cases) {
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-test-'));
+        const docxPath = path.join(tmpDir, 'test.docx');
+        const outputPath = path.join(tmpDir, 'output.docx');
+
+        const { comments, markedMarkdown } = prepareMarkdownWithMarkers(markdown);
+        createTestDocx(markedMarkdown).writeZip(docxPath);
+        const result = await injectCommentsAtMarkers(docxPath, comments, outputPath);
+        assert.strictEqual(result.commentCount, 1);
+
+        const documentXml = new AdmZip(outputPath).readAsText('word/document.xml');
+        const text = [...documentXml.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).join('');
+        assert.strictEqual(text, expected);
+
+        fs.rmSync(tmpDir, { recursive: true });
+      }
+    });
+
     it('should handle missing input file', async () => {
       const result = await injectCommentsAtMarkers('/nonexistent/file.docx', [], '/tmp/out.docx');
       assert.strictEqual(result.success, false);

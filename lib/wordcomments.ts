@@ -538,16 +538,18 @@ export async function injectCommentsAtMarkers(
         const afterStart = startSlot.content.slice(startHit.rel + startMarker.length);
         const endInTextRel = afterStart.indexOf(endMarker);
         if (endInTextRel === -1) continue;
-        const textBefore = startSlot.content.slice(0, startHit.rel);
+        let textBefore = startSlot.content.slice(0, startHit.rel);
         let anchorText = afterStart.slice(0, endInTextRel);
         let textAfter = afterStart.slice(endInTextRel + endMarker.length);
 
         // Empty anchor: borrow the next word so the comment has something
-        // to anchor on. Then normalize the trailing double space.
+        // to anchor on. The space before that word stays outside the range,
+        // unless the text before the comment already ends in one.
         if (!anchorText && textAfter) {
-          const wordMatch = textAfter.match(/^\s*(\S+)/);
+          const wordMatch = textAfter.match(/^(\s*)(\S+)/);
           if (wordMatch) {
-            anchorText = wordMatch[1] ?? '';
+            if (!/\s$/.test(textBefore)) textBefore += wordMatch[1] ?? '';
+            anchorText = wordMatch[2] ?? '';
             textAfter = textAfter.slice(wordMatch[0].length);
           }
         }

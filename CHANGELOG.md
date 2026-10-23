@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **A comment with no highlighted text keeps the space after it.** `Alps.{>>R2: How were the plots placed?<<} Each plot` built as "Alps.Each plot" in Word: the comment borrows the next word as its anchor, and the space before that word was dropped with it. The space now stays outside the comment's range, so the DOCX reads "Alps. Each plot".
+
 ## [0.17.4] - 2026-10-23
 
 ### Changed
