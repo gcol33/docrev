@@ -8,8 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { stripAnnotations } from './annotations.js';
 import { readImageRegistry } from './image-registry.js';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { openDocx } from './ooxml.js';
 
 // Import from split modules
 import {
@@ -146,8 +145,6 @@ export type {
   RestoreImagesResult,
 } from './restore-references.js';
 
-const execAsync = promisify(exec);
-
 // ============================================
 // Type Definitions (orchestration-specific)
 // ============================================
@@ -221,6 +218,8 @@ export interface MarkdownPrefixResult {
 export interface ImportWordWithTrackChangesOptions {
   mediaDir?: string;
   projectDir?: string;
+  /** Directory image paths in the returned text are written relative to. */
+  imageBase?: string;
 }
 
 export interface ImportWordWithTrackChangesResult {
@@ -236,6 +235,8 @@ export interface ImportWordWithTrackChangesResult {
   };
   extractedMedia: string[];
   comments: WordComment[];
+  title: string | null;
+  authors: string[];
 }
 
 export interface ImportFromWordOptions {
@@ -647,7 +648,7 @@ export async function importWordWithTrackChanges(
   docxPath: string,
   options: ImportWordWithTrackChangesOptions = {}
 ): Promise<ImportWordWithTrackChangesResult> {
-  const { mediaDir, projectDir } = options;
+  const { mediaDir, projectDir, imageBase } = options;
   const docxDir = path.dirname(docxPath);
   const targetMediaDir = mediaDir || path.join(docxDir, 'media');
   const targetProjectDir = projectDir || docxDir;
@@ -655,13 +656,8 @@ export async function importWordWithTrackChanges(
   const registry = readImageRegistry(targetProjectDir);
   const hasRegistry = registry && registry.figures && registry.figures.length > 0;
 
-  // First pass: count images
-  const { stdout: rawText } = await execAsync(
-    `pandoc "${docxPath}" -t markdown --wrap=none --track-changes=all`,
-    { maxBuffer: 50 * 1024 * 1024 }
-  );
-
-  const wordImageCount = (rawText.match(/!\[[^\]]*\]\(media\/[^)]+\)/g) || []).length;
+  const wordImageCount = openDocx(docxPath).getEntries()
+    .filter((e) => !e.isDirectory && e.entryName.startsWith('word/media/')).length;
   const registryCount = hasRegistry ? registry.figures.length : 0;
 
   const needsMediaExtraction = wordImageCount > registryCount;
@@ -679,6 +675,7 @@ export async function importWordWithTrackChanges(
   const extracted = await extractFromWord(docxPath, {
     mediaDir: targetMediaDir,
     skipMediaExtraction: !needsMediaExtraction,
+    imageBase,
   });
 
   let text = extracted.text;
@@ -737,6 +734,8 @@ export async function importWordWithTrackChanges(
     },
     extractedMedia,
     comments,
+    title: extracted.title,
+    authors: extracted.authors,
   };
 }
 

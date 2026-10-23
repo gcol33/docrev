@@ -4,11 +4,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { docxToCriticMarkdown } from './pandoc-track-changes.js';
 import { buildDocTextModel, buildCommentAnchorModel, extractComments, extractTableModels, openDocx, readPartText } from './ooxml.js';
-
-const execAsync = promisify(exec);
 
 // ============================================
 // Type Definitions
@@ -69,6 +66,8 @@ export interface WordTable {
 export interface ExtractFromWordOptions {
   mediaDir?: string;
   skipMediaExtraction?: boolean;
+  /** Directory image paths in the returned text are written relative to. */
+  imageBase?: string;
 }
 
 export interface ExtractMessage {
@@ -85,6 +84,9 @@ export interface ExtractFromWordResult {
   tables: WordTable[];
   hasTrackChanges: boolean;
   trackChangeStats: { insertions: number; deletions: number };
+  /** Title and authors from the Title and Author paragraphs (pandoc only). */
+  title: string | null;
+  authors: string[];
 }
 
 // ============================================
@@ -285,6 +287,8 @@ export async function extractFromWord(
   let extractedMedia: string[] = [];
   let hasTrackChanges = false;
   let trackChangeStats = { insertions: 0, deletions: 0 };
+  let title: string | null = null;
+  let authors: string[] = [];
 
   // Determine media extraction directory
   const docxDir = path.dirname(docxPath);
@@ -296,63 +300,17 @@ export async function extractFromWord(
   // Extract tables directly from Word XML (reliable, no heuristics)
   const wordTables = await extractWordTables(docxPath);
 
-  // Try pandoc first with --track-changes=all to preserve reviewer edits
+  // Read through pandoc's document tree, which keeps the reviewers' nested
+  // edits intact; without pandoc, fall back to the XML extractor below.
   try {
-    // Build pandoc command
-    let pandocCmd = `pandoc "${docxPath}" -t markdown --wrap=none --track-changes=all`;
-    if (!skipMediaExtraction) {
-      pandocCmd += ` --extract-media="${mediaDir}"`;
-    }
-
-    const { stdout } = await execAsync(pandocCmd, { maxBuffer: 50 * 1024 * 1024 });
-    text = stdout;
-
-    // Convert pandoc's track change format to CriticMarkup
-    const origLength = text.length;
-
-    // Use a more robust pattern that handles nested content
-    text = text.replace(/\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\{\.insertion[^}]*\}/g, (match, content) => {
-      if (content.trim()) {
-        trackChangeStats.insertions++;
-        return `{++${content}++}`;
-      }
-      return ''; // Empty insertions are removed
+    const converted = await docxToCriticMarkdown(docxPath, {
+      mediaDir: skipMediaExtraction ? undefined : mediaDir,
+      imageBase: options.imageBase,
     });
-
-    text = text.replace(/\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\{\.deletion[^}]*\}/g, (match, content) => {
-      if (content.trim()) {
-        trackChangeStats.deletions++;
-        return `{--${content}--}`;
-      }
-      return ''; // Empty deletions are removed
-    });
-
-    // Handle any remaining pandoc track change patterns
-    let prevText;
-    do {
-      prevText = text;
-      text = text.replace(/\[([^\]]*)\]\{\.insertion[^}]*\}/g, (match, content) => {
-        if (content.trim()) {
-          trackChangeStats.insertions++;
-          return `{++${content}++}`;
-        }
-        return '';
-      });
-      text = text.replace(/\[([^\]]*)\]\{\.deletion[^}]*\}/g, (match, content) => {
-        if (content.trim()) {
-          trackChangeStats.deletions++;
-          return `{--${content}--}`;
-        }
-        return '';
-      });
-    } while (text !== prevText);
-
-    // Handle pandoc comment patterns - remove comment text from body
-    text = text.replace(/\[[^\]]*\]\{\.comment-start[^}]*\}/g, '');
-    text = text.replace(/\[\]\{\.comment-end[^}]*\}/g, '');
-
-    // Also handle {.mark} spans
-    text = text.replace(/\[([^\]]*)\]\{\.mark\}/g, '$1');
+    text = converted.text;
+    trackChangeStats = converted.stats;
+    title = converted.title;
+    authors = converted.authors;
 
     hasTrackChanges = trackChangeStats.insertions > 0 || trackChangeStats.deletions > 0;
 
@@ -416,5 +374,7 @@ export async function extractFromWord(
     tables: wordTables,
     hasTrackChanges,
     trackChangeStats,
+    title,
+    authors,
   };
 }

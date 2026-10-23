@@ -84,7 +84,7 @@ docrev build docx
 
 `docrev new` asks for the section names; press Enter to use introduction, methods, results and discussion. The build writes the Word document to the `output/` folder, named after the `title` in `rev.yaml`.
 
-To start from a paper you already have in Word, `docrev import manuscript.docx` creates the project from it and splits the text into section files at standard section headings such as Introduction and Methods.
+To start from a paper you already have in Word, `docrev import manuscript.docx` creates the project from it: one section file per top-level heading, the images in `figures/`, and any comments and tracked changes already in the document as CriticMarkup.
 
 ## Project layout
 

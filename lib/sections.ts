@@ -28,6 +28,38 @@ const DEFAULT_ORDER = [
   'supplementary',
 ];
 
+export interface MarkdownHeading {
+  /** Zero-based line index of the heading */
+  line: number;
+  level: number;
+  /** Heading text without the leading #s, closing #s or a trailing {attributes} block */
+  text: string;
+}
+
+/**
+ * ATX headings (`# Title`) of a Markdown text, by line; lines inside fenced
+ * code blocks are skipped.
+ */
+export function findMarkdownHeadings(lines: string[]): MarkdownHeading[] {
+  const headings: MarkdownHeading[] = [];
+  let fence: string | null = null;
+  lines.forEach((line, i) => {
+    const marker = line.match(/^\s{0,3}(`{3,}|~{3,})/)?.[1];
+    if (marker) {
+      if (fence === null) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      return;
+    }
+    if (fence !== null) return;
+    const m = line.match(/^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/);
+    if (m?.[1] && m[2] !== undefined) {
+      const text = m[2].replace(/\s+\{[^{}]*\}$/, '').trim();
+      if (text) headings.push({ line: i, level: m[1].length, text });
+    }
+  });
+  return headings;
+}
+
 /**
  * Extract header from a markdown file
  */
@@ -325,6 +357,7 @@ export function extractSectionsFromText(
 
   // Process line by line to detect markdown headers
   const lines = text.split('\n');
+  const headingLines = new Set(findMarkdownHeadings(lines).map((h) => h.line));
   let currentSection: { file: string; header: string } | null = null;
   let currentContent: string[] = [];
 
@@ -333,11 +366,8 @@ export function extractSectionsFromText(
     if (!line) continue;
     const trimmed = line.trim();
 
-    // Explicitly check for markdown headers (# Header)
-    const headerMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
-
     let matchedSection: { file: string; config: SectionConfig } | null = null;
-    if (headerMatch) {
+    if (headingLines.has(i)) {
       // This is a markdown header - try to match it to a section
       matchedSection = matchHeading(trimmed, sections);
     } else if (trimmed.length > 0 && trimmed.length < 100 && !trimmed.includes('.')) {
@@ -415,20 +445,20 @@ export function splitAnnotatedPaper(
   } else {
     // Fall back to header detection
     const lines = paperContent.split('\n');
+    const headings = new Map(findMarkdownHeadings(lines).map((h) => [h.line, h.text]));
     let currentFile: string | null = null;
     let currentContent: string[] = [];
 
-    for (const line of lines) {
-      const headerMatch = line.match(/^#{1,6}\s+(.+)$/);
+    lines.forEach((line, i) => {
+      const heading = headings.get(i);
 
-      if (headerMatch && headerMatch[1]) {
+      if (heading !== undefined) {
         // Save previous section
         if (currentFile) {
           result.set(currentFile, currentContent.join('\n').trim());
         }
 
         // Find matching section file
-        const heading = headerMatch[1].trim();
         const match = matchHeading(heading, sections);
 
         if (match) {
@@ -441,7 +471,7 @@ export function splitAnnotatedPaper(
       } else {
         currentContent.push(line);
       }
-    }
+    });
 
     // Save last section
     if (currentFile) {

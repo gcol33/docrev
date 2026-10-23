@@ -286,6 +286,66 @@ export function parseAnnotations(text: string): Annotation[] {
   return annotations;
 }
 
+const MARK_SPAN = /\[([^\]]*)\]\{\.mark\}/g;
+const MARK_SPAN_AFTER_COMMENT = /<<\}\s{0,3}$/;
+
+/**
+ * One pass of annotation stripping that also reports where each kept
+ * character came from: `map[i]` is the index in `text` of `result[i]`.
+ * Insertions keep their text, deletions and comments go, substitutions keep
+ * the new text, and highlights and `[text]{.mark}` spans keep their text.
+ * With `keepComments`, comments stay, and so does a `[anchor]{.mark}` that
+ * directly follows one, since it carries the comment's range.
+ */
+export function stripAnnotationsWithMap(
+  text: string,
+  options: StripOptions = {}
+): { text: string; map: number[] } {
+  const { keepComments = false } = options;
+  const removed = new Uint8Array(text.length);
+  const cut = (from: number, to: number) => removed.fill(1, from, to);
+
+  for (const m of text.matchAll(PATTERNS.insert)) {
+    const end = m.index + m[0].length;
+    cut(m.index, m.index + 3);
+    cut(end - 3, end);
+  }
+  for (const m of text.matchAll(PATTERNS.delete)) {
+    cut(m.index, m.index + m[0].length);
+  }
+  for (const m of text.matchAll(PATTERNS.substitute)) {
+    const end = m.index + m[0].length;
+    cut(m.index, m.index + 3 + (m[1] ?? '').length + 2);
+    cut(end - 3, end);
+  }
+  for (const m of text.matchAll(PATTERNS.highlight)) {
+    const end = m.index + m[0].length;
+    cut(m.index, m.index + 3);
+    cut(end - 3, end);
+  }
+  if (!keepComments) {
+    for (const m of text.matchAll(PATTERNS.comment)) {
+      cut(m.index, m.index + m[0].length);
+    }
+  }
+  for (const m of text.matchAll(MARK_SPAN)) {
+    if (keepComments && MARK_SPAN_AFTER_COMMENT.test(text.slice(Math.max(0, m.index - 6), m.index))) continue;
+    const end = m.index + m[0].length;
+    cut(m.index, m.index + 1);
+    cut(end - ']{.mark}'.length, end);
+  }
+
+  let out = '';
+  const map: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    if (!removed[i]) {
+      out += text[i];
+      map.push(i);
+    }
+  }
+  return { text: out, map };
+}
+
 /**
  * Strip annotations from text, applying changes
  * Handles nested annotations by iterating until stable
@@ -309,34 +369,11 @@ export function stripAnnotations(text: string, options: StripOptions = {}): stri
   do {
     prev = text;
 
-    // Apply substitutions: {~~old~>new~~} → new
-    text = text.replace(PATTERNS.substitute, '$2');
-
-    // Apply insertions: {++text++} → text
-    text = text.replace(PATTERNS.insert, '$1');
-
-    // Apply deletions: {--text--} → nothing
-    // Don't touch surrounding whitespace - just remove the annotation
-    text = text.replace(PATTERNS.delete, '');
-
-    // Remove highlights: {==text==} → text
-    text = text.replace(PATTERNS.highlight, '$1');
-
-    // Remove comments unless keeping
-    if (!keepComments) {
-      text = text.replace(PATTERNS.comment, '');
-    }
-
-    // Strip pandoc highlight spans: [text]{.mark} → text.
-    // When `keepComments=true`, preserve `[anchor]{.mark}` that is the
-    // anchor of a kept `{>>...<<}` comment. The dual-build flow runs
-    // stripAnnotations() before prepareMarkdownWithMarkers(), and stripping
-    // the anchor span here would leave the marker generator with no anchor
-    // text — collapsing every multi-word anchor to a single fallback word
-    // in the rebuilt docx.
-    text = keepComments
-      ? text.replace(/(?<!<<\}\s{0,3})\[([^\]]*)\]\{\.mark\}/g, '$1')
-      : text.replace(/\[([^\]]*)\]\{\.mark\}/g, '$1');
+    // Apply changes, drop comments (unless kept) and unwrap highlights. With
+    // `keepComments`, a comment's `[anchor]{.mark}` stays: the dual-build flow
+    // runs stripAnnotations() before prepareMarkdownWithMarkers(), which needs
+    // the anchor text to rebuild the Word comment range.
+    text = stripAnnotationsWithMap(text, { keepComments }).text;
 
     // Clean up partial/orphaned markers within the loop
     // This handles cases where nested annotations leave behind fragments

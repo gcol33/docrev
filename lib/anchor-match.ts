@@ -5,7 +5,7 @@
  * a target text using progressively looser strategies.
  */
 
-import { stripAnnotations } from './annotations.js';
+import { stripAnnotations, stripAnnotationsWithMap } from './annotations.js';
 
 export type AnchorStrategy =
   | 'direct'
@@ -27,6 +27,21 @@ export interface AnchorSearchResult {
   matchedAnchor: string | null;
   strategy: AnchorStrategy;
   stripped?: boolean;
+}
+
+/**
+ * Lower-cases `text` without changing its length, so an index found in the
+ * folded text is the same index in the original. A character whose lower-case
+ * form has another length (Turkish "İ" becomes "i" plus a combining dot) is
+ * kept as it is.
+ */
+export function foldCase(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    const lower = ch.toLowerCase();
+    out += lower.length === ch.length ? lower : ch;
+  }
+  return out;
 }
 
 /**
@@ -63,8 +78,8 @@ export function scoreContextAt(
 ): number {
   let score = 0;
   if (before) {
-    const contextBefore = text.slice(Math.max(0, pos - before.length - 20), pos).toLowerCase();
-    const beforeLower = before.toLowerCase();
+    const contextBefore = foldCase(text.slice(Math.max(0, pos - before.length - 20), pos));
+    const beforeLower = foldCase(before);
     const beforeWords = beforeLower.split(/\s+/).filter(w => w.length > 3);
     for (const word of beforeWords) {
       if (contextBefore.includes(word)) score += 2;
@@ -72,8 +87,8 @@ export function scoreContextAt(
     if (contextBefore.includes(beforeLower.slice(-30))) score += 5;
   }
   if (after) {
-    const contextAfter = text.slice(pos + anchorLen, pos + anchorLen + after.length + 20).toLowerCase();
-    const afterLower = after.toLowerCase();
+    const contextAfter = foldCase(text.slice(pos + anchorLen, pos + anchorLen + after.length + 20));
+    const afterLower = foldCase(after);
     const afterWords = afterLower.split(/\s+/).filter(w => w.length > 3);
     for (const word of afterWords) {
       if (contextAfter.includes(word)) score += 2;
@@ -90,8 +105,8 @@ export function scoreContextAt(
  * an exact-string comparison would miss reordering or minor rewording.
  */
 export function wordOverlapSimilarity(a: string, b: string): number {
-  const wordsA = a.toLowerCase().split(/\s+/).filter(Boolean);
-  const wordsB = b.toLowerCase().split(/\s+/).filter(Boolean);
+  const wordsA = foldCase(a).split(/\s+/).filter(Boolean);
+  const wordsB = foldCase(b).split(/\s+/).filter(Boolean);
   if (wordsA.length === 0 || wordsB.length === 0) return 0;
   const setA = new Set(wordsA);
   const setB = new Set(wordsB);
@@ -100,6 +115,25 @@ export function wordOverlapSimilarity(a: string, b: string): number {
     if (setB.has(w)) common++;
   }
   return common / Math.max(setA.size, setB.size);
+}
+
+/**
+ * `text` with every run of whitespace replaced by one space; `map[i]` is the
+ * index in `text` of the result's character `i`.
+ */
+function collapseWhitespaceWithMap(text: string): { text: string; map: number[] } {
+  let out = '';
+  const map: number[] = [];
+  let inRun = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    const space = /\s/.test(ch);
+    if (space && inRun) continue;
+    inRun = space;
+    out += space ? ' ' : ch;
+    map.push(i);
+  }
+  return { text: out, map };
 }
 
 export function findAllOccurrences(haystack: string, needle: string): number[] {
@@ -130,9 +164,9 @@ export function findAnchorInText(
   // Empty anchor: skip directly to context-based matching
   if (!anchor || anchor.trim().length === 0) {
     if (before || after) {
-      const beforeLower = (before || '').toLowerCase();
-      const afterLower = (after || '').toLowerCase();
-      const textLower = text.toLowerCase();
+      const beforeLower = foldCase(before || '');
+      const afterLower = foldCase(after || '');
+      const textLower = foldCase(text);
 
       if (before && after) {
         const beforeIdx = textLower.indexOf(beforeLower.slice(-50));
@@ -166,8 +200,8 @@ export function findAnchorInText(
     return { occurrences: [], matchedAnchor: null, strategy: 'empty-anchor' };
   }
 
-  const anchorLower = anchor.toLowerCase();
-  const textLower = text.toLowerCase();
+  const anchorLower = foldCase(anchor);
+  const textLower = foldCase(text);
 
   // Strategy 1: direct match
   let occurrences = findAllOccurrences(textLower, anchorLower);
@@ -175,20 +209,26 @@ export function findAnchorInText(
     return { occurrences, matchedAnchor: anchor, strategy: 'direct' };
   }
 
-  // Strategy 2: normalized whitespace
-  const normalizedAnchor = anchor.replace(/\s+/g, ' ').toLowerCase();
-  const normalizedText = text.replace(/\s+/g, ' ').toLowerCase();
-  const idx = normalizedText.indexOf(normalizedAnchor);
+  // Strategy 2: normalized whitespace. The hit is mapped back to the text, and
+  // the anchor returned is the text's own span, whitespace and all.
+  const normalizedAnchor = foldCase(anchor.replace(/\s+/g, ' '));
+  const normalized = collapseWhitespaceWithMap(text);
+  const idx = foldCase(normalized.text).indexOf(normalizedAnchor);
   if (idx !== -1) {
-    return { occurrences: [idx], matchedAnchor: anchor, strategy: 'normalized' };
+    const start = normalized.map[idx]!;
+    const end = normalized.map[idx + normalizedAnchor.length - 1]! + 1;
+    return { occurrences: [start], matchedAnchor: text.slice(start, end), strategy: 'normalized' };
   }
 
-  // Strategy 3: match in stripped CriticMarkup version
-  const strippedText = stripCriticMarkup(text);
-  const strippedLower = strippedText.toLowerCase();
+  // Strategy 3: match in the text with CriticMarkup applied. Hits are mapped
+  // back to the text; the span there contains markup, so no anchor text is
+  // returned and the comment is placed at the start of the span.
+  const stripped = stripAnnotationsWithMap(text);
+  const strippedLower = foldCase(stripped.text);
+  const toText = (positions: number[]) => positions.map((p) => stripped.map[p]!);
   occurrences = findAllOccurrences(strippedLower, anchorLower);
   if (occurrences.length > 0) {
-    return { occurrences, matchedAnchor: anchor, strategy: 'stripped', stripped: true };
+    return { occurrences: toText(occurrences), matchedAnchor: null, strategy: 'stripped', stripped: true };
   }
 
   // Strategy 4: word window from anchor (prefix or interior).
@@ -202,7 +242,7 @@ export function findAnchorInText(
     for (let n = Math.min(6, words.length); n >= 3; n--) {
       for (let start = 0; start + n <= words.length; start++) {
         const window = words.slice(start, start + n).join(' ');
-        const windowLower = window.toLowerCase();
+        const windowLower = foldCase(window);
         if (windowLower.length < 15) continue;
 
         let occ = findAllOccurrences(textLower, windowLower);
@@ -213,7 +253,7 @@ export function findAnchorInText(
         occ = findAllOccurrences(strippedLower, windowLower);
         if (occ.length > 0) {
           const strategy: AnchorStrategy = start === 0 ? 'partial-start-stripped' : 'partial-window-stripped';
-          return { occurrences: occ, matchedAnchor: window, strategy, stripped: true };
+          return { occurrences: toText(occ), matchedAnchor: null, strategy, stripped: true };
         }
       }
     }
@@ -230,8 +270,8 @@ export function findAnchorInText(
   // the surviving sentences. Return 'failed' so the user is told to
   // place it manually.
   if (before || after) {
-    const beforeLower = before.toLowerCase();
-    const afterLower = after.toLowerCase();
+    const beforeLower = foldCase(before);
+    const afterLower = foldCase(after);
     const anchorLen = anchor.length;
 
     if (before && after) {
@@ -283,7 +323,7 @@ export function findAnchorInText(
     if (anchor.includes(sep)) {
       const parts = anchor.split(sep).filter(p => p.length >= 4);
       for (const part of parts) {
-        const partLower = part.toLowerCase();
+        const partLower = foldCase(part);
         occurrences = findAllOccurrences(textLower, partLower);
         if (occurrences.length > 0 && occurrences.length < 5) {
           return { occurrences, matchedAnchor: part, strategy: 'split-match' };

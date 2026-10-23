@@ -21,7 +21,7 @@ From an existing Word document:
 docrev import manuscript.docx
 ```
 
-docrev splits the document at top-level headings and creates one `.md` file per section. Images land in `figures/`, equations convert from OMML to LaTeX, and any existing comments or track changes are preserved as CriticMarkup annotations.
+docrev splits the document at top-level headings and creates one `.md` file per section; the text before the first heading (title, authors) goes to `preamble.md`. A document without Word heading styles is split at paragraphs that consist of a standard section name such as Introduction or Methods. Images land in `figures/media/`, equations convert from OMML to LaTeX, any existing comments and tracked changes are kept as CriticMarkup annotations, and the title and authors from the Title and Author paragraphs go into `rev.yaml`.
 
 From scratch:
 

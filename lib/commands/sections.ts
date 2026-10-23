@@ -13,11 +13,15 @@ import {
   resolveSectionsConfig,
   splitAnnotatedPaper,
 } from './context.js';
+import * as os from 'os';
+import { findMarkdownHeadings } from '../sections.js';
+import { stripAnnotations } from '../annotations.js';
 import type { Command } from 'commander';
 
 interface DetectedSection {
   header: string;
-  content: string;
+  /** The file's text, starting with its heading */
+  body: string;
   file: string;
 }
 
@@ -51,127 +55,119 @@ interface SplitOptions {
 }
 
 /**
- * Detect sections from Word document text
- * Looks for common academic paper section headers
+ * Standard section names, for documents whose headings are plain or bold
+ * paragraphs rather than Word heading styles.
  */
-function detectSectionsFromWord(text: string): DetectedSection[] {
-  const lines = text.split('\n');
-  const sections: DetectedSection[] = [];
+const SECTION_NAME_PATTERNS = [
+  /^(Abstract|Summary)$/i,
+  /^(Introduction|Background)$/i,
+  /^(Methods?|Materials?\s*(and|&)\s*Methods?|Methodology|Experimental\s*Methods?)$/i,
+  /^(Results?)$/i,
+  /^(Results?\s*(and|&)\s*Discussion)$/i,
+  /^(Discussion)$/i,
+  /^(Conclusions?|Summary\s*(and|&)?\s*Conclusions?)$/i,
+  /^(Acknowledgements?|Acknowledgments?)$/i,
+  /^(References|Bibliography|Literature\s*Cited|Works\s*Cited)$/i,
+  /^(Appendix|Appendices|Supplementary\s*(Materials?|Information)?|Supporting\s*Information)$/i,
+  /^(Literature\s*Review|Related\s*Work|Previous\s*Work)$/i,
+  /^(Study\s*Area|Study\s*Site|Site\s*Description)$/i,
+  /^(Data\s*Analysis|Statistical\s*Analysis|Data\s*Collection)$/i,
+  /^(Theoretical\s*Framework|Conceptual\s*Framework)$/i,
+  /^(Case\s*Study|Case\s*Studies)$/i,
+  /^(Limitations?)$/i,
+  /^(Future\s*Work|Future\s*Directions?)$/i,
+  /^(Funding|Author\s*Contributions?|Conflict\s*of\s*Interest|Data\s*Availability)$/i,
+];
 
-  const headerPatterns = [
-    /^(Abstract|Summary)$/i,
-    /^(Introduction|Background)$/i,
-    /^(Methods?|Materials?\s*(and|&)\s*Methods?|Methodology|Experimental\s*Methods?)$/i,
-    /^(Results?)$/i,
-    /^(Results?\s*(and|&)\s*Discussion)$/i,
-    /^(Discussion)$/i,
-    /^(Conclusions?|Summary\s*(and|&)?\s*Conclusions?)$/i,
-    /^(Acknowledgements?|Acknowledgments?)$/i,
-    /^(References|Bibliography|Literature\s*Cited|Works\s*Cited)$/i,
-    /^(Appendix|Appendices|Supplementary\s*(Materials?|Information)?|Supporting\s*Information)$/i,
-    /^(Literature\s*Review|Related\s*Work|Previous\s*Work)$/i,
-    /^(Study\s*Area|Study\s*Site|Site\s*Description)$/i,
-    /^(Data\s*Analysis|Statistical\s*Analysis|Data\s*Collection)$/i,
-    /^(Theoretical\s*Framework|Conceptual\s*Framework)$/i,
-    /^(Case\s*Study|Case\s*Studies)$/i,
-    /^(Limitations?)$/i,
-    /^(Future\s*Work|Future\s*Directions?)$/i,
-    /^(Funding|Author\s*Contributions?|Conflict\s*of\s*Interest|Data\s*Availability)$/i,
-  ];
-
-  const numberedHeaderPattern = /^(\d+\.?\s+)(Abstract|Introduction|Background|Methods?|Materials|Results?|Discussion|Conclusions?|References|Acknowledgements?|Appendix)/i;
-
-  let currentSection: string | null = null;
-  let currentContent: string[] = [];
-  const preambleContent: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      if (currentSection) {
-        currentContent.push(line);
-      } else {
-        preambleContent.push(line);
-      }
-      continue;
-    }
-
-    let isHeader = false;
-    let headerText = trimmed;
-
-    for (const pattern of headerPatterns) {
-      if (pattern.test(trimmed)) {
-        isHeader = true;
-        break;
-      }
-    }
-
-    if (!isHeader) {
-      const match = trimmed.match(numberedHeaderPattern);
-      if (match) {
-        isHeader = true;
-        headerText = trimmed.replace(/^\d+\.?\s+/, '');
-      }
-    }
-
-    if (isHeader) {
-      if (currentSection) {
-        sections.push({
-          header: currentSection,
-          content: currentContent.join('\n'),
-          file: headerToFilename(currentSection),
-        });
-      } else if (preambleContent.some(l => l.trim())) {
-        sections.push({
-          header: 'Preamble',
-          content: preambleContent.join('\n'),
-          file: 'preamble.md',
-        });
-      }
-      currentSection = headerText;
-      currentContent = [];
-    } else if (currentSection) {
-      currentContent.push(line);
-    } else {
-      preambleContent.push(line);
-    }
-  }
-
-  if (currentSection) {
-    sections.push({
-      header: currentSection,
-      content: currentContent.join('\n'),
-      file: headerToFilename(currentSection),
-    });
-  }
-
-  if (sections.length === 0) {
-    const allContent = [...preambleContent, ...currentContent].join('\n');
-    if (allContent.trim()) {
-      sections.push({
-        header: 'Content',
-        content: allContent,
-        file: 'content.md',
-      });
-    }
-  }
-
-  return sections;
-}
+const SECTION_NUMBER = /^\d+(\.\d+)*\.?\s+/;
 
 /**
  * Convert a section header to a filename
  */
 function headerToFilename(header: string): string {
   return header
+    .replace(SECTION_NUMBER, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 30) + '.md';
 }
 
+/** Gives repeated filenames a numeric suffix (methods.md, methods-2.md). */
+function uniqueFiles(sections: DetectedSection[]): DetectedSection[] {
+  const seen = new Map<string, number>();
+  return sections.map((s) => {
+    const n = (seen.get(s.file) ?? 0) + 1;
+    seen.set(s.file, n);
+    return n === 1 ? s : { ...s, file: s.file.replace(/\.md$/, `-${n}.md`) };
+  });
+}
+
 /**
- * Bootstrap a new project from a Word document
+ * Split imported Markdown into section files.
+ *
+ * A document with Word heading styles is split at its top heading level; each
+ * file starts with its heading, and the text before the first heading (title,
+ * authors) becomes preamble.md. A document without heading styles is split at
+ * paragraphs that consist of a standard section name (Introduction, Methods,
+ * ...), plain, bold or numbered, which become the files' headings.
+ */
+function detectSections(markdown: string): DetectedSection[] {
+  const lines = markdown.split('\n');
+  const headings = findMarkdownHeadings(lines);
+  const sections: DetectedSection[] = [];
+
+  if (headings.length > 0) {
+    const top = Math.min(...headings.map((h) => h.level));
+    const cuts = headings.filter((h) => h.level === top);
+    const preamble = lines.slice(0, cuts[0]!.line).join('\n');
+    if (preamble.trim()) sections.push({ header: 'Preamble', body: preamble, file: 'preamble.md' });
+    cuts.forEach((h, k) => {
+      const end = cuts[k + 1]?.line ?? lines.length;
+      const header = stripAnnotations(h.text).trim();
+      sections.push({ header, body: lines.slice(h.line, end).join('\n'), file: headerToFilename(header) });
+    });
+    return uniqueFiles(sections);
+  }
+
+  let current: { header: string; lines: string[] } | null = null;
+  const preamble: string[] = [];
+  const close = () => {
+    if (current) {
+      sections.push({
+        header: current.header,
+        body: `# ${current.header}\n\n${current.lines.join('\n').trim()}`,
+        file: headerToFilename(current.header),
+      });
+    }
+  };
+  for (const line of lines) {
+    const name = stripAnnotations(line).trim().replace(/^(\*\*|__)(.+)\1$/, '$2').trim();
+    const header = name.replace(SECTION_NUMBER, '');
+    if (name && SECTION_NAME_PATTERNS.some((p) => p.test(header))) {
+      close();
+      if (sections.length === 0 && preamble.some((l) => l.trim())) {
+        sections.unshift({ header: 'Preamble', body: preamble.join('\n'), file: 'preamble.md' });
+      }
+      current = { header, lines: [] };
+    } else if (current) {
+      current.lines.push(line);
+    } else {
+      preamble.push(line);
+    }
+  }
+  close();
+
+  if (sections.length === 0 && markdown.trim()) {
+    sections.push({ header: 'Content', body: markdown, file: 'content.md' });
+  }
+  return uniqueFiles(sections);
+}
+
+/**
+ * Bootstrap a new project from a Word document: the text with its comments
+ * and tracked changes as CriticMarkup, images in figures/, equations as LaTeX,
+ * split into section files.
  */
 async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promise<void> {
   const outputDir = path.resolve(options.output);
@@ -179,43 +175,51 @@ async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promi
   console.log(chalk.cyan(`Bootstrapping project from ${path.basename(docx)}...\n`));
 
   try {
-    const { extractTextFromWord } = await import('../word.js');
+    const { importWordWithTrackChanges } = await import('../import.js');
     const { default: YAML } = await import('yaml');
 
-    const text = await extractTextFromWord(docx);
+    if (!options.dryRun) fs.mkdirSync(outputDir, { recursive: true });
+    const mediaDir = options.dryRun
+      ? fs.mkdtempSync(path.join(os.tmpdir(), 'docrev-import-'))
+      : path.join(outputDir, 'figures');
 
-    const sections = detectSectionsFromWord(text);
+    const imported = await importWordWithTrackChanges(docx, {
+      mediaDir,
+      projectDir: outputDir,
+      imageBase: outputDir,
+    });
+    if (options.dryRun) fs.rmSync(mediaDir, { recursive: true, force: true });
 
-    if (sections.length === 0) {
-      console.error(chalk.yellow('No sections detected. Creating single content.md file.'));
-      sections.push({ header: 'Content', content: text, file: 'content.md' });
-    }
+    const sections = detectSections(imported.text);
 
-    console.log(chalk.green(`Detected ${sections.length} section(s):\n`));
-
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
+    console.log(chalk.green(`\nDetected ${sections.length} section(s):\n`));
 
     const sectionFiles: string[] = [];
     for (const section of sections) {
-      const filePath = path.join(outputDir, section.file);
-      const content = `# ${section.header}\n\n${section.content.trim()}\n`;
-
-      console.log(`  ${chalk.bold(section.file)} - "${section.header}" (${section.content.split('\n').length} lines)`);
-
+      console.log(`  ${chalk.bold(section.file)} - "${section.header}" (${section.body.trim().split('\n').length} lines)`);
       if (!options.dryRun) {
-        fs.writeFileSync(filePath, content, 'utf-8');
+        fs.writeFileSync(path.join(outputDir, section.file), `${section.body.trim()}\n`, 'utf-8');
       }
       sectionFiles.push(section.file);
     }
 
+    const { stats } = imported;
+    const found = [
+      [stats.comments, 'comment(s)'],
+      [stats.insertions, 'insertion(s)'],
+      [stats.deletions, 'deletion(s)'],
+      [stats.substitutions, 'substitution(s)'],
+      [imported.extractedMedia.length, 'image(s) in figures/'],
+    ].filter(([n]) => (n as number) > 0).map(([n, label]) => `${n} ${label}`);
+    if (found.length > 0) console.log(chalk.cyan(`\n  Kept ${found.join(', ')}`));
+
     const docxName = path.basename(docx, '.docx');
-    const title = docxName.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    const title = imported.title
+      ?? docxName.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
     const config = {
-      title: title,
-      authors: [],
+      title,
+      authors: imported.authors.map((name) => ({ name })),
       sections: sectionFiles,
       bibliography: null,
       crossref: {
@@ -235,17 +239,10 @@ async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promi
       },
     };
 
-    const configPath = path.join(outputDir, 'rev.yaml');
     console.log(`\n  ${chalk.bold('rev.yaml')} - project configuration`);
 
     if (!options.dryRun) {
-      fs.writeFileSync(configPath, YAML.stringify(config), 'utf-8');
-    }
-
-    const figuresDir = path.join(outputDir, 'figures');
-    if (!fs.existsSync(figuresDir) && !options.dryRun) {
-      fs.mkdirSync(figuresDir, { recursive: true });
-      console.log(`  ${chalk.dim('figures/')} - image directory`);
+      fs.writeFileSync(path.join(outputDir, 'rev.yaml'), YAML.stringify(config), 'utf-8');
     }
 
     if (options.dryRun) {
@@ -257,7 +254,7 @@ async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promi
         console.log(chalk.dim(`  cd ${path.relative(process.cwd(), outputDir) || '.'}`));
       }
       console.log(chalk.dim('  # Edit rev.yaml to add authors and adjust settings'));
-      console.log(chalk.dim('  # Review and clean up section files'));
+      console.log(chalk.dim('  docrev comments       # List the imported comments'));
       console.log(chalk.dim('  docrev build          # Build PDF and DOCX'));
     }
   } catch (err) {
