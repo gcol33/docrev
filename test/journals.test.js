@@ -52,7 +52,7 @@ describe('getJournalProfile', () => {
     assert.ok(profile);
   });
 
-  it('counts tables, captions, statements and references for Methods in Ecology and Evolution', () => {
+  it('counts tables, captions and references, not title-page statements, for Methods in Ecology and Evolution', () => {
     const wordLimit = getJournalProfile('methods-ecology-evolution').requirements.wordLimit;
     assert.strictEqual(wordLimit.main, 8000);
     const text = [
@@ -63,13 +63,13 @@ describe('getJournalProfile', () => {
     ].join('\n');
     const count = countForWordLimit([text], wordLimit, 5);
     assert.deepStrictEqual(count.counted, {
-      abstract: true, tableCells: true, figureCaptions: true, statements: true, references: true,
+      abstract: true, tableCells: true, figureCaptions: true, statements: false, references: true,
     });
     assert.ok(count.tableCellWords > 0);
     assert.ok(count.statementWords > 0);
     assert.strictEqual(
       count.wordCount,
-      count.bodyWords + count.abstractWords + count.tableCellWords + count.figureCaptionWords + count.statementWords + 5
+      count.bodyWords + count.abstractWords + count.tableCellWords + count.figureCaptionWords + 5
     );
   });
 

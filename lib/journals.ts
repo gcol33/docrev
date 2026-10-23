@@ -265,8 +265,11 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
     requirements: {
       // "Research articles should have a maximum of 7000-8000 words (including
       // tables/figure captions, statements and references list)." The top of
-      // the range is the cap; tables, captions, statements and the rendered
-      // reference list all count toward it.
+      // the range is the cap; tables, captions and the rendered reference list
+      // count toward it. The statements do not: the initial-submission
+      // checklist puts acknowledgements, author contributions and data
+      // availability on "a separate 'title page' file", uploaded "as a
+      // Supplemental Document Not for Review", outside the manuscript counted.
       // "The abstract should be numbered, aim not to exceed 350 words."
       wordLimit: {
         main: 8000,
@@ -274,7 +277,7 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
         includeAbstract: true,
         includeTableCells: true,
         includeFigureCaptions: true,
-        includeStatements: true,
+        includeStatements: false,
         includeReferences: true,
       },
       references: { doiRequired: true },
