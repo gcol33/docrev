@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.6] - 2026-10-28
+
 ### Added
 - **`docrev word-count --config <file>` counts a project under another config.** A paper that keeps one `rev.yaml` per journal (`rev-ecology-letters.yaml` next to the base `rev.yaml`) could only be counted under the base one, or by swapping the files. The option reads the named config instead of `./rev.yaml`; its section, bibliography and CSL paths stay relative to the current directory, as they are in every docrev config. A missing or unparsable file is an error rather than a silent fall back to the defaults.
 
