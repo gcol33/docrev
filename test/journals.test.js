@@ -73,6 +73,29 @@ describe('getJournalProfile', () => {
     );
   });
 
+  it('counts the main text alone for Ecology Letters: no abstract, legends or statements', () => {
+    const wordLimit = getJournalProfile('ecology-letters').requirements.wordLimit;
+    assert.strictEqual(wordLimit.main, 5000);
+    const text = [
+      '# Abstract', '', 'One two three.', '',
+      '# Introduction', '', 'Body words here.', '',
+      '![A legend of five words.](fig.png){#fig:a}', '',
+      '# Discussion', '', 'More body words.', '',
+      '## Statement of authorship', '', 'G.C. wrote it.', '',
+      '## Data accessibility statement', '', 'Data are on Zenodo.', '',
+      '# Acknowledgements', '', 'We thank the funder.',
+    ].join('\n');
+    const count = countForWordLimit([text], wordLimit);
+    assert.deepStrictEqual(count.counted, {
+      abstract: false, tableCells: false, figureCaptions: false, statements: false, references: false,
+    });
+    assert.strictEqual(count.abstractWords, 3);
+    assert.ok(count.figureCaptionWords > 0);
+    // the three statements with their headings: 7 heading words + 11 prose words
+    assert.strictEqual(count.statementWords, 18);
+    assert.strictEqual(count.wordCount, count.bodyWords);
+  });
+
   it('should handle spaces as hyphens', () => {
     const profile = getJournalProfile('plos one');
     assert.ok(profile);

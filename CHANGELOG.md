@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Ecology Letters counts the main text alone.** The profile added the abstract, the figure legends and the statements to the 5,000-word limit, so a Letter whose Introduction to Discussion ran 4,000 words reported 6,300 and an error. The author guidelines count "the main text only (excluding title page, abstract, acknowledgements, reference list, table/figure/box legends)", and the profile now counts the same; the title page's "Statement of authorship" is recognised as a statement. The guidelines state no maximum number of references, so the profile's cap of 50 is gone; the keyword limit of 10 is in.
+- **A file `wordCount.exclude` leaves out of the count still provides the keywords.** `docrev word-count --json` and `docrev validate` read the keywords, title, figures and references over every section file, so a title page kept out of a word limit no longer makes the keyword count zero.
+
 ## [0.17.6] - 2026-10-28
 
 ### Added

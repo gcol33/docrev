@@ -121,7 +121,7 @@ export const revYamlSchema: Schema = {
       properties: {
         exclude: {
           type: 'array',
-          description: 'Section files to leave out of every word count, matched by path or basename (e.g. a reviewer-only note kept only for the anonymized build)',
+          description: 'Section files to leave out of every word count, matched by path or basename (e.g. a reviewer-only note kept only for the anonymized build, or a title page the journal\'s limit excludes). Their keywords, title, figures and references are still counted.',
           items: { type: 'string', pattern: '.*\\.md$' },
         },
         includeStatements: {

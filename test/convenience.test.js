@@ -127,6 +127,20 @@ describe('rev word-count', () => {
     const missing = runRev('word-count --config configs/none.yaml', { expectError: true });
     assert.match(missing, /Config not found: configs\/none\.yaml/);
   });
+
+  it('reads the keywords from a file wordCount.exclude leaves out of the count', () => {
+    fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(tempDir, 'src', 'title_page.md'), '**Keywords:** alpha; beta; gamma\n');
+    fs.writeFileSync(path.join(tempDir, 'src', 'abstract.md'), '# Abstract\n\nSix words make up this abstract.\n');
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), [
+      'journal: ecology-letters', 'sections:', '  - src/title_page.md', '  - src/abstract.md',
+      'wordCount:', '  exclude:', '    - src/title_page.md', '',
+    ].join('\n'));
+
+    const data = JSON.parse(runRev('word-count --json'));
+    assert.deepStrictEqual(data.sections.map(s => s.file), ['src/abstract.md']);
+    assert.strictEqual(data.journal.keywords, 3);
+  });
 });
 
 const counted = (output) => Number(output.match(/Word count\D+(\d+)/)[1]);

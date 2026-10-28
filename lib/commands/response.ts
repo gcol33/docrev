@@ -188,10 +188,12 @@ export function register(program: Command): void {
         { directory: process.cwd(), bibliography: config.bibliography, csl: config.csl }
       );
 
+      const excluded = allFiles.filter(f => !mdFiles.includes(f) && fs.existsSync(f));
       const result = validateProject(mdFiles, options.journal, {
         title: config.title,
         runningTitle: config.running_title,
         referenceWords,
+        excludedTexts: excluded.map(f => fs.readFileSync(f, 'utf-8')),
         wordCount: { includeStatements: config.wordCount?.includeStatements, statementHeadings: config.wordCount?.statementHeadings },
       });
 

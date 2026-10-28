@@ -78,10 +78,25 @@ export const JOURNAL_PROFILES: Record<string, JournalProfile> = {
     name: 'Ecology Letters',
     url: 'https://onlinelibrary.wiley.com/page/journal/14610248/homepage/forauthors.html',
     requirements: {
-      wordLimit: { main: 5000, abstract: 150 },
-      references: { max: 50, doiRequired: true },
+      // A Letter has a "Maximum of 5000 words and 6 figures, tables or text
+      // boxes"; the count "is for the main text only (excluding title page,
+      // abstract, acknowledgements, reference list, table/figure/box
+      // legends)". The title page carries the "Statement of authorship" and
+      // the "Data accessibility statement", so the former is a statement
+      // heading here (the latter is one of the built-in patterns). The
+      // abstract is "a short summary not exceeding 150 words for Letter".
+      wordLimit: {
+        main: 5000,
+        abstract: 150,
+        includeAbstract: false,
+        includeFigureCaptions: false,
+        includeStatements: false,
+        statementHeadings: ['Statement\\s+of\\s+Authorship'],
+      },
+      references: { doiRequired: true },
       figures: { max: 6 },
       sections: ['Abstract', 'Introduction', 'Methods', 'Results', 'Discussion'],
+      keywords: { max: 10 },
     },
   },
 
@@ -784,6 +799,12 @@ export interface ValidationInput {
   referenceWords?: number | null;
   /** A project's `rev.yaml` `wordCount` knobs (`includeStatements`, `statementHeadings`). */
   wordCount?: WordCountOverrides;
+  /**
+   * Section files `wordCount.exclude` keeps out of the word count. The title,
+   * keywords, figures and references are counted over the whole manuscript,
+   * so these are still read for them.
+   */
+  excludedTexts?: string[];
 }
 
 interface ManuscriptValidationResult {
@@ -811,7 +832,7 @@ function validateTexts(
   journalId: string,
   input: ValidationInput
 ): ManuscriptValidationResult {
-  const text = texts.join('\n\n');
+  const text = [...texts, ...(input.excludedTexts ?? [])].join('\n\n');
   const profile = getJournalProfile(journalId);
 
   if (!profile) {

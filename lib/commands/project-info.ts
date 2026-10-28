@@ -128,7 +128,8 @@ export function register(program: Command): void {
         // Not in a rev project, that's ok
       }
       const { excludeFromWordCount } = await import('../journals.js');
-      const sections = excludeFromWordCount(findSections('.', config.sections), config.wordCount?.exclude);
+      const allSections = findSections('.', config.sections);
+      const sections = excludeFromWordCount(allSections, config.wordCount?.exclude);
 
       if (sections.length === 0) {
         console.error(chalk.red('No section files found. Run from a docrev project directory.'));
@@ -161,9 +162,12 @@ export function register(program: Command): void {
       if (profile?.requirements.wordLimit?.main) limit = profile.requirements.wordLimit.main;
 
       if (jsonMode) {
+        // The keywords sit on a title page, which `wordCount.exclude` may keep
+        // out of the count, so they are read from every section file.
+        const keywordText = allSections.map(section => stripAnnotations(fs.readFileSync(section, 'utf-8'))).join('\n\n');
         const journal = journals && profile && count
           ? { id: journalId, name: profile.name, requirements: profile.requirements, count,
-              keywords: journals.extractKeywords(texts.join('\n\n')).length,
+              keywords: journals.extractKeywords(keywordText).length,
               warning: journals.referenceListWarning(profile, count) }
           : null;
         jsonOutput({ sections: perSection, total, limit: limit ?? null, journal });
