@@ -17,6 +17,7 @@ import {
   getComments,
   countWords,
   countTexWords,
+  stripAnnotations,
   jsonMode,
   jsonOutput,
 } from './context.js';
@@ -28,6 +29,7 @@ type BuildConfig = ReturnType<typeof loadBuildConfig>;
 interface WordCountOptions {
   limit?: number;
   journal?: string;
+  config?: string;
   excludeFormulas?: boolean;
 }
 
@@ -54,6 +56,7 @@ export function register(program: Command): void {
     .description('Show word counts per section, or for one .md/.tex file')
     .option('-l, --limit <number>', 'Warn if total exceeds limit', parseInt)
     .option('-j, --journal <name>', 'Use journal word limit (default: the journal in rev.yaml)')
+    .option('-c, --config <file>', 'Config to read instead of ./rev.yaml; its section paths are relative to the current directory')
     .option('--exclude-formulas', 'Drop math and code listings from a .tex count instead of counting each as one word')
     .action(async (file: string | undefined, options: WordCountOptions) => {
       if (file) {
@@ -110,10 +113,18 @@ export function register(program: Command): void {
         return;
       }
 
+      if (options.config && !fs.existsSync(options.config)) {
+        console.error(chalk.red(`Config not found: ${options.config}`));
+        process.exit(1);
+      }
       let config: Partial<BuildConfig> = {};
       try {
-        config = loadBuildConfig('.') || {};
-      } catch {
+        config = loadBuildConfig('.', options.config) || {};
+      } catch (error) {
+        if (options.config) {
+          console.error(chalk.red((error as Error).message));
+          process.exit(1);
+        }
         // Not in a rev project, that's ok
       }
       const { excludeFromWordCount } = await import('../journals.js');
@@ -124,7 +135,7 @@ export function register(program: Command): void {
         process.exit(1);
       }
 
-      const texts = sections.map(section => fs.readFileSync(section, 'utf-8'));
+      const texts = sections.map(section => stripAnnotations(fs.readFileSync(section, 'utf-8')));
       const perSection = sections.map((section, i) => ({ file: section, words: countWords(texts[i]!) }));
       let total = perSection.reduce((sum, s) => sum + s.words, 0);
 

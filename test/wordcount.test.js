@@ -7,6 +7,17 @@ describe('countWords', () => {
     assert.strictEqual(countWords('one two three four five'), 5);
   });
 
+  it('counts CriticMarkup as the build resolves it', () => {
+    const text = [
+      'Kept {++and inserted++} words {--but not deleted ones--} {~~old~>new~~}.',
+      '{>>Reviewer: a comment that runs',
+      'over several lines and would otherwise',
+      'be counted as prose.<<}',
+      'Final {>>short note<<} words.',
+    ].join('\n');
+    assert.strictEqual(countWords(text), 7);
+  });
+
   it('keeps the prose standing between two tables', () => {
     // The defect this pins: a table-cell pattern whose negated class matched a
     // newline ran from the last pipe of one table to the first pipe of the

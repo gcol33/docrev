@@ -4,6 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { stripAnnotations } from './annotations.js';
 
 /**
  * Find the docrev package root by walking up from a directory inside the
@@ -71,8 +72,11 @@ function stripListMarkers(text: string): string {
   }).join('\n');
 }
 
+// CriticMarkup is resolved as the build resolves it (insertions and the new text of
+// substitutions stay, deletions and comments go), so a reviewer's multi-line comment
+// never counts toward the manuscript.
 export function countWords(text: string): number {
-  const withoutComments = stripListMarkers(text.replace(/<!--[\s\S]*?-->/g, ''));
+  const withoutComments = stripListMarkers(stripAnnotations(text).replace(/<!--[\s\S]*?-->/g, ''));
   const withoutFrontmatter = withoutComments.replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/, '');
   const withoutCode = withoutFrontmatter.replace(/^[ \t]*```[\s\S]*?^[ \t]*```/gm, '');
   const withoutTables = withoutCode

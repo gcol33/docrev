@@ -490,17 +490,18 @@ function normalizePandocArgsKey(obj: Record<string, unknown>): void {
 
 /**
  * Load rev.yaml config from directory
- * @param directory - Project directory path
+ * @param directory - Project directory path; section, bibliography and CSL paths resolve against it
+ * @param configFile - Config file to read instead of `<directory>/rev.yaml`
  * @returns Merged config with defaults
  * @throws {TypeError} If directory is not a string
- * @throws {Error} If rev.yaml exists but cannot be parsed
+ * @throws {Error} If the config file exists but cannot be parsed
  */
-export function loadConfig(directory: string): BuildConfig {
+export function loadConfig(directory: string, configFile?: string): BuildConfig {
   if (typeof directory !== 'string') {
     throw new TypeError(`directory must be a string, got ${typeof directory}`);
   }
 
-  const configPath = path.join(directory, 'rev.yaml');
+  const configPath = configFile ?? path.join(directory, 'rev.yaml');
 
   if (!fs.existsSync(configPath)) {
     return { ...DEFAULT_CONFIG, _configPath: null };
@@ -546,7 +547,7 @@ export function loadConfig(directory: string): BuildConfig {
     return config;
   } catch (err) {
     const error = err as Error;
-    throw new Error(`Failed to parse rev.yaml: ${error.message}`);
+    throw new Error(`Failed to parse ${configFile ? configPath : 'rev.yaml'}: ${error.message}`);
   }
 }
 

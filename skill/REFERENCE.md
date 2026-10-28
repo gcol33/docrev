@@ -353,6 +353,7 @@ Show word counts per section.
 docrev word-count               # Per-section counts
 docrev word-count --limit 5000  # Warn if over limit
 docrev word-count -j nature     # Journal word limit, counted as docrev validate counts it
+docrev word-count -c rev-el.yaml  # Count under another config; section paths relative to the cwd
 ```
 
 With `-j`, the total checked against the limit is body prose plus whatever the profile's `wordLimit` includes (abstract, figure captions, table cells, rendered reference list), and the parts are listed.

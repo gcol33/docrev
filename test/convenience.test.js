@@ -104,6 +104,29 @@ describe('rev word-count', () => {
     assert.strictEqual(data.journal.count.abstractWords, 6);
     assert.strictEqual(data.journal.keywords, 0);
   });
+
+  it('should read the config named with --config, with section paths relative to the cwd', () => {
+    fs.writeFileSync(path.join(tempDir, 'rev.yaml'), 'sections:\n  - old.md\n');
+    fs.writeFileSync(path.join(tempDir, 'old.md'), '# Old\n\nOne two three four five six seven eight nine ten.');
+    fs.mkdirSync(path.join(tempDir, 'src'));
+    fs.writeFileSync(path.join(tempDir, 'src', 'abstract.md'), [
+      '# Abstract', '', 'Six words make up this abstract.', '',
+      '**Keywords:** alpha; beta; gamma', '',
+    ].join('\n'));
+    fs.mkdirSync(path.join(tempDir, 'configs'));
+    fs.writeFileSync(path.join(tempDir, 'configs', 'el.yaml'),
+      'journal: ecology-letters\nsections:\n  - src/abstract.md\n');
+
+    const data = JSON.parse(runRev('word-count --json --config configs/el.yaml'));
+    assert.deepStrictEqual(data.sections.map(s => s.file), ['src/abstract.md']);
+    assert.strictEqual(data.journal.id, 'ecology-letters');
+    assert.strictEqual(data.journal.count.abstractWords, 6);
+    assert.strictEqual(data.journal.keywords, 3);
+    assert.strictEqual(data.limit, 5000);
+
+    const missing = runRev('word-count --config configs/none.yaml', { expectError: true });
+    assert.match(missing, /Config not found: configs\/none\.yaml/);
+  });
 });
 
 const counted = (output) => Number(output.match(/Word count\D+(\d+)/)[1]);
