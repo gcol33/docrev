@@ -121,6 +121,22 @@ Readers who already accept branch-and-price but not the certificate.
     const { errors } = parseStory('## Arcs\n\n### S1 A\n- question: a\n\n### S1 B\n- question: b\n');
     assert.ok(errors.some((e) => /Duplicate arc id "S1"/.test(e.message)));
   });
+
+  it('parses proposal notation: central idea, gap, fit and proposal arc fields', () => {
+    const { doc, errors } = parseStory([
+      '# Story: P', '', '## Central idea', 'The one who shows X by Y.', '', '## Gap', 'Never measured at plot grain.',
+      '', '## Fit', '- me: modelling', '', '## Arcs', '', '### H1 Rates', '- question: q', '- prediction: faster in V',
+      '- test: WP1', '- already: TODO', '- risk: thin data; aggregate', '- criterion: quality', '',
+      '### C1 Skill', '- gap: inverse problems', '- plan: work with D', '',
+    ].join('\n'));
+    assert.deepStrictEqual(errors, []);
+    assert.strictEqual(doc.centralIdea, 'The one who shows X by Y.');
+    assert.strictEqual(doc.gap, 'Never measured at plot grain.');
+    assert.strictEqual(doc.fit, '- me: modelling');
+    assert.deepStrictEqual(doc.arcs[0].fields,
+      { prediction: 'faster in V', test: 'WP1', already: 'TODO', risk: 'thin data; aggregate', criterion: 'quality' });
+    assert.deepStrictEqual(doc.arcs[1].fields, { gap: 'inverse problems', plan: 'work with D' });
+  });
 });
 
 // ============================================================================

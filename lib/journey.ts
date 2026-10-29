@@ -524,9 +524,19 @@ export function journeyCheck(
     }
   }
 
-  // 5. Evidence fields resolve; TODO evidence reported.
+  // 5. Evidence fields resolve; TODO evidence reported. A proposal arc whose
+  //    `already` is TODO has nothing done yet that shows it will work.
   if (story) {
     for (const arc of story.arcs) {
+      const already = arc.fields?.already ?? '';
+      if (/\bTODO\b/i.test(already)) {
+        findings.push({
+          kind: 'todo-evidence',
+          message: `Arc "${arc.id}" has nothing already done: ${already}`,
+          line: arc.line,
+          arcId: arc.id,
+        });
+      }
       if (!arc.evidence) continue;
       if (/\bTODO\b/i.test(arc.evidence)) {
         findings.push({

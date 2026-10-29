@@ -606,6 +606,8 @@ export interface StoryArc {
   needs: string[];
   /** PNAS notation: this arc is one the Significance statement carries. */
   significance: boolean;
+  /** Proposal notation (prediction, test, already, risk, criterion, gap, plan), as written. */
+  fields: Record<string, string>;
   line: number;
 }
 
@@ -636,6 +638,12 @@ export interface StoryDoc {
   funnel: string;
   /** The opening's moves as decided with the author (belief, question, explanation, A- and B-plot), with the `@p:` anchors that carry each. */
   spine: string;
+  /** Proposal notation: the one-line tag a reviewer would repeat in the panel. */
+  centralIdea: string;
+  /** Proposal notation: what is unknown and why it has stayed unknown. */
+  gap: string;
+  /** Proposal notation: why this PI, this host, now. */
+  fit: string;
   arcs: StoryArc[];
   terms: StoryTerm[];
   constraints: string[];

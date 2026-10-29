@@ -55,6 +55,9 @@ const H2_HEADING = /^##\s+(.+?)\s*$/;
  * numbers, section orders, recurrence), kept as written and not checked here.
  * "Spine" is the paper-assumed-knowledge skill's M, Q, E, A and B moves as
  * decided with the author; its `@p:` anchors are checked by `journeyCheck`.
+ * "Central idea", "Gap" and "Fit" are proposal notation (proposal-sidecars
+ * skill): the one-line tag a reviewer repeats, what is unknown and why, and
+ * why this PI, host and moment.
  */
 const PROSE_SECTIONS = {
   claim: 'claim',
@@ -68,7 +71,18 @@ const PROSE_SECTIONS = {
   'significance audience': 'significanceAudience',
   funnel: 'funnel',
   spine: 'spine',
+  'central idea': 'centralIdea',
+  gap: 'gap',
+  fit: 'fit',
 } as const;
+
+/**
+ * Arc fields of proposal notation, kept as written in `arc.fields`: the
+ * prediction that could be refuted, the task that tests it, what is already
+ * done, the risk with its Plan B, the funder criteria it carries, and for a
+ * career arc the skill gap and the plan that closes it.
+ */
+const PROPOSAL_ARC_FIELDS = new Set(['prediction', 'test', 'already', 'risk', 'criterion', 'gap', 'plan']);
 type ProseSection = keyof typeof PROSE_SECTIONS;
 type ProseKey = (typeof PROSE_SECTIONS)[ProseSection];
 
@@ -80,7 +94,7 @@ type StorySection = 'none' | ProseSection | 'arcs' | 'terms' | 'constraints' | '
 const SECTION_NAMES = new Set<string>([...Object.keys(PROSE_SECTIONS), 'arcs', 'terms', 'constraints', 'open']);
 
 function emptyArc(id: string, title: string, line: number): StoryArc {
-  return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], significance: false, line };
+  return { id, title, question: '', answer: '', payoff: '', evidence: '', limits: '', needs: [], significance: false, fields: {}, line };
 }
 
 /**
@@ -104,6 +118,9 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
     significanceAudience: '',
     funnel: '',
     spine: '',
+    centralIdea: '',
+    gap: '',
+    fit: '',
     arcs: [],
     terms: [],
     constraints: [],
@@ -193,7 +210,8 @@ export function parseStory(content: string, file = 'story.md'): { doc: StoryDoc;
           currentArc.significance = /^yes$/i.test(value);
           break;
         default:
-          errors.push({ file, line: lineNo, message: `Unknown arc field "${field[1]}"` });
+          if (PROPOSAL_ARC_FIELDS.has(key)) currentArc.fields[key] = value;
+          else errors.push({ file, line: lineNo, message: `Unknown arc field "${field[1]}"` });
       }
       continue;
     }
