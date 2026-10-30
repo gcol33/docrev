@@ -674,6 +674,8 @@ export interface JourneyEntry {
    * line. The hash pins the paragraph's text when the decision was taken (`docrev journey ack`).
    */
   negotiated?: string[];
+  /** Funder criteria the paragraph answers directly (proposal journeys), from `- criterion: a; b`. */
+  criteria?: string[];
   line: number;
 }
 

@@ -53,6 +53,12 @@ export function isFrontMatter(section: string): boolean {
   return FRONT_MATTER.test(section.replace(/^\d+(\.\d+)*\s+/, '').trim());
 }
 
+/**
+ * Reserved arc for the paragraphs that carry story.md's framing sections (Central idea,
+ * Problem, Gap, Question, Stakes, Idea) rather than one hypothesis or career arc.
+ */
+export const FRAME_ARC = 'frame';
+
 function emptyEntry(id: string, section: string, arcs: string[], entryType: JourneyEntryType, line: number): JourneyEntry {
   return { id, section, arcs, entryType, idea: '', job: '', support: '', leaves: '', assumes: '', warnings: [], accepts: [], line };
 }
@@ -153,6 +159,9 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
       case 'negotiated':
         (current.negotiated ??= []).push(value);
         break;
+      case 'criterion':
+        (current.criteria ??= []).push(...value.split(';').map((c) => c.trim()).filter(Boolean));
+        break;
       default:
         errors.push({ file, line: lineNo, message: `Unknown entry field "${field[1]}"` });
     }
@@ -175,6 +184,7 @@ export function formatJourneyEntry(entry: JourneyEntry): string {
   if (entry.support) lines.push(`- support: ${entry.support}`);
   if (entry.leaves) lines.push(`- leaves: ${entry.leaves}`);
   if (entry.assumes) lines.push(`- assumes: ${entry.assumes}`);
+  if (entry.criteria?.length) lines.push(`- criterion: ${entry.criteria.join('; ')}`);
   for (const decision of entry.negotiated ?? []) lines.push(`- negotiated: ${decision}`);
   for (const warning of entry.warnings) lines.push(`- warning: ${warning}`);
   for (const accept of entry.accepts) lines.push(`- accept: ${accept}`);
@@ -485,7 +495,7 @@ export function journeyCheck(
     // Arc IDs a journey entry claims that story.md doesn't define.
     for (const entry of journey.entries) {
       for (const claimedArc of entry.arcs) {
-        if (!arcIds.has(claimedArc)) {
+        if (!arcIds.has(claimedArc) && claimedArc !== FRAME_ARC) {
           findings.push({
             kind: 'orphan-entry',
             message: `"${entry.id}" claims arc "${claimedArc}", which story.md does not define`,

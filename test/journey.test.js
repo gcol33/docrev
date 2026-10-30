@@ -137,6 +137,24 @@ Readers who already accept branch-and-price but not the certificate.
       { prediction: 'faster in V', test: 'WP1', already: 'TODO', risk: 'thin data; aggregate', criterion: 'quality' });
     assert.deepStrictEqual(doc.arcs[1].fields, { gap: 'inverse problems', plan: 'work with D' });
   });
+
+  it('parses a proposal journey: criterion field and the reserved frame arc', () => {
+    const { doc, errors } = parseJourney([
+      '# Journey: P', '', '## 1.1 State of the Art', '', '### soa.opening  [frame]', '- idea: question', '- job: States it.',
+      '- criterion: innovation; quality', '',
+    ].join('\n'));
+    assert.deepStrictEqual(errors, []);
+    assert.deepStrictEqual(doc.entries[0].criteria, ['innovation', 'quality']);
+    assert.match(formatJourneyEntry(doc.entries[0]), /^- criterion: innovation; quality$/m);
+
+    const { doc: story } = parseStory('## Arcs\n\n### H1 Rates\n- question: q\n');
+    const findings = journeyCheck(
+      [makeBlock({ markerId: 'soa.opening' })],
+      { title: 'P', entries: [makeEntry({ id: 'soa.opening', arcs: ['frame'] }), makeEntry({ id: 'x.h1', arcs: ['H1'] })] },
+      { story }
+    );
+    assert.ok(!findings.some((f) => /claims arc "frame"/.test(f.message)));
+  });
 });
 
 // ============================================================================
