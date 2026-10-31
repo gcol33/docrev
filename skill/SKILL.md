@@ -179,6 +179,7 @@ docrev response                 # Generate point-by-point response letter
 | Check for updates | `docrev upgrade --check` |
 | Assign paragraph IDs, scaffold journey.md | `docrev journey init` |
 | Check manuscript against story/journey | `docrev journey check` |
+| Terms the reader holds, paragraph by paragraph | `docrev journey load` |
 | Build story.md/journey.md to docx | `docrev build story` / `docrev build journey` |
 
 ## DOI Management
@@ -263,6 +264,7 @@ docrev journey init                     # assign IDs, scaffold journey.md
 docrev journey check                    # check the manuscript against story/journey
 docrev journey check --json             # same, as structured findings
 docrev journey ack <ids...>             # reconfirm negotiated paragraphs after an edit
+docrev journey load [--all]             # information.md terms introduced and held per paragraph
 docrev build story                      # story.md → docx for co-authors
 docrev build journey                    # journey.md → docx for co-authors
 ```

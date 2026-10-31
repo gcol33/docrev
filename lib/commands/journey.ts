@@ -29,6 +29,8 @@ import {
 } from '../journey.js';
 import { parseManuscript } from '../paragraph-markers.js';
 import { checkJourneyProject } from '../journey-project.js';
+import { parseInformation } from '../information.js';
+import { readerLoad } from '../reader-load.js';
 import type { BuildConfig } from '../build.js';
 import type { JourneyEntry, JourneyFinding, ManuscriptBlock, SidecarParseError } from '../types.js';
 
@@ -307,6 +309,52 @@ export function register(program: Command): void {
       }
 
       if (parseErrors.length > 0) process.exit(1);
+    });
+
+  // ==========================================================================
+  // JOURNEY LOAD - terms the reader holds, paragraph by paragraph
+  // ==========================================================================
+
+  journey
+    .command('load')
+    .description('Profile the reader load: information.md terms introduced and held at each paragraph')
+    .option('-d, --dir <directory>', 'Project directory', '.')
+    .option('--all', 'list every paragraph, not only those that introduce a term or use one early')
+    .action((options: JourneyOptions & { all?: boolean }) => {
+      const dir = path.resolve(options.dir);
+      const config = loadBuildConfig(dir);
+      const informationName = config.information || 'information.md';
+      const informationFile = path.join(dir, informationName);
+      if (!fs.existsSync(informationFile)) {
+        console.error(chalk.red(`No ${informationName}: the load is counted over its Terms and Populations`));
+        process.exit(1);
+      }
+      const { entries, errors } = parseInformation(fs.readFileSync(informationFile, 'utf-8'), informationName);
+      const { sections, missing } = resolveSections(dir, config);
+      const profile = readerLoad(collectManuscriptBlocks(dir, sections), entries);
+
+      if (jsonMode) {
+        jsonOutput({ errors: [...missingSectionErrors(missing), ...errors], ...profile });
+        return;
+      }
+
+      console.log(fmt.header('Reader load'));
+      console.log();
+      printParseErrors([...missingSectionErrors(missing), ...errors]);
+      const where = (r: { id: string | null; file: string; line: number }) => (r.id ? `@p:${r.id}` : `${r.file}:${r.line}`);
+      for (const r of profile.rows) {
+        if (!options.all && r.introduced.length === 0 && r.early.length === 0) continue;
+        const parts = [
+          r.introduced.length ? `new: ${r.introduced.join('; ')}` : '',
+          r.early.length ? chalk.yellow(`before introduced: ${r.early.join('; ')}`) : '',
+        ].filter(Boolean);
+        console.log(`  ${String(r.held).padStart(3)} held  ${chalk.dim(`w${r.at}`.padEnd(7))} ${where(r)}  ${parts.join('  ')}`);
+      }
+      console.log();
+      const by = (w: number) => profile.met.filter((m) => m.at < w).length;
+      console.log(`  ${profile.terms} term(s) over ${profile.words} body words; met by word 500: ${by(500)}, 1000: ${by(1000)}, 2000: ${by(2000)}`);
+      if (profile.peak) console.log(`  peak: ${profile.peak.held} held at ${where(profile.peak)}`);
+      console.log(chalk.dim('  held = between its introduction (or first use) and its last use; `known` terms are not counted'));
     });
 
   // ==========================================================================

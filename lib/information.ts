@@ -109,7 +109,7 @@ function formPattern(form: string): string {
 }
 
 /** The text a reader reads: no comments, CriticMarkup comments or deletions, inline code, math or citation keys. */
-function readable(text: string): string {
+export function readable(text: string): string {
   return text
     .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/\{>>[\s\S]*?<<\}|\{--[\s\S]*?--\}/g, ' ')
@@ -133,9 +133,45 @@ function sentenceAt(text: string, at: number): string {
   return text.slice(start).replace(/\s+/g, ' ').trim();
 }
 
-interface Hit {
+export interface Hit {
   entry: InformationEntry;
   avoid: boolean;
+}
+
+export interface TermLexicon {
+  /** Every form and avoided wording, mapped to its entry. */
+  lexicon: Map<string, Hit>;
+  /** Matches any form or avoided wording as a whole word; null when there are none. */
+  termRe: RegExp | null;
+  /** The entry a matched string belongs to. */
+  lookup: (text: string) => Hit | undefined;
+  /** A form listed under two entries: [entry, the entry that already holds it, form]. */
+  collisions: Array<[InformationEntry, InformationEntry, string]>;
+}
+
+/** The matcher for information.md's terms: forms first, then avoided wordings no form claims. */
+export function termLexicon(entries: InformationEntry[]): TermLexicon {
+  const lexicon = new Map<string, Hit>();
+  const collisions: TermLexicon['collisions'] = [];
+  for (const entry of entries) {
+    for (const form of entry.forms) {
+      const other = lexicon.get(form);
+      if (other) collisions.push([entry, other.entry, form]);
+      else lexicon.set(form, { entry, avoid: false });
+    }
+  }
+  for (const entry of entries) {
+    for (const a of entry.avoid) if (!lexicon.has(a)) lexicon.set(a, { entry, avoid: true });
+  }
+  const alts = [...lexicon.keys()].sort((a, b) => b.length - a.length).map(formPattern);
+  const termRe = alts.length
+    ? new RegExp(`(?<![\\p{L}\\p{N}_\\-])(?:${alts.join('|')})(?![\\p{L}\\p{N}_\\-])`, 'gu')
+    : null;
+  const lookup = (text: string): Hit | undefined => {
+    const t = text.replace(/\s+/g, ' ').replace(/’/g, "'");
+    return lexicon.get(t) ?? lexicon.get((t[0] as string).toLowerCase() + t.slice(1));
+  };
+  return { lexicon, termRe, lookup, collisions };
 }
 
 const singular = (w: string) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w);
@@ -218,7 +254,6 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
   const position = new Map<string, number>();
   blocks.forEach((b, i) => { if (b.markerId && !position.has(b.markerId)) position.set(b.markerId, i); });
 
-  const lexicon = new Map<string, Hit>();
   for (const entry of entries) {
     if (!entry.defined && !entry.known) add('undefined', entry, `"${entry.forms[0]}" has no definition in the text (defined: none or missing)`);
     const names = entryNames(entry.forms);
@@ -228,26 +263,13 @@ export function informationCheck(blocks: ManuscriptBlock[], entries: Information
     for (const id of [entry.defined, ...entry.glossed, ...entry.alone]) {
       if (id && !position.has(id)) add('unresolved-anchor', entry, `"${entry.id}" points to @p:${id}, which no paragraph carries`);
     }
-    for (const form of entry.forms) {
-      const other = lexicon.get(form);
-      if (other) {
-        add('form-collision', entry, `"${form}" is also a form of "${other.entry.forms[0]}"`);
-        add('form-collision', other.entry, `"${form}" is also a form of "${entry.forms[0]}"`);
-      } else {
-        lexicon.set(form, { entry, avoid: false });
-      }
-    }
   }
-  for (const entry of entries) {
-    for (const a of entry.avoid) if (!lexicon.has(a)) lexicon.set(a, { entry, avoid: true });
+  const { lexicon, termRe, lookup, collisions } = termLexicon(entries);
+  for (const [entry, other, form] of collisions) {
+    add('form-collision', entry, `"${form}" is also a form of "${other.forms[0]}"`);
+    add('form-collision', other, `"${form}" is also a form of "${entry.forms[0]}"`);
   }
-  if (lexicon.size === 0) return findings;
-  const alts = [...lexicon.keys()].sort((a, b) => b.length - a.length).map(formPattern);
-  const termRe = new RegExp(`(?<![\\p{L}\\p{N}_\\-])(?:${alts.join('|')})(?![\\p{L}\\p{N}_\\-])`, 'gu');
-  const lookup = (text: string): Hit | undefined => {
-    const t = text.replace(/\s+/g, ' ').replace(/’/g, "'");
-    return lexicon.get(t) ?? lexicon.get((t[0] as string).toLowerCase() + t.slice(1));
-  };
+  if (!termRe) return findings;
 
   for (const entry of entries) {
     for (const m of entry.as.matchAll(termRe)) {

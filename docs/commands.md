@@ -198,6 +198,7 @@ file format and `rev.yaml` keys.
 | `docrev journey check` | Check the manuscript against `story.md` and `journey.md` |
 | `docrev journey check --json` | Same, as structured JSON (parse errors + findings) |
 | `docrev journey ack <ids...>` | Pin the current text of paragraphs whose `- negotiated:` decision was reconfirmed |
+| `docrev journey load [--all]` | Profile the reader load: `information.md` terms introduced, used before their introduction, and held at each body paragraph |
 
 `docrev journey init` is idempotent: re-running it only fills gaps (a paragraph
 that lost its marker after a heavy Word edit gets a fresh one; existing
