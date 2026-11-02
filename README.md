@@ -2,12 +2,14 @@
 
 *writing papers in Markdown with co-authors who work in Word*
 
+<!-- badges: start -->
 [![npm](https://img.shields.io/npm/v/docrev)](https://www.npmjs.com/package/docrev)
 [![npm downloads](https://img.shields.io/npm/dm/docrev)](https://www.npmjs.com/package/docrev)
 [![npm total downloads](https://img.shields.io/npm/dt/docrev)](https://www.npmjs.com/package/docrev)
 [![node](https://img.shields.io/node/v/docrev)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
+<!-- badges: end -->
 
 <p align="center"><img src="docs/figures/hero.png" alt="Left, a Methods paragraph in Markdown carrying a reviewer's comment and two tracked changes in CriticMarkup notation; right, the same paragraph built as a Word page, with the changes shown as Word tracked changes and the comment in the margin. An arrow labelled build points from the Markdown to Word, an arrow labelled sync points back." width="100%"></p>
 
@@ -148,7 +150,7 @@ Climate change poses significant challenges [@IPCC2021]. As shown in
 The relationship follows $\Delta T = \lambda \cdot \Delta F$ (@eq:forcing).
 ```
 
-Citations use keys from `references.bib`, figures and tables take a label, and equations are LaTeX. The build numbers every `@fig:`, `@tbl:` and `@eq:` reference. Mark unfinished spots with `\tofill{N sites}`, which prints as a highlighted placeholder in every output format. The [Revision Workflow](docs/workflow.md#writing-in-markdown) shows tables, display equations and section references.
+Citations use keys from `references.bib`, figures and tables take a label, and equations are LaTeX. The build numbers every `@fig:`, `@tbl:` and `@eq:` reference. Mark unfinished spots with `\tofill{N sites}`, which prints as a highlighted placeholder in every output format. The [Revision Workflow](https://gillescolling.com/docrev/workflow/#writing-in-markdown) shows tables, display equations and section references.
 
 ## Journal profiles
 
@@ -169,11 +171,11 @@ With the skill installed, [Claude Code](https://claude.ai/code) knows the docrev
 
 ## Documentation
 
-Start with [Revision Workflow](docs/workflow.md): one manuscript from `docrev new` through the review rounds to the pre-submission checks.
+Start with [Revision Workflow](https://gillescolling.com/docrev/workflow/): one manuscript from `docrev new` through the review rounds to the pre-submission checks.
 
-- [Command Reference](docs/commands.md): every command, grouped by task.
-- [Configuration](docs/configuration.md): the `rev.yaml` keys, journal profiles, placeholder macros, tables, postprocess scripts and the story and journey sidecars.
-- [Troubleshooting](docs/troubleshooting.md): installation, build, import and PDF problems.
+- [Command Reference](https://gillescolling.com/docrev/commands/): every command, grouped by task.
+- [Configuration](https://gillescolling.com/docrev/configuration/): the `rev.yaml` keys, journal profiles, placeholder macros, tables, postprocess scripts and the story and journey sidecars.
+- [Troubleshooting](https://gillescolling.com/docrev/troubleshooting/): installation, build, import and PDF problems.
 - [API Reference](docs/api.md): the library functions for use from Node.
 
 `docrev help <command>` prints the options of a single command.
@@ -186,7 +188,7 @@ Questions and bug reports go to [GitHub issues](https://github.com/gcol33/docrev
 
 > "Software is like sex: it's better when it's free." — Linus Torvalds
 
-I'm a PhD student who builds R packages in my free time because I believe good tools should be free and open. I started these projects for my own work and figured others might find them useful too.
+I'm a PhD student who builds tools in my free time because I believe good tools should be free and open. I started these projects for my own work and figured others might find them useful too.
 
 If this package saved you some time, buying me a coffee is a nice way to say thanks. It helps with my coffee addiction.
 
@@ -194,4 +196,4 @@ If this package saved you some time, buying me a coffee is a nice way to say tha
 
 ## License
 
-MIT
+docrev is licensed under MIT.
