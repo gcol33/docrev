@@ -462,7 +462,7 @@ export function journeyCheck(
     if (entry.job && countSentences(entry.job) > 1) {
       findings.push({
         kind: 'multi-sentence-job',
-        message: `"${entry.id}" job is more than one sentence — split candidate: ${entry.job}`,
+        message: `"${entry.id}" job is more than one sentence: rewrite it as one sentence that ranks the points, and split the paragraph only if the reader changes question: ${entry.job}`,
         line: entry.line,
         entryIds: [entry.id],
       });
