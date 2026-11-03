@@ -20,8 +20,9 @@ export function extractCitations(text: string, file: string = ''): Citation[] {
 
   // Pattern for bracketed citations: [@Key] or [@Key1; @Key2]
   const bracketPattern = /\[@([^\]]+)\]/g;
-  // Pattern for inline citations: @Key (word boundary)
-  const inlinePattern = /(?<!\[)@([A-Za-z][A-Za-z0-9_-]*\d{4}[a-z]?)(?![;\]])/g;
+  // Pattern for inline citations: @Key, ending where the key ends. The closing lookahead also refuses
+  // a key character, so a lettered key (Smith2020b) cannot backtrack to a shorter key (Smith2020).
+  const inlinePattern = /@([A-Za-z][A-Za-z0-9_-]*\d{4}[a-z]?)(?![A-Za-z0-9_-])/g;
 
   for (let lineNum = 0; lineNum < lines.length; lineNum++) {
     const line = lines[lineNum];
@@ -44,9 +45,10 @@ export function extractCitations(text: string, file: string = ''): Citation[] {
       }
     }
 
-    // Inline citations (reset lastIndex)
+    // Inline citations, read with every bracketed group blanked out so a bracketed key is counted once
+    const outside = line.replace(bracketPattern, m => ' '.repeat(m.length));
     inlinePattern.lastIndex = 0;
-    while ((match = inlinePattern.exec(line)) !== null) {
+    while ((match = inlinePattern.exec(outside)) !== null) {
       const citationKey = match[1];
       if (citationKey) {
         citations.push({ key: citationKey, line: lineNum + 1, file });

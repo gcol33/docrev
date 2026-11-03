@@ -89,6 +89,20 @@ describe('extractCitations', () => {
     assert.ok(citations.some(c => c.key === 'Smith2020b'));
   });
 
+  it('should not invent a shorter key from a lettered key in a bracketed group', () => {
+    const text = 'Six downloads [@GBIF2026a; @GBIF2026b; @GBIF2026c] and one [@Smith2020b].';
+    const keys = extractCitations(text).map(c => c.key).sort();
+
+    assert.deepStrictEqual(keys, ['GBIF2026a', 'GBIF2026b', 'GBIF2026c', 'Smith2020b']);
+  });
+
+  it('should count a bracketed key once and still read inline keys on the same line', () => {
+    const text = 'As @Jones2019a argued [@Smith2020; @Lee2021], and @Kim2022 too.';
+    const keys = extractCitations(text).map(c => c.key).sort();
+
+    assert.deepStrictEqual(keys, ['Jones2019a', 'Kim2022', 'Lee2021', 'Smith2020']);
+  });
+
   it('should handle citation keys with hyphens and underscores', () => {
     const text = '[@Van-Der-Berg2020] and [@Smith_Jones2021]';
     const citations = extractCitations(text);
