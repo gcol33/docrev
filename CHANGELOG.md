@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.7] - 2026-11-03
+
 ### Added
 - **`docrev journey load` profiles the reader load.** For every body paragraph it lists the `information.md` terms introduced there, the terms used before the text introduces them, and how many terms the reader holds: those between their introduction (or first use) and their last use. `known` terms cost nothing and are left out; the abstract, captions and tables, which are read on their own, are not profiled. The summary gives the terms met by body word 500, 1000 and 2000 and the paragraph where the most are held; `--all` lists every paragraph, `--json` the full profile. On a 9,000-word proposal it showed one State-of-the-art paragraph introducing five defined terms at once, with eleven held by word 612.
 
