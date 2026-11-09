@@ -11,7 +11,7 @@
 [![CI](https://github.com/gcol33/docrev/actions/workflows/ci.yml/badge.svg)](https://github.com/gcol33/docrev/actions/workflows/ci.yml)
 <!-- badges: end -->
 
-<p align="center"><img src="docs/figures/hero.png" alt="Left, a Methods paragraph in Markdown carrying a reviewer's comment and two tracked changes in CriticMarkup notation; right, the same paragraph built as a Word page, with the changes shown as Word tracked changes and the comment in the margin. An arrow labelled build points from the Markdown to Word, an arrow labelled sync points back." width="100%"></p>
+<p align="center"><img src="docs/figures/docrev-hero.svg" alt="Left, a Methods paragraph in Markdown carrying a reviewer's comment and two tracked changes in CriticMarkup notation; right, the same paragraph built as a Word page, with the changes shown as Word tracked changes and the comment in the margin. An arrow labelled build points from the Markdown to Word, an arrow labelled sync points back." width="100%"></p>
 
 docrev lets you write a paper in plain text files while your co-authors and reviewers keep working in Microsoft Word.
 
