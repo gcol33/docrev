@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.8] - 2026-11-10
+
 ### Changed
 
 - **Methods in Ecology and Evolution no longer counts table cells toward the 8,000-word limit.** The guidelines name "tables/figure captions, statements and references list"; the captions count, the cells are reported but left out of the total.
