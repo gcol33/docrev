@@ -229,7 +229,6 @@ export const revYamlSchema: Schema = {
       description: 'Word output settings',
       properties: {
         reference: { type: 'string', description: 'Reference document for styling' },
-        keepComments: { type: 'boolean', default: true },
         toc: { type: 'boolean', default: false },
         translateRawFigures: {
           type: 'boolean',

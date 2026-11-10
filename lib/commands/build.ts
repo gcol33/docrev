@@ -602,11 +602,6 @@ export function register(program: Command, pkg?: { version?: string }): void {
         config.docx.toc = true;
       }
 
-      if (options.dual) {
-        config.docx = config.docx || {};
-        config.docx.keepComments = false;
-      }
-
       // Apply beamer CLI options
       if (options.theme) {
         config.beamer = config.beamer || {};

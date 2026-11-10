@@ -101,7 +101,6 @@ export interface PdfConfig {
 
 export interface DocxConfig {
   reference?: string | null;
-  keepComments?: boolean;
   affiliationNewline?: boolean;
   toc?: boolean;
   pandocArgs?: string[];
@@ -356,7 +355,6 @@ export const DEFAULT_CONFIG: BuildConfig = {
   },
   docx: {
     reference: null,
-    keepComments: false,
     affiliationNewline: true,
     toc: false,
     translateRawFigures: true,
@@ -1050,12 +1048,11 @@ export function prepareForFormat(
   // Pass sections from config to ensure correct file ordering
   const registry = buildRegistry(directory, config.sections);
 
-  // Strip annotations per format
-  if (format === 'docx') {
-    content = stripAnnotations(content, { keepComments: config.docx.keepComments });
-  } else {
-    content = stripAnnotations(content);
-  }
+  // Every format builds from clean text: tracked changes applied, comments
+  // and highlights removed. Comments reach an output only through the
+  // dedicated comment builds (buildCommentsDocx, buildCommentsPdf,
+  // buildReviewedDocx), which turn them into Word comments or margin notes.
+  content = stripAnnotations(content);
 
   // Apply shared format transforms
   content = applyFormatTransforms(content, format, config, registry);

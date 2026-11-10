@@ -174,7 +174,7 @@ describe('Template content validation', () => {
     const yaml = TEMPLATES.paper.files['rev.yaml'];
 
     assert.ok(yaml.includes('docx:'));
-    assert.ok(yaml.includes('keepComments:'));
+    assert.ok(yaml.includes('reference:'));
   });
 
   it('section files should start with heading', () => {

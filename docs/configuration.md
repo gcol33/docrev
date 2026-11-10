@@ -49,7 +49,6 @@ pdf:
 # Word output settings
 docx:
   reference: template.docx   # Optional reference doc for styling
-  keepComments: true         # Preserve CriticMarkup comments
   toc: false
 ```
 

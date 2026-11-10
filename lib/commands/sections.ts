@@ -234,9 +234,6 @@ async function bootstrapFromWord(docx: string, options: BootstrapOptions): Promi
         geometry: 'margin=1in',
         linestretch: 1.5,
       },
-      docx: {
-        keepComments: true,
-      },
     };
 
     console.log(`\n  ${chalk.bold('rev.yaml')} - project configuration`);

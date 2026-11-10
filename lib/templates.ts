@@ -56,7 +56,6 @@ pdf:
 # Word output settings
 docx:
   reference: null  # path to reference.docx template
-  keepComments: true
 `,
       'introduction.md': `# Introduction
 
@@ -493,7 +492,6 @@ pdf:
 # Word output settings
 docx:
   reference: null  # path to reference.docx template
-  keepComments: true
 `;
 
   // Generate section files

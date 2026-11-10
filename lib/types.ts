@@ -89,7 +89,6 @@ export interface PdfConfig {
 
 export interface DocxConfig {
   reference?: string;
-  keepComments?: boolean;
   toc?: boolean;
   tableLayout?: boolean;
 }

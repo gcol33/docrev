@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Methods in Ecology and Evolution no longer counts table cells toward the 8,000-word limit.** The guidelines name "tables/figure captions, statements and references list"; the captions count, the cells are reported but left out of the total.
 
+### Fixed
+
+- **`docrev build docx` no longer writes comments into the text.** With `docx.keepComments: true` in `rev.yaml`, which `docrev new` and `docrev sections` wrote into every project, a plain DOCX build left `{>>Author: text<<}` comments in the markdown handed to pandoc, and they came out as literal text in the document body; the PDF and the clean file of `--dual` were unaffected. Every format now builds from the same clean text: tracked changes applied, comments and highlights removed.
+
+### Removed
+
+- **`docx.keepComments`.** The setting had no other effect than the one above and is ignored in an existing `rev.yaml`. Comments reach a DOCX as threaded Word comments through `docrev build docx --dual` (`<name>_comments.docx`) or `--dual --show-changes`.
+
 ## [0.17.7] - 2026-11-03
 
 ### Added
