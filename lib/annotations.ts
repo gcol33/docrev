@@ -595,6 +595,18 @@ export function getTrackChanges(text: string): Annotation[] {
 }
 
 /**
+ * CriticMarkup for a comment thread: the comment, then each reply. Replies
+ * carry a `↪ ` author prefix so a re-import threads them under the comment
+ * regardless of where neighbouring threads land.
+ */
+export function formatCommentThread(
+  comment: { author: string; text: string },
+  replies: Array<{ author: string; text: string }> = []
+): string {
+  return `{>>${comment.author}: ${comment.text}<<}` + replies.map((r) => `{>>↪ ${r.author}: ${r.text}<<}`).join('');
+}
+
+/**
  * Get comments only
  * @param text - Markdown text with CriticMarkup annotations
  * @param options - Filter options

@@ -317,6 +317,7 @@ export type FlowItem =
   | { kind: 'commentStart'; id: string; xmlStart: number; xmlEnd: number }
   | { kind: 'commentEnd'; id: string; xmlStart: number; xmlEnd: number }
   | { kind: 'commentRef'; id: string }
+  | { kind: 'bookmarkStart'; name: string }
   | { kind: 'insStart' }
   | { kind: 'insEnd' }
   | { kind: 'delStart' }
@@ -446,6 +447,11 @@ export function walkBody(xml: string, ns?: NsContext): FlowItem[] {
           if (id !== undefined) flow.push({ kind: 'commentRef', id });
           break;
         }
+        case 'bookmarkStart': {
+          const name = nsCtx.wmlAttr(tok, 'name');
+          if (name !== undefined) flow.push({ kind: 'bookmarkStart', name });
+          break;
+        }
         default:
           break;
       }
@@ -538,6 +544,75 @@ export function buildDocTextModel(xml: string): DocTextModel {
   }
 
   return { text, comments, headings };
+}
+
+export interface CommentBookmark {
+  id: string;
+  /** Anchor text between the comment's range markers, trimmed. */
+  anchor: string;
+  /** Name of the last accepted bookmark that starts before the comment, or null. */
+  bookmark: string | null;
+}
+
+export interface CommentBookmarkModel {
+  comments: CommentBookmark[];
+  /** Tracked insertions and deletions in the part. */
+  trackedChanges: number;
+}
+
+/**
+ * For each comment in a part, the last bookmark before it that `accept`
+ * admits. A docx built with one bookmark per source paragraph (as from a
+ * LaTeX source) thereby names the paragraph each comment belongs to, however
+ * the reviewer edited the text around it.
+ */
+export function buildCommentBookmarkModel(xml: string, accept: (name: string) => boolean): CommentBookmarkModel {
+  let text = '';
+  let current: string | null = null;
+  let trackedChanges = 0;
+  const open = new Map<string, { start: number; bookmark: string | null }>();
+  const comments = new Map<string, CommentBookmark>();
+
+  for (const item of walkBody(xml)) {
+    switch (item.kind) {
+      case 'text':
+        text += item.text;
+        break;
+      case 'paraEnd':
+        text += '\n';
+        break;
+      case 'bookmarkStart':
+        if (accept(item.name)) current = item.name;
+        break;
+      case 'insStart':
+      case 'delStart':
+        trackedChanges++;
+        break;
+      case 'commentStart':
+        if (!open.has(item.id) && !comments.has(item.id)) open.set(item.id, { start: text.length, bookmark: current });
+        break;
+      case 'commentEnd': {
+        const started = open.get(item.id);
+        if (started && !comments.has(item.id)) {
+          comments.set(item.id, {
+            id: item.id,
+            anchor: text.slice(started.start).replace(/\s+/g, ' ').trim(),
+            bookmark: started.bookmark,
+          });
+          open.delete(item.id);
+        }
+        break;
+      }
+      case 'commentRef':
+        if (!comments.has(item.id) && !open.has(item.id)) {
+          comments.set(item.id, { id: item.id, anchor: '', bookmark: current });
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return { comments: [...comments.values()], trackedChanges };
 }
 
 // =============================================================================

@@ -115,6 +115,15 @@ export const revYamlSchema: Schema = {
       description: 'Ordered list of section files to include',
       items: { type: 'string', pattern: '.*\\.md$' },
     },
+    source: {
+      type: 'string',
+      description: 'LaTeX (.tex) or knitr (.Rnw) manuscript to build the docx from instead of `sections`. `docrev sync` writes Word comments back into it, anchored by its `% @p:` paragraph markers.',
+      pattern: '.*\\.([tT][eE][xX]|[rR][nN][wW])$',
+    },
+    knit: {
+      type: 'string',
+      description: 'Shell command that knits an .Rnw `source` to .tex, run in the source\'s folder before each docx build (e.g. Rscript -e "knitr::knit(\'paper.Rnw\')").',
+    },
     wordCount: {
       type: 'object',
       description: 'Word-count settings for `docrev validate` and `docrev word-count`',

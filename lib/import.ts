@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { stripAnnotations } from './annotations.js';
+import { stripAnnotations, formatCommentThread } from './annotations.js';
 import { readImageRegistry } from './image-registry.js';
 import { openDocx } from './ooxml.js';
 
@@ -573,7 +573,7 @@ export function insertCommentsIntoMarkdown(
   // ignoring incidental matches farther away.
   let dedupedCount = 0;
   for (const c of matchedRoots) {
-    const parentBlock = `{>>${c.author}: ${c.text}<<}`;
+    const parentBlock = formatCommentThread(c);
     const replies = repliesByRoot.get(c.id) ?? [];
     const windowStart = Math.max(0, c.pos - 200);
     const windowEnd = Math.min(result.length, c.pos + 200);
@@ -582,13 +582,9 @@ export function insertCommentsIntoMarkdown(
       dedupedCount += 1 + replies.length;
       continue;
     }
-    // Replies carry an explicit `↪ ` author prefix so the round-trip does not
-    // depend on positional adjacency in the markdown. On dense reviewer docs
-    // distinct clusters frequently land at the same anchor position; without
-    // the prefix the re-parse would misthread them. The injection side strips
-    // `↪ ` back off the author so Word renders the original name.
-    const replyBlocks = replies.map(r => `{>>↪ ${r.author}: ${r.text}<<}`);
-    const combined = parentBlock + replyBlocks.join('');
+    // The injection side strips the replies' `↪ ` back off the author so Word
+    // renders the original name.
+    const combined = formatCommentThread(c, replies);
     if (wrapAnchor && c.anchorText && c.anchorEnd) {
       const before = result.slice(0, c.pos);
       const anchor = result.slice(c.pos, c.anchorEnd);
@@ -612,11 +608,7 @@ export function insertCommentsIntoMarkdown(
     outStats.unmatched = unmatchedCount;
     // CriticMarkup for every cluster that could not be placed anywhere, so a
     // read-only caller can append it rather than drop a reviewer's comment.
-    outStats.unmatchedBlocks = unmatched.map((c) => {
-      const replies = repliesByRoot.get(c.id) ?? [];
-      const replyBlocks = replies.map(r => `{>>↪ ${r.author}: ${r.text}<<}`);
-      return `{>>${c.author}: ${c.text}<<}` + replyBlocks.join('');
-    });
+    outStats.unmatchedBlocks = unmatched.map((c) => formatCommentThread(c, repliesByRoot.get(c.id) ?? []));
   }
 
   // Log warnings unless quiet mode

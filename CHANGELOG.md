@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A LaTeX or knitr manuscript goes out as Word and its comments come back into the source** (#25). `rev.yaml` names the `.tex` or `.Rnw` as `source:` (with an optional `knit:` command), and `docrev build docx` builds the docx from it: the document class's macros are expanded (`jss.cls`: `\pkg`, `\proglang`, `\code`, `\fct`, `\class`, `\Abstract`, `\Keywords`, ...), section, figure, table and equation numbers and every `\ref` come from the `.aux` of the last LaTeX run, TikZ pictures are rendered with the document's preamble and PDF figures converted to PNG, Sweave/knitr chunks become code blocks, and class macros in the bibliography are reduced to their text so titles such as `{\pkg{quickmatch}}: Quick Generalized Full Matching` stay complete. Each source paragraph carries a docx bookmark named after its `% @p:` marker, and `docrev sync` writes each Word comment into that paragraph as a `% {==anchor==}{>>Author: text<<}` line above the line holding its anchor text, into the `.Rnw` rather than the knitted `.tex`. On the couplr JSS manuscript (`couplr-jss.Rnw`, 159 paragraphs) the docx shows all four figures and eight tables numbered as in the PDF with no unresolved reference, and five test comments, one of them a reply, landed in their paragraphs; a second sync skipped all five.
+
+### Fixed
+
+- **`docrev build --no-crossref` skips the pandoc-crossref filter.** The option was accepted and shown in the build summary, but every pandoc run still added the filter and its `crossref.yaml`.
+- **A LaTeX tie counts as a space in `docrev word-count`.** `Layer~I` counted as one word; it now counts as two, as typeset.
+
 ## [0.17.8] - 2026-11-10
 
 ### Changed

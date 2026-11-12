@@ -581,6 +581,41 @@ export function register(program: Command, pkg?: { version?: string }): void {
         console.log('');
       }
 
+      const { hasLatexSource, buildLatexDocx } = await import('../latex-input.js');
+      if (hasLatexSource(config)) {
+        const unsupported = targetFormats.filter((f) => f !== 'docx');
+        if (unsupported.length > 0 || options.dual || options.showChanges) {
+          console.error(fmt.status('error', `A LaTeX source (${config.source}) builds a plain docx only (\`docrev build docx\`); build the PDF with the manuscript's LaTeX toolchain`));
+          process.exit(1);
+        }
+        const spin = fmt.spinner(`Building docx from ${config.source}...`).start();
+        try {
+          const result = await buildLatexDocx(dir, config, {
+            output: options.output,
+            pandocArgs: options.pandocArg,
+            verbose: options.verbose,
+          });
+          spin.stop();
+          console.log(chalk.cyan(`LaTeX source → docx`));
+          console.log(chalk.dim(`  ${path.relative(dir, result.texPath)} (${result.anchors} paragraph anchors)`));
+          console.log('');
+          for (const w of result.warnings) console.log(chalk.yellow(`Warning: ${w}`));
+          if (result.warnings.length > 0) console.log('');
+          if (!result.success) {
+            console.error(fmt.status('error', result.error ?? 'pandoc failed'));
+            process.exit(1);
+          }
+          console.log(fmt.status('success', `docx: ${path.relative(dir, result.outputPath!)}`));
+          console.log(chalk.dim('  Comments added in Word come back with `docrev sync <file>.docx`.'));
+        } catch (err) {
+          spin.stop();
+          console.error(fmt.status('error', (err as Error).message));
+          if (process.env.DEBUG) console.error((err as Error).stack);
+          process.exit(1);
+        }
+        return;
+      }
+
       const tocEnabled = options.toc || config.pdf?.toc || config.docx?.toc;
       if (journalName) console.log(chalk.dim(`  Journal: ${journalName}`));
       console.log(chalk.dim(`  Formats: ${targetFormats.join(', ')}`));

@@ -34,6 +34,12 @@ newer edits, but comments still need to land. Comments are placed at
 fuzzy-matched anchors against the current prose. Pair with
 `docrev verify-anchors` to see which ones won't fit before you run sync.
 
+In a project whose `rev.yaml` names a LaTeX or knitr `source:` (`.tex`/`.Rnw`),
+`docrev build docx` builds the docx from it and `docrev sync reviewed.docx`
+writes each Word comment into that source as a `% {==anchor==}{>>Author: text<<}`
+line in its paragraph, found by the docx bookmark of its `% @p:` marker.
+Tracked changes are reported, not applied.
+
 ### docrev verify-anchors
 Report drift between Word comment anchors and the current markdown.
 ```bash

@@ -26,6 +26,7 @@ import { layoutDocxTables } from './docx-tables.js';
 import { hasPandoc, hasPandocCrossref, hasLatex } from './dependencies.js';
 import { buildImageRegistry, writeImageRegistry } from './image-registry.js';
 import { stripParagraphMarkers } from './paragraph-markers.js';
+import { hasLatexSource, buildLatexDocx } from './latex-input.js';
 import type { Author, JournalFormatting } from './types.js';
 import { getJournalProfile } from './journals.js';
 import { resolveCSL } from './csl.js';
@@ -251,6 +252,14 @@ export interface BuildConfig {
     /** Extra statement headings, added to the profile's `wordLimit.statementHeadings`. */
     statementHeadings?: string[];
   };
+  /**
+   * LaTeX (`.tex`) or knitr (`.Rnw`) manuscript the docx is built from, in
+   * place of `sections` (lib/latex-input.ts). `docrev sync` writes Word
+   * comments back into this file.
+   */
+  source?: string | null;
+  /** Shell command that knits an `.Rnw` source, run in the source's folder before a build. */
+  knit?: string | null;
   _configPath?: string | null;
 }
 
@@ -1729,7 +1738,12 @@ export function resolveLatexPreambleSources(
  * appended later in runPandoc so they win against pptx/crossref defaults
  * added there.
  */
-export function buildPandocArgs(format: string, config: BuildConfig, outputPath: string): string[] {
+export function buildPandocArgs(
+  format: string,
+  config: BuildConfig,
+  outputPath: string,
+  options: { crossref?: boolean } = {}
+): string[] {
   const args: string[] = [];
 
   // Output format
@@ -1754,7 +1768,7 @@ export function buildPandocArgs(format: string, config: BuildConfig, outputPath:
   args.push('-o', outputPath);
 
   // Crossref filter (if available) - skip for slides
-  if (hasPandocCrossref() && format !== 'beamer' && format !== 'pptx') {
+  if (options.crossref !== false && hasPandocCrossref() && format !== 'beamer' && format !== 'pptx') {
     args.push('--filter', 'pandoc-crossref');
   }
 
@@ -2058,11 +2072,13 @@ export async function runPandoc(
     }
   }
 
-  // Ensure crossref.yaml exists
-  ensureCrossrefConfig(directory, config);
+  const useCrossref = options.crossref !== false;
+  if (useCrossref) ensureCrossrefConfig(directory, config);
 
   // Pandoc runs with cwd = directory, so pass the output path relative to it.
-  const args = buildPandocArgs(format, config, path.relative(directory, outputPath) || path.basename(outputPath));
+  const args = buildPandocArgs(format, config, path.relative(directory, outputPath) || path.basename(outputPath), {
+    crossref: useCrossref,
+  });
 
   // Handle PPTX reference template and themes
   let pptxMediaDir: string | null = null;
@@ -2160,7 +2176,7 @@ export async function runPandoc(
   }
 
   // Add crossref metadata file if exists (skip for slides - they don't use crossref)
-  if (format !== 'beamer' && format !== 'pptx') {
+  if (useCrossref && format !== 'beamer' && format !== 'pptx') {
     const crossrefPath = path.join(directory, 'crossref.yaml');
     if (fs.existsSync(crossrefPath) && hasPandocCrossref()) {
       // Use basename since we set cwd to directory
@@ -2310,6 +2326,30 @@ export async function build(
     throw new Error(`Pandoc not found. Install with: ${instruction}\nOr run: docrev doctor`);
   }
 
+  // Load config (use passed config if provided, otherwise load from file)
+  const config = options.config || loadConfig(directory);
+
+  // A LaTeX/knitr source builds only the docx, through its own adapter; the
+  // PDF comes from the manuscript's own LaTeX toolchain.
+  if (hasLatexSource(config)) {
+    const unsupported = formats.filter((f) => f !== 'docx');
+    if (unsupported.length > 0) {
+      throw new Error(`A LaTeX source (${config.source}) builds docx only; build ${unsupported.join(', ')} with the manuscript's LaTeX toolchain`);
+    }
+    const latex = await buildLatexDocx(directory, config, {
+      output: options.output,
+      pandocArgs: options.pandocArgs,
+      verbose: options.verbose,
+    });
+    return {
+      results: [{ format: 'docx', success: latex.success, outputPath: latex.outputPath, error: latex.error }],
+      paperPath: latex.texPath,
+      warnings: latex.warnings,
+      externalRefsResolved: 0,
+      refsAutoInjected: false,
+    };
+  }
+
   // Check LaTeX if PDF is requested
   if ((formats.includes('pdf') || formats.includes('all')) && !hasLatex()) {
     warnings.push(`LaTeX not found - PDF generation may fail. Install with: ${getInstallInstructions('latex')}`);
@@ -2319,9 +2359,6 @@ export async function build(
   if (!hasPandocCrossref()) {
     warnings.push('pandoc-crossref not found - figure/table numbering will not work');
   }
-
-  // Load config (use passed config if provided, otherwise load from file)
-  const config = options.config || loadConfig(directory);
 
   // Combine sections → paper.md
   const buildOptions: CombineOptions = { ...options };

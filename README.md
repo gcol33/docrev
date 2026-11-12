@@ -106,6 +106,8 @@ my-paper/
 
 You edit the section files and `rev.yaml`, and docrev writes the rest. Each build combines the sections into `paper.md` in the order `rev.yaml` lists them. `docrev config sections "intro,methods,results,discussion"` sets your own default sections for later projects.
 
+A paper written in LaTeX or knitr instead names its `.tex` or `.Rnw` as `source:` in `rev.yaml`. `docrev build docx` turns it into a Word copy with the PDF's numbering, figures and references, and `docrev sync` writes the reviewers' comments back into the source paragraph by paragraph ([details](docs/configuration.md#latex-and-knitr-sources)).
+
 ## Answering reviewers
 
 ```bash

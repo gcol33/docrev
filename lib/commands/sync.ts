@@ -136,6 +136,15 @@ export function register(program: Command): void {
         return;
       }
 
+      // A LaTeX/knitr source: comments go back into it by paragraph bookmark.
+      const { loadConfig } = await import('../build.js');
+      const { hasLatexSource } = await import('../latex-input.js');
+      const buildConfig = loadConfig(path.resolve(options.dir));
+      if (hasLatexSource(buildConfig)) {
+        await syncLatexSource(docx, path.resolve(options.dir, buildConfig.source!), options);
+        return;
+      }
+
       // Resolve the section config: an explicit sections.yaml if present,
       // otherwise the `sections:` list in rev.yaml (single source of truth).
       const resolved = resolveSectionsConfig(options.dir, options.config);
@@ -525,6 +534,41 @@ export function register(program: Command): void {
         process.exit(1);
       }
     });
+}
+
+/**
+ * Sync a docx built from a LaTeX/knitr source: its comments go into the
+ * source by paragraph bookmark (lib/latex-sync.ts). Prose edits and tracked
+ * changes stay in Word.
+ */
+async function syncLatexSource(docx: string, sourcePath: string, options: SyncOptions): Promise<void> {
+  const { syncLatexComments } = await import('../latex-sync.js');
+  const rel = path.relative(path.resolve(options.dir), sourcePath);
+  let result;
+  try {
+    result = syncLatexComments(docx, sourcePath, { dryRun: options.dryRun });
+  } catch (err) {
+    console.error(fmt.status('error', (err as Error).message));
+    process.exit(1);
+  }
+
+  console.log(fmt.header(`Comments from ${path.basename(docx)} → ${rel}`));
+  console.log();
+  if (result.placed > 0) console.log(fmt.status('success', `${result.placed} comment(s) placed at their anchor text`));
+  if (result.atParagraphStart > 0) {
+    console.log(fmt.status('warning', `${result.atParagraphStart} comment(s) placed at the start of their paragraph (anchor text not found in it)`));
+  }
+  if (result.unanchored > 0) {
+    console.log(fmt.status('warning', `${result.unanchored} comment(s) whose paragraph is not in the source any more, written before \\end{document}`));
+  }
+  if (result.deduped > 0) console.log(chalk.dim(`  ${result.deduped} comment(s) already in the source, skipped`));
+  if (result.placed + result.atParagraphStart + result.unanchored + result.deduped === 0) {
+    console.log(fmt.status('info', 'No comments in the document.'));
+  }
+  if (result.trackedChanges > 0) {
+    console.log(fmt.status('warning', `${result.trackedChanges} tracked change(s) in the docx are not applied to a LaTeX source; review them in Word`));
+  }
+  if (options.dryRun) console.log(chalk.dim('\n  Dry run: source not written.'));
 }
 
 /**

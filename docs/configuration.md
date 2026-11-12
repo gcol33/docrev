@@ -60,6 +60,35 @@ Built files go to `output/` by default. Set `outputDir` to another folder, or to
 outputDir: output
 ```
 
+## LaTeX and knitr Sources
+
+A manuscript written in LaTeX (`.tex`) or knitr (`.Rnw`) goes out as Word for review and has the comments come back into the source. Name it in `rev.yaml` in place of `sections`:
+
+```yaml
+source: jss/paper.Rnw
+knit: Rscript -e "knitr::knit('paper.Rnw')"   # optional, run in the source's folder
+outputDir: output
+```
+
+`docrev build docx` knits the `.Rnw` (when `knit` is set), reads the `.tex` next to it and writes `output/paper.docx`. Compile the PDF first: section, figure, table and equation numbers and every `\ref` are taken from the `.aux` of the last LaTeX run, so the docx carries the PDF's numbers. Along the way:
+
+- macros of the document class are expanded (for `jss.cls`: `\pkg`, `\proglang`, `\code`, `\fct`, `\class`, `\Abstract`, `\Keywords`, ...); a macro the document defines itself keeps its own definition;
+- TikZ pictures are rendered with the document's preamble and PDF figures converted to PNG, which needs `pdflatex` and `pdftocairo` (poppler) on the PATH;
+- Sweave/knitr code and output become code blocks;
+- class macros in the bibliography (`{\pkg{quickmatch}}`) are reduced to their text, so reference titles stay complete.
+
+Only the docx is built this way; the PDF comes from the manuscript's own LaTeX toolchain.
+
+`docrev sync review.docx` writes each Word comment into the source as a LaTeX comment line above the line where its anchor text starts:
+
+```latex
+% @p:intro.stakes
+% {==Two difficulties arise in practice.==}{>>Reviewer 1: Name them here.<<}
+smallest total distance. Two difficulties arise in practice. A solver reports
+```
+
+Each paragraph of the docx carries a bookmark named after its source paragraph: the id of a `% @p:<id>` marker line, or for an unmarked paragraph its position after the previous marker. A comment therefore lands in its paragraph even when the reviewer edited the text around it or the source changed since the build, and for an `.Rnw` it lands in the `.Rnw`, not the knitted `.tex`. Running the sync again skips the comments already written; `docrev comments paper.Rnw` lists them. Tracked changes stay in Word and are counted in the sync report.
+
 ## PDF Engine and Fonts
 
 ```yaml
