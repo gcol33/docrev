@@ -963,6 +963,13 @@ describe('story problem and question', () => {
     assert.strictEqual(doc.meaning, 'Habitat transfers, survey metadata do not.');
   });
 
+  it('reports an unrelated heading as an unknown story section', () => {
+    const { doc, errors } = parseStory('## Stakes\nGaps bias comparisons.\n\n## Backstory\nNot a story section.\n');
+    assert.strictEqual(doc.stakes, 'Gaps bias comparisons.');
+    assert.strictEqual(errors.length, 1);
+    assert.match(errors[0].message, /Unknown story section "Backstory"/);
+  });
+
   it('parses the paper-funnel spec section', () => {
     const { doc, errors } = parseStory('## Funnel\n- claim-sentence: "X limits Y."\n- scope-number: 33,830 species\n');
     assert.deepStrictEqual(errors, []);
