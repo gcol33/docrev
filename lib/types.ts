@@ -662,8 +662,14 @@ export interface JourneyEntry {
   job: string;
   support: string;
   leaves: string;
-  /** What the paragraph expects the reader to know already. */
+  /**
+   * What the paragraph expects the reader to know already: items separated by `;`.
+   * Each item is checked against the `introduces` of earlier entries and the Terms of
+   * information.md. `nothing ...` and items written `reader: ...` (audience knowledge) are not checked.
+   */
   assumes: string;
+  /** What the paragraph makes available to later ones (an item, a float, a subject, a unit), from `- introduces: a; b`. */
+  introduces?: string[];
   /** Open findings recorded on the entry, one per `- warning:` line. */
   warnings: string[];
   /** Findings overruled on the entry, one per `- accept:` line. */
@@ -718,6 +724,9 @@ export type JourneyFindingKind =
   | 'todo-evidence'
   | 'near-duplicate'
   | 'unlisted-float'
+  | 'float-early'
+  | 'assumed-early'
+  | 'assumed-unsupplied'
   | 'significance-drift'
   | 'si-only-evidence'
   | 'supplement-missing-file'

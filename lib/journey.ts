@@ -14,7 +14,8 @@
  *   - job: ...
  *   - support: ...
  *   - leaves: ...
- *   - assumes: ...
+ *   - assumes: <item>; <item>      (each introduced by an earlier entry or a Term)
+ *   - introduces: <item>; <item>   (what later paragraphs may assume)
  *   - negotiated: <who> <date> [#<hash>]: <decision>   (repeatable)
  *   - warning: <finding>          (repeatable)
  *   - accept: <check>: <reason>   (repeatable)
@@ -150,6 +151,9 @@ export function parseJourney(content: string, file = 'journey.md'): { doc: Journ
       case 'assumes':
         current.assumes = value;
         break;
+      case 'introduces':
+        (current.introduces ??= []).push(...value.split(';').map((c) => c.trim()).filter(Boolean));
+        break;
       case 'warning':
         current.warnings.push(value);
         break;
@@ -184,6 +188,7 @@ export function formatJourneyEntry(entry: JourneyEntry): string {
   if (entry.support) lines.push(`- support: ${entry.support}`);
   if (entry.leaves) lines.push(`- leaves: ${entry.leaves}`);
   if (entry.assumes) lines.push(`- assumes: ${entry.assumes}`);
+  if (entry.introduces?.length) lines.push(`- introduces: ${entry.introduces.join('; ')}`);
   if (entry.criteria?.length) lines.push(`- criterion: ${entry.criteria.join('; ')}`);
   for (const decision of entry.negotiated ?? []) lines.push(`- negotiated: ${decision}`);
   for (const warning of entry.warnings) lines.push(`- warning: ${warning}`);
@@ -360,6 +365,30 @@ export interface JourneyCheckOptions {
   registry?: Registry | null;
   /** Markers followed by no paragraph (see `strayParagraphMarkers`). */
   strayMarkers?: StrayParagraphMarker[];
+  /** Terms of information.md: each supplies its forms from its defining and glossing paragraphs on. */
+  terms?: SuppliedTerm[];
+}
+
+/** The part of an information.md Terms entry that says where the text supplies the term. */
+export interface SuppliedTerm {
+  forms: string[];
+  defined: string | null;
+  glossed: string[];
+  known: boolean;
+}
+
+const itemKey = (item: string): string =>
+  item.replace(/[’‘]/g, "'").replace(/^[`"'“”]+|[`"'“”.]+$/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
+/**
+ * The checkable items of an `assumes:` line. `nothing ...` records a clean paragraph and
+ * `reader: ...` names what the audience brings; neither needs an earlier paragraph.
+ */
+export function assumedItems(assumes: string): string[] {
+  return assumes
+    .split(';')
+    .map((item) => item.trim())
+    .filter((item) => item && !/^nothing\b/i.test(item) && !/^reader\s*:/i.test(item));
 }
 
 /**
@@ -680,7 +709,75 @@ export function journeyCheck(
     checkCollection('fig', registry.figures);
     checkCollection('tbl', registry.tables);
     checkCollection('eq', registry.equations);
+
+    // 8. A figure or table stands before the first paragraph that cites it.
+    const checkPlacement = (type: 'fig' | 'tbl', collection: Registry['figures']) => {
+      for (const label of collection.keys()) {
+        const placed = blocks.findIndex((b) => anchorPattern(type, label).test(b.text));
+        if (placed < 0) continue;
+        const cited = blocks.findIndex((b, idx) => idx !== placed && refPattern(type, label).test(b.text));
+        if (cited > placed) {
+          const owner = blocks[placed]?.markerId;
+          const citing = blocks[cited];
+          findings.push({
+            kind: 'float-early',
+            message: `@${type}:${label} stands before the first paragraph that cites it (${citing?.markerId ?? `${citing?.file}:${citing?.line}`})`,
+            ...(owner ? { entryIds: [owner] } : {}),
+          });
+        }
+      }
+    };
+    checkPlacement('fig', registry.figures);
+    checkPlacement('tbl', registry.tables);
   }
+
+  // 9. What a paragraph assumes was introduced by an earlier one. A summary read before the
+  //    text (abstract) supplies only the other summaries: the body introduces everything again.
+  const suppliedAt = new Map<string, number[]>();
+  const supply = (item: string, idx: number) => {
+    const key = itemKey(item);
+    if (key) suppliedAt.set(key, [...(suppliedAt.get(key) ?? []), idx]);
+  };
+  const entryIndex = new Map(journey.entries.map((e, idx) => [e.id, idx]));
+  journey.entries.forEach((entry, idx) => {
+    for (const item of entry.introduces ?? []) supply(item, idx);
+  });
+  const audienceKnows = new Set<string>();
+  for (const term of options.terms ?? []) {
+    for (const form of term.forms) {
+      if (term.known) audienceKnows.add(itemKey(form));
+      for (const anchor of [term.defined, ...term.glossed]) {
+        const idx = anchor ? entryIndex.get(anchor) : undefined;
+        if (idx !== undefined) supply(form, idx);
+      }
+    }
+  }
+  journey.entries.forEach((entry, idx) => {
+    const front = isFrontMatter(entry.section);
+    for (const item of assumedItems(entry.assumes)) {
+      const key = itemKey(item);
+      if (audienceKnows.has(key)) continue;
+      const readable = (suppliedAt.get(key) ?? []).filter((at) => {
+        const supplier = journey.entries[at];
+        return supplier !== undefined && (front || !isFrontMatter(supplier.section));
+      });
+      if (readable.some((at) => at <= idx)) continue;
+      const later = journey.entries[readable[0] ?? -1];
+      findings.push(
+        later
+          ? {
+              kind: 'assumed-early',
+              message: `"${entry.id}" assumes "${item}", which "${later.id}" introduces later`,
+              entryIds: [entry.id],
+            }
+          : {
+              kind: 'assumed-unsupplied',
+              message: `"${entry.id}" assumes "${item}", which no earlier entry introduces (add it to the \`introduces\` of the paragraph that supplies it, or write \`reader: ${item}\` if the audience brings it)`,
+              entryIds: [entry.id],
+            }
+      );
+    }
+  });
 
   return applyAccepts(findings, journey.entries, firstBodyEntryOfArc(journey));
 }
@@ -700,6 +797,9 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
   'todo-evidence': 'TODO evidence',
   'near-duplicate': 'near-duplicate',
   'unlisted-float': 'float has no entry',
+  'float-early': 'float before its first citation',
+  'assumed-early': 'assumed before introduced',
+  'assumed-unsupplied': 'assumed, never introduced',
   'significance-drift': 'significance drift',
   'si-only-evidence': 'SI-only evidence',
   'supplement-missing-file': 'section file missing',
@@ -733,7 +833,7 @@ export const FINDING_LABEL: Record<JourneyFinding['kind'], string> = {
  * wording back in the text, and a paragraph settled with a co-author that changed since.
  * `docrev check` fails on them unless an `- accept:` line overrules them.
  */
-export const BLOCKING: ReadonlySet<JourneyFinding['kind']> = new Set(['undefined', 'use-before-define', 'synonym-drift', 'negotiated-changed']);
+export const BLOCKING: ReadonlySet<JourneyFinding['kind']> = new Set(['undefined', 'use-before-define', 'assumed-early', 'synonym-drift', 'negotiated-changed']);
 
 /** Short hash of a paragraph's text, whitespace collapsed: what a `negotiated` line pins. */
 export function paragraphHash(text: string): string {

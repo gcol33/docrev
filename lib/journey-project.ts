@@ -80,6 +80,10 @@ export function checkJourneyProject(
 
   const result: JourneyProjectResult = { parseErrors, journey: null, supplement: null, information: null };
 
+  const informationName = config.information || 'information.md';
+  const informationText = readIfExists(path.join(dir, informationName));
+  const information = informationText !== null ? parseInformation(informationText, path.basename(informationName)) : null;
+
   const journeyText = readIfExists(path.join(dir, journeyName));
   if (journeyText !== null) {
     const { doc, errors } = parseJourney(journeyText, path.basename(journeyName));
@@ -87,7 +91,12 @@ export function checkJourneyProject(
     const registry = buildRegistry(dir, existing);
     result.journey = {
       file: journeyName,
-      findings: journeyCheck(blocks, doc, { story, registry, strayMarkers: strayParagraphMarkers(manuscript) }),
+      findings: journeyCheck(blocks, doc, {
+        story,
+        registry,
+        strayMarkers: strayParagraphMarkers(manuscript),
+        terms: information?.entries ?? [],
+      }),
       summary: { blocks: blocks.length, entries: doc.entries.length, arcs: story?.arcs.length ?? 0 },
     };
   }
@@ -116,10 +125,8 @@ export function checkJourneyProject(
     };
   }
 
-  const informationName = config.information || 'information.md';
-  const informationText = readIfExists(path.join(dir, informationName));
-  if (informationText !== null) {
-    const { entries, errors } = parseInformation(informationText, path.basename(informationName));
+  if (information !== null) {
+    const { entries, errors } = information;
     parseErrors.push(...errors);
     result.information = {
       file: informationName,

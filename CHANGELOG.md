@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`docrev journey check` reports what a paragraph assumes before the text has introduced it.** A journey entry lists what it relies on in `- assumes: item; item` and what it makes available to later paragraphs in `- introduces: item; item`. An assumed item that only a later entry introduces is `assumed-early` and fails `docrev check`; one that no entry introduces is `assumed-unsupplied`. A Terms entry of information.md supplies its forms from its `defined:` and `glossed:` paragraphs on, `known` terms and items written `reader: ...` are what the audience brings, `nothing ...` records a clean paragraph, and an abstract supplies only other summaries. `float-early` reports a figure or table that stands before the first paragraph citing it by `@fig:`/`@tbl:`.
+
 ## [0.18.0] - 2026-11-12
 
 ### Added

@@ -234,7 +234,12 @@ never part of a build:
 - **`journey.md`** — one entry per paragraph (and per figure, table,
   equation, or code block, at its reading position): a stable ID, the arc(s)
   it serves, its `job` in one sentence, what the reader `leaves`
-  understanding, and what it `assumes` the reader already knows. Front matter (before the first level-1 heading), back
+  understanding, what it `assumes` the reader already has (items separated by
+  `;`) and what it `introduces` for later paragraphs. An assumed item that a
+  later entry introduces is `assumed-early` (fails `docrev check`); one that
+  nothing introduces is `assumed-unsupplied`. Terms of `information.md` supply
+  their forms from their defining paragraph on; `reader: <item>` marks what the
+  audience brings. Front matter (before the first level-1 heading), back
   matter (acknowledgements, availability statements, references,
   supplementary material) and bold-label lines (`**Keywords:** ...`) need
   no entry unless given a marker.

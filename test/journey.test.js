@@ -15,6 +15,7 @@ import {
   scaffoldJourneyEntries,
   serializeJourney,
   formatJourneyEntry,
+  BLOCKING,
   sectionSlug,
   firstSentence,
 } from '../lib/journey.js';
@@ -507,6 +508,69 @@ describe('journeyCheck', () => {
     const reversed = [entries[0], entries[2], entries[1]];
     const reversedBlocks = reversed.map((e) => makeBlock({ markerId: e.id }));
     assert.ok(journeyCheck(reversedBlocks, { title: '', entries: reversed }, { story }).some((f) => f.kind === 'needs-violation'));
+  });
+
+  it('flags an item assumed before the entry that introduces it', () => {
+    const entries = [
+      makeEntry({ id: 'a', assumes: 'two pilots; reader: what a neophyte is' }),
+      makeEntry({ id: 'b', introduces: ['Two pilots', 'Table 1'] }),
+      makeEntry({ id: 'c', assumes: 'Table 1; nothing else' }),
+    ];
+    const blocks = entries.map((e) => makeBlock({ markerId: e.id }));
+    const findings = journeyCheck(blocks, { title: '', entries });
+    const early = findings.filter((f) => f.kind === 'assumed-early');
+    assert.strictEqual(early.length, 1);
+    assert.deepStrictEqual(early[0].entryIds, ['a']);
+    assert.match(early[0].message, /"b" introduces later/);
+    assert.ok(BLOCKING.has('assumed-early'));
+    assert.ok(!findings.some((f) => f.kind === 'assumed-unsupplied'));
+  });
+
+  it('flags an assumed item that nothing introduces, unless a Term supplies it or the audience knows it', () => {
+    const entries = [
+      makeEntry({ id: 'a', assumes: 'dark diversity; site; neophyte' }),
+      makeEntry({ id: 'b' }),
+    ];
+    const blocks = entries.map((e) => makeBlock({ markerId: e.id }));
+    const terms = [
+      { forms: ['dark diversity'], defined: 'b', glossed: ['a'], known: false },
+      { forms: ['neophyte'], defined: null, glossed: [], known: true },
+    ];
+    const findings = journeyCheck(blocks, { title: '', entries }, { terms });
+    const open = findings.filter((f) => f.kind === 'assumed-unsupplied' || f.kind === 'assumed-early');
+    assert.strictEqual(open.length, 1);
+    assert.strictEqual(open[0].kind, 'assumed-unsupplied');
+    assert.match(open[0].message, /assumes "site"/);
+
+    const lateTerm = [{ forms: ['dark diversity'], defined: 'b', glossed: [], known: false }];
+    assert.ok(journeyCheck(blocks, { title: '', entries }, { terms: lateTerm }).some((f) => f.kind === 'assumed-early' && /dark diversity/.test(f.message)));
+  });
+
+  it('does not let the abstract supply the body', () => {
+    const entries = [
+      makeEntry({ id: 'abs', section: 'Abstract', introduces: ['record gap'] }),
+      makeEntry({ id: 'a', assumes: 'record gap' }),
+      makeEntry({ id: 'b', introduces: ['record gap'] }),
+    ];
+    const blocks = entries.map((e) => makeBlock({ markerId: e.id }));
+    assert.ok(journeyCheck(blocks, { title: '', entries }).some((f) => f.kind === 'assumed-early' && f.entryIds.includes('a')));
+  });
+
+  it('round-trips introduces through parse and format', () => {
+    const { doc, errors } = parseJourney('# Journey: T\n\n## Introduction\n\n### a\n- job: J.\n- assumes: x; y\n- introduces: two pilots; Table 1\n');
+    assert.deepStrictEqual(errors, []);
+    assert.deepStrictEqual(doc.entries[0].introduces, ['two pilots', 'Table 1']);
+    assert.match(formatJourneyEntry(doc.entries[0]), /- introduces: two pilots; Table 1/);
+  });
+
+  it('flags a figure that stands before the first paragraph citing it', () => {
+    const registry = { figures: new Map([['gap', {}]]), tables: new Map(), equations: new Map() };
+    const fig = makeBlock({ markerId: 'fig.gap', blockType: 'figure', text: '![Gap](gap.png){#fig:gap}' });
+    const cite = makeBlock({ markerId: 'p', text: 'The gap is wide (@fig:gap).' });
+    const entries = [makeEntry({ id: 'fig.gap', entryType: 'figure' }), makeEntry({ id: 'p' })];
+    assert.ok(journeyCheck([fig, cite], { title: '', entries }, { registry }).some((f) => f.kind === 'float-early' && /fig:gap/.test(f.message)));
+    const ordered = [entries[1], entries[0]];
+    assert.ok(!journeyCheck([cite, fig], { title: '', entries: ordered }, { registry }).some((f) => f.kind === 'float-early'));
   });
 
   it('marks a finding overruled by an accept line on the entry it concerns', () => {
